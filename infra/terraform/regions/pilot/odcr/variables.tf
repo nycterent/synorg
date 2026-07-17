@@ -30,6 +30,15 @@ variable "held_reservations" {
       availability_zone = "eu-west-1a"
       instance_count    = 8
     }
+    # G7e (NVIDIA RTX PRO 6000 Blackwell, 96GB) is the memory-heavy inference
+    # candidate the PRD scarcity example names ("asked 8×G7e, got 3"); ~$3.36 per
+    # GPU-hour on-demand (g7e.2xlarge, us-east-2, 2026). Sized from the capture
+    # inventory like the others; feeds the quarterly $/GPU-hour review.
+    g7e-2xlarge-a = {
+      instance_type     = "g7e.2xlarge"
+      availability_zone = "eu-west-1a"
+      instance_count    = 3
+    }
   }
 
   # instance_count must be positive — a zero-count reservation holds nothing and
