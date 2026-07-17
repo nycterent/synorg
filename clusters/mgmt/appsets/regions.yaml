@@ -9,6 +9,11 @@
 # Cluster generator, so each spoke only ever generates its own overlays — no
 # cross-product across clusters.
 #
+# services/ is EXCLUDED here: those files are golden-chart values, not
+# manifests (no apiVersion/kind), so a plain-manifest Application would never
+# converge. The services ApplicationSet (services.yaml) renders them through
+# charts/golden-service instead.
+#
 # Per-spoke scoped credentials (KTD7 compromise hardening): each spoke is
 # registered as an ArgoCD cluster secret holding a *scoped, rotated* credential
 # (an assume-role limited to that spoke), never a shared fleet-wide admin. The
@@ -37,6 +42,9 @@ spec:
               revision: HEAD
               directories:
                 - path: "clusters/{{.name}}/*"
+                # Values dir, not manifests — owned by the services ApplicationSet.
+                - path: "clusters/{{.name}}/services"
+                  exclude: true
   template:
     metadata:
       # One Application per (cluster, overlay component).

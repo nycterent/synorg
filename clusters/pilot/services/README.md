@@ -2,8 +2,10 @@
 
 Golden-service **values files** for serving workloads on the pilot cluster — one
 YAML file per service. Each file is the whole deploy interface for that service
-(R4): no ingress config, no env DSL, no deploy wiki. GitOps (ApplicationSet)
-renders each file through `charts/golden-service` and converges it.
+(R4): no ingress config, no env DSL, no deploy wiki. The services ApplicationSet
+(`clusters/mgmt/appsets/services.yaml`) emits one Application per file and renders
+it through `charts/golden-service` as a multi-source Helm app — one converged
+service per values file, landing in the owning team's namespace (`team-<team>`).
 
 ## What lives here
 

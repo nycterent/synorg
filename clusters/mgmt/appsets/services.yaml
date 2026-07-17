@@ -1,0 +1,68 @@
+# Services ApplicationSet — the deploy path for golden-chart serving workloads.
+#
+# Files under clusters/<name>/services/*.yaml are golden-chart VALUES, not
+# manifests. The regions ApplicationSet (regions.yaml) excludes that dir; this
+# one renders each file through charts/golden-service and converges it — closing
+# the wiring gap where a merged, schema-valid values file would never actually
+# deploy.
+#
+# Generator: Cluster (spoke) × Git FILE generator. The file generator emits one
+# set of params PER values file (not per directory), so each service becomes its
+# own Application, and the file's own contents (team, workloadClass, …) are
+# available as template params.
+#
+# Rendering: multi-source Application. Source `values` is a bare repo ref (no
+# path) that the chart source references as $values; the chart source points at
+# charts/golden-service and feeds the service's values file via helm.valueFiles.
+# Chart and values live in the same repo, but the $values-ref form is the robust
+# multi-source pattern (valueFiles can't reliably escape the chart dir upward).
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: services
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          - clusters:
+              selector:
+                matchLabels:
+                  synorg.io/role: spoke
+          - git:
+              repoURL: https://github.com/synorg/synorg.git
+              revision: HEAD
+              # One Application per values file; file contents become params.
+              files:
+                - path: "clusters/{{.name}}/services/*.yaml"
+  template:
+    metadata:
+      # <cluster>-svc-<service-filename-without-.yaml>.
+      name: "{{.name}}-svc-{{trimSuffix `.yaml` .path.filename}}"
+    spec:
+      project: default
+      sources:
+        # Bare ref: carries the git tree so the chart source can read the
+        # service's values file out of it as $values.
+        - repoURL: https://github.com/synorg/synorg.git
+          targetRevision: HEAD
+          ref: values
+        - repoURL: https://github.com/synorg/synorg.git
+          targetRevision: HEAD
+          path: charts/golden-service
+          helm:
+            valueFiles:
+              - "$values/{{.path.path}}"
+      destination:
+        server: "{{.server}}"
+        # Serving workloads land in their owning team's namespace (conventions.md:
+        # team-<name>). The values file's `team` key drives it.
+        namespace: "team-{{.team}}"
+      syncPolicy:
+        automated:
+          selfHeal: true
+          prune: true
+        syncOptions:
+          - CreateNamespace=true
