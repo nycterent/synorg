@@ -1,0 +1,46 @@
+# karpenter-kwok.yaml — TEST-ONLY NodePool + KWOKNodeClass for the virtual-node
+# substrate (KTD3). Applied by up.sh, never deployed to a real cluster.
+#
+# kwok virtual nodes exercise Karpenter's provider-agnostic core only —
+# NodePool scheduling, taints, drift, consolidation — using kwok's hypothetical
+# karpenter.kwok.sh/* instance types. They have no kubelet, so pods placed
+# there never run (KTD1): the template taint below keeps every workload without
+# an explicit karpenter.kwok.sh/virtual toleration (i.e. all GPU and web
+# workloads) off them. The GPU pool selectors also never match: these nodes get
+# karpenter.sh/nodepool=kwok-test, not gpu-warm-floor/gpu-lendable, and no
+# pool.synorg.io/name label.
+apiVersion: karpenter.kwok.sh/v1alpha1
+kind: KWOKNodeClass
+metadata:
+  name: kwok-test
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: kwok-test
+spec:
+  template:
+    spec:
+      taints:
+        - key: karpenter.kwok.sh/virtual
+          value: "true"
+          effect: NoSchedule
+      requirements:
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+      nodeClassRef:
+        group: karpenter.kwok.sh
+        kind: KWOKNodeClass
+        name: kwok-test
+      expireAfter: 720h
+  # Small cap: enough for taint/drift/consolidation scenarios, no runaway
+  # virtual fleets on a laptop.
+  limits:
+    cpu: "100"
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 10s

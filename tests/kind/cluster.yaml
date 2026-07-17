@@ -1,0 +1,70 @@
+# cluster.yaml — kind topology for the integration harness (U1, KTD1/KTD2).
+#
+# One control-plane plus three REAL workers, one per pool from
+# docs/conventions.md. The GPU workers carry the pool labels/taints at kubelet
+# registration, exactly as Karpenter would stamp them on EKS
+# (clusters/pilot/karpenter/nodepool-*.yaml), so the unmodified Kueue
+# ResourceFlavors (clusters/pilot/kueue/resourceflavors.yaml — keyed on
+# karpenter.sh/nodepool) and pool tolerations bind without edits. Fake-ness is
+# confined to how the node advertises capacity: fake-gpu-operator (or the
+# --fallback node-status patch) adds nvidia.com/gpu to these real workers.
+#
+# The kwok virtual nodes (Karpenter kwok provider, installed by up.sh) are a
+# SEPARATE substrate — they are provisioned at runtime, never listed here, and
+# never carry the GPU pool labels, so GPU workloads cannot land on them (KTD1).
+#
+# Node image: kindest/node at k8s 1.33 — matches K8S_VERSION=1.33.0 pinned in
+# scripts/validate.sh, and satisfies the >=1.30 floor required for
+# ValidatingAdmissionPolicy v1 GA (U2's cross-namespace VAP test no-ops below
+# that; up.sh prechecks the API is served).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: synorg
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.33.7
+
+  # gpu-warm-floor pool — never-lent inference floor (docs/conventions.md).
+  # run.ai/simulated-gpu-node-pool marks the node for fake-gpu-operator's
+  # status-updater, which then labels it for the device-plugin DaemonSet.
+  - role: worker
+    image: kindest/node:v1.33.7
+    labels:
+      pool.synorg.io/name: warm-floor
+      karpenter.sh/nodepool: gpu-warm-floor
+      run.ai/simulated-gpu-node-pool: default
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          taints:
+            - key: pool.synorg.io/warm-floor
+              value: "true"
+              effect: NoSchedule
+
+  # gpu-lendable pool — lending window pool. The lending.synorg.io/lent taint
+  # is flipped at runtime by the lending controller, never registered here
+  # (mirrors KTD5: template taints stay minimal).
+  - role: worker
+    image: kindest/node:v1.33.7
+    labels:
+      pool.synorg.io/name: lendable
+      karpenter.sh/nodepool: gpu-lendable
+      run.ai/simulated-gpu-node-pool: default
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          taints:
+            - key: pool.synorg.io/lendable
+              value: "true"
+              effect: NoSchedule
+
+  # web pool — untainted, non-GPU. Hosts the lending controller
+  # (clusters/pilot/lending/lending-controller.yaml selects
+  # pool.synorg.io/name=web) and any plain workload.
+  - role: worker
+    image: kindest/node:v1.33.7
+    labels:
+      pool.synorg.io/name: web
+      karpenter.sh/nodepool: web

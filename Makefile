@@ -1,7 +1,7 @@
 # Platform monorepo entrypoints. `make validate` is the contract (R10):
 # byte-for-byte the same script locally and in CI.
 
-.PHONY: validate validate-full render clean help
+.PHONY: validate validate-full render clean help integration integration-down
 
 validate: ## Diff-scoped validation: helm template + kubeconform + kyverno test
 	bash scripts/validate.sh
@@ -14,6 +14,22 @@ render: ## Render all charts with their CI values into build/rendered/ (no schem
 
 demo: ## Narrated read-only walkthrough (render + policy accept/deny + bridge)
 	bash scripts/demo.sh
+
+integration: ## Integration ladder: kind up -> tests/integration/*/ -> kind down
+	bash tests/kind/up.sh
+	@rc=0; \
+	for t in $$(find tests/integration -mindepth 2 -name '*.sh' -type f 2>/dev/null | sort); do \
+		echo "== $$t"; \
+		bash "$$t" || { rc=1; break; }; \
+	done; \
+	if [ $$rc -ne 0 ]; then \
+		echo "integration FAILED — cluster left up for debugging (make integration-down to remove)"; \
+		exit 1; \
+	fi
+	bash tests/kind/down.sh
+
+integration-down: ## Delete the kind integration cluster (idempotent)
+	bash tests/kind/down.sh
 
 # --- Docs site (Material for MkDocs, Diátaxis nav) --------------------------
 DOCS_VENV := .venv-docs
