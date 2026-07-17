@@ -1,0 +1,28 @@
+infra/terraform/backend.tf.example
+  s_93f8bad0fe0b70::t_cdca6df15296c9 1-45
+runbooks/deploy-platform.md
+  s_93f8bad0fe0b70::t_69b890ac44ba81 27-46
+Makefile
+  s_93f8bad0fe0b70::t_2527c865591f73 34-36
+  s_93f8bad0fe0b70::t_2ee464920cedf2 4
+scripts/deploy.sh
+  s_93f8bad0fe0b70::t_33e79ce02ba4d1 1-104,108-271,275-278
+  s_93f8bad0fe0b70::t_9f7ee9e9392933 105-107
+  s_93f8bad0fe0b70::t_037d345d5e49c1 272-274
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "b1cb58b94376e635f6e65fdd4965bf80e703a0f1",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
