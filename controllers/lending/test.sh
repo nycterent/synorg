@@ -12,7 +12,8 @@
 #     3. malformed-schedule scenario: a garbage schedule yields a clear
 #        schedule_invalid log and a clean exit, not a crash (validation runs
 #        before any kubectl call, so no cluster is needed).
-#   live (runs when a kubecontext answers; the U1 kind harness drives this):
+#   live (runs when the pinned kubecontext answers — kind-synorg from the U1
+#         kind harness by default; override with LENDING_TEST_CONTEXT):
 #     4. window open  -> lent taint added to the lendable node
 #        window closed -> lent taint removed
 #     5. shrunk curve value -> ClusterQueue borrowingLimit patched to match
@@ -179,23 +180,44 @@ if [ "$OFFLINE_ONLY" = "1" ]; then
   echo "ALL OFFLINE CHECKS PASSED"
   exit 0
 fi
-if ! command -v kubectl >/dev/null 2>&1 || ! kubectl version --request-timeout=5s >/dev/null 2>&1; then
-  skip "live tier (no reachable cluster)"
+# The live tier is pinned to an explicit kubecontext (the U1 kind harness by
+# default) so it never mutates whatever context the operator happens to be on.
+KCTX="${LENDING_TEST_CONTEXT:-kind-synorg}"
+k() { kubectl --context "$KCTX" "$@"; }
+if ! command -v kubectl >/dev/null 2>&1 || ! k get nodes >/dev/null 2>&1; then
+  skip "live tier (kubecontext '$KCTX' unreachable — set LENDING_TEST_CONTEXT to override)"
   echo "ALL OFFLINE CHECKS PASSED"
   exit 0
 fi
 
 POOL_LABEL="karpenter.sh/nodepool=gpu-lendable"
 TAINT_KEY="lending.synorg.io/lent"
-NODE="${TEST_NODE:-$(kubectl get nodes -o name | head -1 | cut -d/ -f2)}"
+NODE="${TEST_NODE:-$(k get nodes -o name | head -1 | cut -d/ -f2)}"
 [ -n "$NODE" ] || fail "live tier: no node found"
 
+# Remember the node's prior nodepool label so cleanup restores it instead of
+# blindly deleting a label the node carried before the test.
+PRIOR_POOL="$(k get node "$NODE" -o jsonpath='{.metadata.labels.karpenter\.sh/nodepool}')"
+# Shrunk-curve restore state — set by scenario 5, consumed by cleanup_live so
+# a failed assertion cannot strand the ClusterQueue at borrowingLimit 0.
+ORIG_LIMIT=""
+BORROW_PATH=""
+
 cleanup_live() {
-  kubectl label node "$NODE" karpenter.sh/nodepool- >/dev/null 2>&1 || true
-  kubectl taint node "$NODE" "$TAINT_KEY:NoSchedule-" >/dev/null 2>&1 || true
+  if [ -n "$PRIOR_POOL" ]; then
+    k label node "$NODE" "karpenter.sh/nodepool=$PRIOR_POOL" --overwrite >/dev/null 2>&1 || true
+  else
+    k label node "$NODE" karpenter.sh/nodepool- >/dev/null 2>&1 || true
+  fi
+  k taint node "$NODE" "$TAINT_KEY:NoSchedule-" >/dev/null 2>&1 || true
+  if [ -n "$ORIG_LIMIT" ] && [ -n "$BORROW_PATH" ] \
+    && k get clusterqueue training-borrow >/dev/null 2>&1; then
+    k patch clusterqueue training-borrow --type=json \
+      -p "[{\"op\": \"replace\", \"path\": \"$BORROW_PATH\", \"value\": $ORIG_LIMIT}]" >/dev/null 2>&1 || true
+  fi
 }
 trap 'cleanup_live; rm -rf "$TMPDIR_T"' EXIT
-kubectl label node "$NODE" "$POOL_LABEL" --overwrite >/dev/null
+k label node "$NODE" "$POOL_LABEL" --overwrite >/dev/null
 
 # fixture SCHEDULE_PATH OPENS CLOSES DAYS_YAML PCT WAVES_YAML
 write_fixture() {
@@ -226,30 +248,31 @@ ALL_DAYS='["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]'
 # 4a. window open -> lent taint added
 write_fixture "$TMPDIR_T/open.yaml" "00:00" "23:59" "$ALL_DAYS" 100 "[]"
 SCHEDULE_FILE="$TMPDIR_T/open.yaml" MAX_TICKS=1 TICK_SECONDS=0 bash "$RECONCILE"
-kubectl get node "$NODE" -o json | jq -e --arg k "$TAINT_KEY" '.spec.taints // [] | any(.key == $k)' >/dev/null \
+k get node "$NODE" -o json | jq -e --arg k "$TAINT_KEY" '.spec.taints // [] | any(.key == $k)' >/dev/null \
   || fail "window open: lent taint not added to $NODE"
 pass "window open: lent taint added"
 
 # 4b. window closed -> lent taint removed
 write_fixture "$TMPDIR_T/closed.yaml" "00:00" "23:59" "[]" 100 "[]"
 SCHEDULE_FILE="$TMPDIR_T/closed.yaml" MAX_TICKS=1 TICK_SECONDS=0 bash "$RECONCILE"
-kubectl get node "$NODE" -o json | jq -e --arg k "$TAINT_KEY" '.spec.taints // [] | any(.key == $k) | not' >/dev/null \
+k get node "$NODE" -o json | jq -e --arg k "$TAINT_KEY" '.spec.taints // [] | any(.key == $k) | not' >/dev/null \
   || fail "window closed: lent taint not removed from $NODE"
 pass "window closed: lent taint removed"
 
 # 5. shrunk curve -> borrowingLimit patched to match (needs Kueue + the queue)
-if kubectl get clusterqueue training-borrow >/dev/null 2>&1; then
-  ORIG_LIMIT="$(kubectl get clusterqueue training-borrow -o json \
-    | jq -r '[.spec.resourceGroups[].flavors[].resources[] | select(.name == "nvidia.com/gpu")][0].borrowingLimit')"
+if k get clusterqueue training-borrow >/dev/null 2>&1; then
+  CQ_JSON="$(k get clusterqueue training-borrow -o json)"
+  ORIG_LIMIT="$(jq -r '[.spec.resourceGroups[].flavors[].resources[] | select(.name == "nvidia.com/gpu")][0].borrowingLimit' <<<"$CQ_JSON")"
+  # Path lookup goes through reconcile.sh's own path-finder, not an inline
+  # copy. Capture it BEFORE the tick: the EXIT trap restores the original
+  # limit, so both must be in hand even if the assertion below fails.
+  BORROW_PATH="$(bash "$RECONCILE" --print-borrow-path <<<"$CQ_JSON")"
   write_fixture "$TMPDIR_T/shrunk.yaml" "00:00" "23:59" "$ALL_DAYS" 0 "[]"
   SCHEDULE_FILE="$TMPDIR_T/shrunk.yaml" MAX_TICKS=1 TICK_SECONDS=0 bash "$RECONCILE"
-  GOT="$(kubectl get clusterqueue training-borrow -o json \
+  GOT="$(k get clusterqueue training-borrow -o json \
     | jq -r '[.spec.resourceGroups[].flavors[].resources[] | select(.name == "nvidia.com/gpu")][0].borrowingLimit')"
   [ "$GOT" = "0" ] || fail "shrunk curve: borrowingLimit is $GOT, expected 0"
   pass "shrunk curve: borrowingLimit patched to 0"
-  kubectl patch clusterqueue training-borrow --type=json \
-    -p "[{\"op\": \"replace\", \"path\": \"$(kubectl get clusterqueue training-borrow -o json \
-      | jq -r 'first(.spec.resourceGroups | to_entries[] as $g | $g.value.flavors | to_entries[] as $f | $f.value.resources | to_entries[] as $r | select($r.value.name == "nvidia.com/gpu") | "/spec/resourceGroups/\($g.key)/flavors/\($f.key)/resources/\($r.key)/borrowingLimit")')\", \"value\": $ORIG_LIMIT}]" >/dev/null
 else
   skip "shrunk curve scenario (no training-borrow ClusterQueue on this cluster)"
 fi
@@ -260,7 +283,7 @@ write_fixture "$TMPDIR_T/reclaim.yaml" "00:00" "23:59" "$ALL_DAYS" 100 \
   "[{name: test-wave, startsAt: \"$NOW_HM\", reclaimFraction: 1.0, drainGraceSeconds: 120, preferPreScrubbed: true}]"
 # ensure the node is lent so the wave has something to reclaim
 SCHEDULE_FILE="$TMPDIR_T/open.yaml" MAX_TICKS=1 TICK_SECONDS=0 bash "$RECONCILE" >/dev/null
-if kubectl api-versions | grep -q '^karpenter.sh/'; then
+if k api-versions | grep -q '^karpenter.sh/'; then
   skip "kind reclaim scenario (Karpenter present — this is not the kind path)"
 else
   set +e

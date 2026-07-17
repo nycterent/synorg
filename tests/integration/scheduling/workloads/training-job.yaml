@@ -28,6 +28,9 @@ spec:
     metadata:
       labels:
         synorg.io/scheduling-test: "true"
+        # GPU pods without a team label are denied by require-team-label (R6);
+        # "ml" is the team-ml namespace's team (runbooks/training-onboarding.md).
+        team.synorg.io/name: ml
     spec:
       restartPolicy: Never
       # Preemptible, never preempts (KTD12) — the emergency-reclaim victim.

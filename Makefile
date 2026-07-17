@@ -15,13 +15,17 @@ render: ## Render all charts with their CI values into build/rendered/ (no schem
 demo: ## Narrated read-only walkthrough (render + policy accept/deny + bridge)
 	bash scripts/demo.sh
 
-integration: ## Integration ladder: kind up -> tests/integration/*/ -> kind down
+integration: ## Integration ladder: kind up -> lending controller suite -> tests/integration/*/ -> kind down
 	bash tests/kind/up.sh
 	@rc=0; \
-	for t in $$(find tests/integration -mindepth 2 -name '*.sh' -type f 2>/dev/null | sort); do \
-		echo "== $$t"; \
-		bash "$$t" || { rc=1; break; }; \
-	done; \
+	echo "== controllers/lending/test.sh"; \
+	bash controllers/lending/test.sh || rc=1; \
+	if [ $$rc -eq 0 ]; then \
+		for t in $$(find tests/integration -mindepth 2 -name '*.sh' -type f 2>/dev/null | sort); do \
+			echo "== $$t"; \
+			bash "$$t" || { rc=1; break; }; \
+		done; \
+	fi; \
 	if [ $$rc -ne 0 ]; then \
 		echo "integration FAILED — cluster left up for debugging (make integration-down to remove)"; \
 		exit 1; \

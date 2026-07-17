@@ -16,6 +16,8 @@ metadata:
   namespace: scheduling-test
   labels:
     synorg.io/scheduling-test: "true"
+    # GPU pods without a team label are denied by require-team-label (R6).
+    team.synorg.io/name: ml
 spec:
   priorityClassName: inference-critical
   nodeSelector:
