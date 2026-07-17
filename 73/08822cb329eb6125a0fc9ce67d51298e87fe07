@@ -1,0 +1,36 @@
+controllers/lending/reconcile.sh
+  s_93f8bad0fe0b70::t_b50364f8a36814 116-121
+  s_93f8bad0fe0b70::t_ec0ce46e204abd 213-247,250-254,257-258,261-267,278-292
+  s_93f8bad0fe0b70::t_7b4b55490f1891 346-356,361-364,366,376-381,383,394-395,401-403
+  s_93f8bad0fe0b70::t_a001bf56575f06 46-50
+  s_93f8bad0fe0b70::t_70cbcf66fb44c0 418-423
+  s_93f8bad0fe0b70::t_97be4a170ccb0c 5-19
+  s_93f8bad0fe0b70::t_527534071f2e19 141-180
+controllers/lending/README.md
+  s_93f8bad0fe0b70::t_1cfa5a7185a843 126
+  s_93f8bad0fe0b70::t_d2e419063996b9 146-147,150-161
+  s_93f8bad0fe0b70::t_6f2f68e3d6f3ae 12-25,34-52,55-60
+controllers/lending/test.sh
+  s_93f8bad0fe0b70::t_793a87bb2be824 12-15,23-27
+  s_93f8bad0fe0b70::t_8800c4f6b05249 182-231
+  s_93f8bad0fe0b70::t_088f256a9b10cf 336-340,351-352,360-399
+  s_93f8bad0fe0b70::t_ead7290fbbdccd 400
+docs/residual-review-findings/feat-eks-gpu-platform.md
+  s_93f8bad0fe0b70::t_f765dce0944d2e 48-50,52-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "7308822cb329eb6125a0fc9ce67d51298e87fe07",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
