@@ -1,0 +1,23 @@
+docs/TODO-docs.md
+  s_592792c0856826::t_8a4cdea8f7bf63 1-43
+Makefile
+  s_592792c0856826::t_0c54ccac338c17 15-17
+scripts/demo.sh
+  s_592792c0856826::t_c94109e612f150 1-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "18d9120d1595352a9b3a51ade3c3eb9267aa7c91",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
