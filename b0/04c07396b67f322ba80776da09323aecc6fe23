@@ -1,0 +1,72 @@
+charts/golden-service/values.schema.json
+  s_592792c0856826::t_dedba0bd76b2af 8-19
+charts/training-job/README.md
+  s_592792c0856826::t_b7ce2f34c4e81e 37
+clusters/pilot/kueue/clusterqueue-training-borrow.yaml
+  s_592792c0856826::t_1b64f51223fd16 9-16
+  s_592792c0856826::t_7dbd5d52347310 45-48
+clusters/pilot/lending/lending-controller.yaml
+  s_592792c0856826::t_6a46d890b779e5 174
+clusters/pilot/karpenter/warm-floor-balloon.yaml
+  s_592792c0856826::t_f609a6168dd55c 39-44
+charts/golden-service/README.md
+  s_592792c0856826::t_d98ebe1edf3aa0 59-65
+tools/env-spec-bridge/fixtures/errors/non-int-replicas.envspec.yaml
+  s_592792c0856826::t_3059dbb52841c3 1-9
+tools/env-spec-bridge/fixtures/errors/generic-unknown-key.envspec.yaml
+  s_592792c0856826::t_e89c27d2eb468f 1-10
+tools/env-spec-bridge/fixtures/errors/bare-numeric-cpu.envspec.yaml
+  s_592792c0856826::t_86750bdfcc53ca 1-9
+tools/env-spec-bridge/fixtures/errors/scalar-healthcheck.envspec.yaml
+  s_592792c0856826::t_7ecf3ac216348a 1-10
+tools/env-spec-bridge/fixtures/errors/non-int-port.envspec.yaml
+  s_592792c0856826::t_8418db5f483e9b 1-9
+tools/env-spec-bridge/test_bridge.py
+  s_592792c0856826::t_0d4fb872108f29 162
+  s_592792c0856826::t_4300d70cbcd7d8 145-161,163-203
+.github/workflows/validate.yaml
+  s_592792c0856826::t_e16f56d737c221 41-49
+infra/terraform/regions/pilot/odcr/main.tf
+  s_592792c0856826::t_e614925e240161 28-35
+charts/golden-service/templates/deployment.yaml
+  s_592792c0856826::t_b4111716179ed5 8-10,12
+  s_592792c0856826::t_deae8e77196dfb 28-34,40,45
+clusters/pilot/observability/recording-rules.yaml
+  s_592792c0856826::t_cd1d7262cd48a1 81-83,87
+  s_592792c0856826::t_a3616ea639fa44 112-114,117
+tools/env-spec-bridge/bridge.py
+  s_592792c0856826::t_12d0a7fec4aff8 301-306,313-317,323-326
+  s_592792c0856826::t_b218a1059df636 27
+  s_592792c0856826::t_fa1aec5a0bdb2c 247,255,267,270,279-283,287,289
+  s_592792c0856826::t_c1a4f500b5380c 103-110,114-120,124-133
+  s_592792c0856826::t_3285f9aa8f5dce 153-160,162-180,190-218
+  s_592792c0856826::t_afbc278a925536 230-232,236
+  s_592792c0856826::t_6df821d3962fad 219-220
+tools/env-spec-bridge/fixtures/errors/partial-autoscale.envspec.yaml
+  s_592792c0856826::t_95993d826d196a 1-11
+clusters/pilot/services/README.md
+  s_592792c0856826::t_5bdb19432931a1 43-45
+scripts/validate.sh
+  s_592792c0856826::t_eb90e8c3040ff1 144-166
+  s_592792c0856826::t_3d2a7a3c8efd01 66-68
+  s_592792c0856826::t_3261b626178dbc 121-124,126-127,129,131
+  s_592792c0856826::t_9b1770f79cb6ba 51-60
+clusters/pilot/kueue/README.md
+  s_592792c0856826::t_2f97e9e540bd66 9-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "b004c07396b67f322ba80776da09323aecc6fe23",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
