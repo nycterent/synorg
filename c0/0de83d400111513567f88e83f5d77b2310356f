@@ -1,0 +1,24 @@
+docs/explanation/why-lending.md
+  s_592792c0856826::t_3a4a972864294c 1-111
+docs/TODO-docs.md
+  s_592792c0856826::t_19758f5b482118 32
+  s_592792c0856826::t_b87111c945743e 30
+docs/tutorials/first-validation.md
+  s_592792c0856826::t_c97ec6fa5f4b13 1-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "c00de83d400111513567f88e83f5d77b2310356f",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
