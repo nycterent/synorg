@@ -1,0 +1,40 @@
+.github/workflows/docs.yaml
+  s_592792c0856826::t_adab0fffd316cf 1-41
+.gitignore
+  s_592792c0856826::t_bad14667ff73d0 2-3
+docs/TODO-docs.md
+  s_592792c0856826::t_8576d04d0bf118 36-37
+mkdocs.yml
+  s_592792c0856826::t_5814536fce0890 1-2,4-5,9,13-17,20,23-25,27-38,40,42-49,58
+  s_592792c0856826::t_b93cc925b726a9 3,6-8,10-12,18-19,21-22,26,39,41,50-57,59
+docs/explanation/why-lending.md
+  s_592792c0856826::t_5895a8667d472d 5,111
+Makefile
+  s_592792c0856826::t_aea8a24d5c383f 18-30
+docs/index.md
+  s_592792c0856826::t_1299f625f42faf 1-38
+docs/requirements.txt
+  s_592792c0856826::t_5f779beec018ac 2
+  s_592792c0856826::t_2bbd07295fdad2 1
+docs/tutorials/first-validation.md
+  s_592792c0856826::t_61140946d5df4b 106-110
+  s_592792c0856826::t_509f17e6d228a3 10
+docs/runbooks
+  s_592792c0856826::t_182c7d7be7633f 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "266f94289848f263d1ff7c187f69b747d0fad900",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
