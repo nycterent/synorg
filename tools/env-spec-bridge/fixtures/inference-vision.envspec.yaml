@@ -1,0 +1,23 @@
+# Legacy env-spec — customer-data GPU inference service. Exercises gpu count,
+# customer_data tenancy flag, explicit resource limits, and healthcheck ->
+# probes mapping on a non-default port.
+service: vision-inference
+team: vision
+class: inference
+image: registry.synorg.io/vision/inference:2026-07-17-abc123
+customer_data: true
+cpu: "2"
+memory: 8Gi
+cpu_limit: "4"
+memory_limit: 16Gi
+port: 8000
+replicas: 2
+gpu: 1
+healthcheck:
+  path: /healthz
+  port: 8000
+readiness:
+  path: /readyz
+  port: 8000
+disruption_budget:
+  min_available: 1

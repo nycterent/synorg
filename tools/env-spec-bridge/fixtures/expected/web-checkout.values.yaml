@@ -1,0 +1,22 @@
+team: checkout
+workloadClass: web
+replicas: 4
+port: 9090
+image:
+  repository: registry.synorg.io/checkout/web
+  tag: 3.0.0
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 9090
+probes:
+  liveness:
+    path: /alive
+    port: 9091
+  readiness:
+    path: /ready
+    port: 9090

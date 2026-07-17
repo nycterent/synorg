@@ -1,0 +1,37 @@
+# Migrated pilot inference service — golden-service values, owned as values
+# after a one-time env-spec bridge translation (U13). This is the deploy
+# interface in full: no bespoke DSL, no wiki (R4, R11). Schema-checked by
+# `make validate` (charts/golden-service/values.schema.json).
+#
+# Non-critical inference, run at ECS-baseline parity behind the shared ALB
+# before its weight shift (runbooks/service-migration.md).
+team: recommender
+workloadClass: inference
+customerData: true
+replicas: 2
+gpu: 1
+port: 8001
+image:
+  repository: registry.synorg.io/recommender/ranker
+  tag: 2026-07-16-9f3c1a
+resources:
+  requests:
+    cpu: "2"
+    memory: 12Gi
+  limits:
+    cpu: "4"
+    memory: 24Gi
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8001
+probes:
+  liveness:
+    path: /healthz
+    port: 8001
+  readiness:
+    path: /readyz
+    port: 8001
+pdb:
+  enabled: true
+  minAvailable: 1

@@ -1,0 +1,9 @@
+# Error fixture — carries an ECS-ism (network_mode) with no golden-chart
+# equivalent. The bridge must hard-error naming the key, never drop it (R10).
+service: legacy-web
+team: platform
+class: web
+image: registry.synorg.io/platform/legacy:1.0.0
+cpu: 100m
+memory: 128Mi
+network_mode: awsvpc

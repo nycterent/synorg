@@ -1,0 +1,16 @@
+# Legacy env-spec (ECS deploy DSL) — plain web service, autoscaled.
+# The bridge translates this mechanically to golden-service values (R4).
+service: payments-web
+team: payments
+class: web
+image: registry.synorg.io/payments/web:1.4.2
+cpu: 250m
+memory: 256Mi
+port: 8080
+replicas: 3
+autoscale:
+  min: 3
+  max: 10
+  cpu_target: 70
+disruption_budget:
+  min_available: 2

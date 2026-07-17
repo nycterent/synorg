@@ -1,0 +1,12 @@
+# Error fixture — inline environment variables. The golden chart has no env
+# surface by design; config migrates to ESO-projected ConfigMaps/Secrets. The
+# bridge hard-errors and points to ESO rather than silently dropping config.
+service: config-web
+team: platform
+class: web
+image: registry.synorg.io/platform/config:1.0.0
+cpu: 100m
+memory: 128Mi
+env:
+  - name: LOG_LEVEL
+    value: info

@@ -1,0 +1,30 @@
+team: payments
+workloadClass: web
+replicas: 3
+port: 8080
+image:
+  repository: registry.synorg.io/payments/web
+  tag: 1.4.2
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+probes:
+  liveness:
+    path: /healthz
+    port: 8080
+  readiness:
+    path: /readyz
+    port: 8080
+hpa:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+pdb:
+  enabled: true
+  minAvailable: 2

@@ -1,0 +1,17 @@
+# Legacy env-spec — web service whose health port differs from its traffic
+# port. Exercises the healthcheck/readiness -> probes mapping keeping the
+# management port (9091) distinct from the served port (9090).
+service: checkout-web
+team: checkout
+class: web
+image: registry.synorg.io/checkout/web:3.0.0
+cpu: 500m
+memory: 512Mi
+port: 9090
+replicas: 4
+healthcheck:
+  path: /alive
+  port: 9091
+readiness:
+  path: /ready
+  port: 9090
