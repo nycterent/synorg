@@ -1,0 +1,29 @@
+controllers/lending/README.md
+  s_93f8bad0fe0b70::t_9fc363e4248fdd 1-141
+controllers/lending/reconcile.sh
+  s_93f8bad0fe0b70::t_a5b46b915bbde7 1-302
+controllers/lending/Dockerfile
+  s_93f8bad0fe0b70::t_4a572cb6e5cc02 1-36
+clusters/pilot/lending/lending-controller.yaml
+  s_93f8bad0fe0b70::t_348ed56b2457d6 174-183,189-198
+  s_93f8bad0fe0b70::t_8d40af334bffef 215-216,223-226
+controllers/lending/test.sh
+  s_93f8bad0fe0b70::t_3464d9d3c93e70 57
+  s_93f8bad0fe0b70::t_1343bcd5693060 1-56,58-275
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "58e7d9f623fa33325a0327fe2900e871713dbce4",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
