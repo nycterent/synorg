@@ -1,0 +1,43 @@
+rehearsal/scenarios.yaml
+  s_592792c0856826::t_32569deb0d0650 1-12,19-38,44-53,64-76,87-98,109-125
+  s_592792c0856826::t_e9ed3676219e63 39-43,54-63,77-86,99-108,126-135
+  s_592792c0856826::t_2dd891abeaf797 13-18
+rehearsal/README.md
+  s_592792c0856826::t_4608b640d01c90 1-76
+docs/slo-catalog.md
+  s_592792c0856826::t_97975797f1b74f 1-39
+clusters/pilot/observability/prometheus-stack.yaml
+  s_592792c0856826::t_84cc34ee92a65f 1-118
+runbooks/gpu-node-quarantine.md
+  s_592792c0856826::t_50139868a71a3c 1-104
+clusters/pilot/observability/slo-definitions.yaml
+  s_592792c0856826::t_96114b211a6fef 1-104
+clusters/pilot/observability/recording-rules.yaml
+  s_592792c0856826::t_394f921e027361 1-111
+rehearsal/loadgen.yaml
+  s_592792c0856826::t_e84e4489cd3dcf 1-117
+clusters/pilot/lending/schedule.yaml
+  s_592792c0856826::t_890330923e87dd 1-109
+runbooks/game-day.md
+  s_592792c0856826::t_421fa2c71f9935 1-145
+clusters/pilot/lending/lending-controller.yaml
+  s_592792c0856826::t_7e2e420d739dbc 1-206
+runbooks/node-scrub.md
+  s_592792c0856826::t_f8d1a90d3b223e 1-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "b766c47212213d1e3b285d067c41b914c793858a",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
