@@ -60,3 +60,6 @@ nav:
   - Explanation:
       - Architecture: explanation/architecture.md
       - Why the platform lends GPUs: explanation/why-lending.md
+
+extra_css:
+  - assets/extra.css

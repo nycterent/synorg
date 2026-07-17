@@ -45,6 +45,11 @@ or NodePools silently fall back to on-demand.
 
 ## On-call
 
+The states a GPU node moves through — the machine the lending controller drives,
+and the map for the on-call tasks below:
+
+![Node lend/reclaim lifecycle: ProdServing to Idle to Lent to Reclaiming to Scrubbing back to ProdServing, with a Quarantined branch off Lent](../assets/diagrams/node-lifecycle.svg){ .diagram }
+
 ### Preemption storm at morning ramp
 
 **Trigger:** render-start p95 climbing during reclaim. **Do:** the warm floor

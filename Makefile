@@ -28,6 +28,9 @@ docs-serve: $(DOCS_VENV) ## Live-preview the docs at http://127.0.0.1:8000
 docs-build: $(DOCS_VENV) ## Build the static HTML docs into site/
 	$(DOCS_VENV)/bin/mkdocs build --strict
 
+diagrams: ## Compile diagrams/*.tex (TikZ) to committed SVGs (needs tectonic + poppler)
+	bash scripts/build-diagrams.sh
+
 clean:
 	rm -rf build/
 

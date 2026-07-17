@@ -1,0 +1,25 @@
+\documentclass[tikz,border=8pt]{standalone}
+\input{_style}
+\begin{document}
+% The lend/reclaim lifecycle a GPU node moves through — the state machine the
+% lending controller owns (operations.md, architecture.md).
+\begin{tikzpicture}[node distance=13mm and 20mm]
+  \node[state] (prod) {Prod\\Serving};
+  \node[state,right=of prod] (idle) {Idle};
+  \node[state,right=of idle] (lent) {Lent};
+  \node[state,below=of lent] (recl) {Reclaim-\\ing};
+  \node[state,left=of recl] (scrub) {Scrub-\\bing};
+  \node[state,warn,below=16mm of idle] (quar) {Quaran-\\tined};
+
+  \draw[flow] (prod) -- node[flowlbl,above]{off-peak} (idle);
+  \draw[flow] (idle) -- node[flowlbl,above]{window opens} (lent);
+  \draw[flow] (lent) -- node[flowlbl,right]{pre-ramp wave\\/ inference pressure} (recl);
+  \draw[flow] (recl) -- node[flowlbl,above]{drained} (scrub);
+  \draw[flow] (scrub) to[bend left=20] node[flowlbl,left]{reimaged\\+ verified} (prod);
+  \draw[flow] (lent) to[bend left=40] node[flowlbl,right]{driver wedge\\/ GPU fault} (quar);
+  \draw[flow] (quar) -- node[flowlbl,below,align=center]{runbook} (scrub);
+
+  \node[note,below=3mm of scrub,text width=52mm,align=center]
+    {scrub = instance \emph{terminated}, fresh boot —\\ never prod-schedulable mid-cycle};
+\end{tikzpicture}
+\end{document}

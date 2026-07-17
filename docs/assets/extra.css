@@ -1,0 +1,7 @@
+/* SVG diagrams: constrain width, center, breathe. */
+img.diagram, p > img[src*="/diagrams/"] {
+  display: block;
+  margin: 1.2rem auto;
+  max-width: 100%;
+  height: auto;
+}
