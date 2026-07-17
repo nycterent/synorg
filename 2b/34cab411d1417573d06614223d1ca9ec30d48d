@@ -1,0 +1,33 @@
+Makefile
+  s_592792c0856826::t_da0838ee71c2e3 31-33
+diagrams/_style.tex
+  s_592792c0856826::t_222aad7b730672 1-28
+docs/assets/diagrams/node-lifecycle.svg
+  s_592792c0856826::t_507c231021da25 1-513
+diagrams/node-lifecycle.tex
+  s_592792c0856826::t_c51c7151763a37 1-25
+scripts/build-diagrams.sh
+  s_592792c0856826::t_67be49126eda6d 1-35
+mkdocs.yml
+  s_592792c0856826::t_6d622a5ca2c6a9 63-65
+docs/assets/extra.css
+  s_592792c0856826::t_6d622a5ca2c6a9 1-7
+runbooks/operations.md
+  s_592792c0856826::t_2f74481bb52c1f 48-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "2b34cab411d1417573d06614223d1ca9ec30d48d",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
