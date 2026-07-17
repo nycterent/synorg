@@ -1,0 +1,25 @@
+tests/smoke/smoke.sh
+  s_93f8bad0fe0b70::t_ca591b837914d7 99
+  s_93f8bad0fe0b70::t_4489c486615ff0 1-98,100-305
+tests/smoke/README.md
+  s_93f8bad0fe0b70::t_13b80e51f9ba82 1-57
+Makefile
+  s_93f8bad0fe0b70::t_b12a10ba4e9c84 37-39
+  s_93f8bad0fe0b70::t_9e72e5e6ce47be 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "fcb734d238ea1ef511b0db49b26b6b894405998e",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
