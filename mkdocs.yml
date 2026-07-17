@@ -60,6 +60,7 @@ nav:
   - Explanation:
       - Architecture: explanation/architecture.md
       - Why the platform lends GPUs: explanation/why-lending.md
+      - "Learning: kernel-idle vs allocation-idle": solutions/2026-07-17-kernel-idle-vs-allocation-idle.md
 
 extra_css:
   - assets/extra.css
