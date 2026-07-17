@@ -1,0 +1,2 @@
+# Docs site toolchain (Material for MkDocs). Pinned so local and CI builds match.
+mkdocs-material==9.7.6

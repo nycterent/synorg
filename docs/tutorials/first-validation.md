@@ -7,7 +7,7 @@ is meant to succeed exactly as written.
 
 This is a lesson, not a reference. It does not explain *why* the platform is
 built this way (that is [why-lending](../explanation/why-lending.md)) or how to
-carry out a real operation (that is the [runbooks](../../runbooks/)). It only
+carry out a real operation (that is the [runbooks](../runbooks/service-migration.md)). It only
 gets you to your first green run.
 
 ## Before you start
@@ -103,7 +103,8 @@ the whole deploy path is built around.
 
 - To understand *why* the platform lends GPUs and why that rejection rule
   exists, read [why-lending](../explanation/why-lending.md).
-- To add a service of your own and watch the schema catch a mistake, do the
-  [add-a-service](./add-a-service.md) lesson.
-- To carry out a real operation against a cluster, the [runbooks](../../runbooks/)
-  are the executable how-to guides.
+- To carry out a real operation against a cluster, the how-to guides — for
+  example [migrate a service](../runbooks/service-migration.md) — are the
+  executable runbooks.
+
+*(An "add your first service" lesson is planned — see `docs/TODO-docs.md`, T2.)*

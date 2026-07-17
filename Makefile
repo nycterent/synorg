@@ -15,6 +15,19 @@ render: ## Render all charts with their CI values into build/rendered/ (no schem
 demo: ## Narrated read-only walkthrough (render + policy accept/deny + bridge)
 	bash scripts/demo.sh
 
+# --- Docs site (Material for MkDocs, Diátaxis nav) --------------------------
+DOCS_VENV := .venv-docs
+$(DOCS_VENV): docs/requirements.txt
+	python3 -m venv $(DOCS_VENV)
+	$(DOCS_VENV)/bin/pip install --quiet --upgrade pip
+	$(DOCS_VENV)/bin/pip install --quiet -r docs/requirements.txt
+
+docs-serve: $(DOCS_VENV) ## Live-preview the docs at http://127.0.0.1:8000
+	$(DOCS_VENV)/bin/mkdocs serve
+
+docs-build: $(DOCS_VENV) ## Build the static HTML docs into site/
+	$(DOCS_VENV)/bin/mkdocs build --strict
+
 clean:
 	rm -rf build/
 

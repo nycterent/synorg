@@ -1,0 +1,59 @@
+site_name: synorg platform
+site_description: Multi-region GPU compute platform on EKS — docs organised by Diátaxis.
+docs_dir: docs
+site_dir: site
+
+# runbooks/ (the how-to quadrant) lives at the repo root and is pulled into the
+# build via the docs/runbooks symlink; MkDocs follows it. Everything the site
+# needs therefore sits under docs/.
+exclude_docs: |
+  plans/
+  residual-review-findings/
+  TODO-docs.md
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: teal
+      toggle: {icon: material/brightness-7, name: Switch to dark mode}
+    - scheme: slate
+      primary: teal
+      toggle: {icon: material/brightness-4, name: Switch to light mode}
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.instant
+    - content.code.copy
+    - search.suggest
+
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences
+  - pymdownx.details
+  - toc: {permalink: true}
+
+# The nav IS the Diátaxis map: four modes, each serving one reader need.
+# Learning → Tutorials · a task → How-to · a fact → Reference · why → Explanation.
+nav:
+  - Home: index.md
+  - Tutorials:
+      - Validate on your laptop: tutorials/first-validation.md
+  - How-to (runbooks):
+      - Migrate a service: runbooks/service-migration.md
+      - Onboard a training job: runbooks/training-onboarding.md
+      - Scrub a node: runbooks/node-scrub.md
+      - Quarantine a GPU node: runbooks/gpu-node-quarantine.md
+      - Capture & carve held capacity: runbooks/capacity-carve.md
+      - Run a game-day: runbooks/game-day.md
+  - Reference:
+      - Conventions: conventions.md
+      - Capability tiers: capability-tiers.md
+      - Agent interface: agent-interface.md
+      - SLO catalog: slo-catalog.md
+      - Region set: region-set.md
+      - Capacity transition ledger: capacity-transition.md
+      - env-spec retirement: env-spec-retirement.md
+      - ECS retirement: ecs-retirement.md
+  - Explanation:
+      - Why the platform lends GPUs: explanation/why-lending.md

@@ -1,4 +1,6 @@
 build/
+site/
+.venv-docs/
 .terraform/
 *.tfstate*
 .DS_Store

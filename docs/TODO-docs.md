@@ -33,7 +33,8 @@ its mode, commit. Don't gate value on a full reorg.
 - [ ] **E2 — Explanation: why serving is never Kueue-admitted.** `docs/explanation/reclaim-model.md`. From KTD6 + the ARIZ layered-reclaim resolution: borrowingLimit curve (planned) vs PriorityClass preemption (emergency). This is the most-misunderstood design point — worth a standalone why.
 - [ ] **E3 — Explanation: the capability-tier model.** `docs/explanation/capability-model.md`. The "why blast radius decides autonomy" half of capability-tiers.md.
 - [ ] **R1 — Reference tidy.** Gather loose `docs/*.md` reference under `docs/reference/`; leave a landing page (below) pointing at them. Mechanical move, no rewrite.
-- [ ] **L1 — Docs landing page.** `docs/README.md` routing readers by need: "Learning → tutorials/  ·  Have a task → runbooks/  ·  Look something up → reference/  ·  Understand why → explanation/." One sentence per link.
+- [x] **L1 — Docs landing page.** `docs/index.md` — DONE (2026-07-17). Diátaxis card grid routing readers by need (learning/task/fact/why). (Named `index.md` not `README.md` — MkDocs home convention.)
+- [x] **L2 — HTML docs site.** `mkdocs.yml` + Material for MkDocs — DONE (2026-07-17). Nav = the 4 quadrants; `runbooks/` pulled in via the `docs/runbooks` symlink; `make docs-serve` / `make docs-build` (pinned venv from `docs/requirements.txt`); `.github/workflows/docs.yaml` builds `--strict` and deploys to GitHub Pages on push to main. Builds clean strict (18 pages).
 - [ ] **X1 — Cross-link.** From each explanation, link to the runbook that applies it and the reference that pins its names; from tutorials, link onward to the how-to for real work. Modes stay separate but connected.
 
 ## Guardrails
