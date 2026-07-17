@@ -1,0 +1,42 @@
+.github/workflows/e2e.yaml
+  s_93f8bad0fe0b70::t_49281f6a41384b 83-92,96,100-122
+docs/residual-review-findings/feat-eks-gpu-platform.md
+  s_93f8bad0fe0b70::t_c8c7b983ad091d 57-62
+tests/e2e/assertions.sh
+  s_93f8bad0fe0b70::t_afbcae36bb195a 63-69,72,74-77,80-89,92-95,97
+  s_93f8bad0fe0b70::t_849624a6883ff0 352-380,382-383,387-405,414-415,417-423,425-429,432,434,436,438-440,445,448-454,459-460
+  s_93f8bad0fe0b70::t_0c4aa42db05c35 381,384-386
+  s_93f8bad0fe0b70::t_837f0ac6cc7906 410-412
+  s_93f8bad0fe0b70::t_e8cf13a1b22a55 424
+  s_93f8bad0fe0b70::t_fe0927e875bf64 430-431,433,435,437
+  s_93f8bad0fe0b70::t_59a09c2d375ad0 406-409,413,416
+scripts/lib/ledger.sh
+  s_93f8bad0fe0b70::t_248f3e2f2bc112 16-19
+  s_93f8bad0fe0b70::t_8748c903bd48b5 30,38-47
+tests/e2e/run.sh
+  s_93f8bad0fe0b70::t_c491451591781a 188-193
+  s_93f8bad0fe0b70::t_eebe8ecea63a6c 139-144
+  s_93f8bad0fe0b70::t_38b3eda3bec377 226-231,233-239,241-244
+  s_93f8bad0fe0b70::t_aa8a057cc6f205 119
+scripts/deploy.sh
+  s_93f8bad0fe0b70::t_4b25ae6001d179 137
+runbooks/e2e-gpu-run.md
+  s_93f8bad0fe0b70::t_cb13068d5cae4f 24-29
+  s_93f8bad0fe0b70::t_2b447bd62e9605 205-212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "78fc92507270259fed9344c2326db1cc16700443",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
