@@ -1,0 +1,33 @@
+tests/e2e/run.sh
+  s_93f8bad0fe0b70::t_62b70fc806ebce 1-275,282-283
+  s_93f8bad0fe0b70::t_e57e3b5f5c5cf9 276-281
+runbooks/e2e-gpu-run.md
+  s_93f8bad0fe0b70::t_a96e3b9a3523d8 1-225
+.github/workflows/e2e.yaml
+  s_93f8bad0fe0b70::t_f702b6378f2e57 1-100
+tests/e2e/assertions.sh
+  s_93f8bad0fe0b70::t_61bfbd2e59d654 103-107
+  s_93f8bad0fe0b70::t_0c90bfa820ee40 293
+  s_93f8bad0fe0b70::t_18ec35af3ece17 1-102,108-279,281-292,294-352
+  s_93f8bad0fe0b70::t_aa052e018c8c63 280
+Makefile
+  s_93f8bad0fe0b70::t_9d50a6bc81e4a9 4
+  s_93f8bad0fe0b70::t_b856a12ce6ea7e 63
+  s_93f8bad0fe0b70::t_d7c316f08d1b25 40-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "ddb5c3d0c6ad67e074d6728b23860bd8d19aa67f",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
