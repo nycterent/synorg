@@ -30,3 +30,51 @@ Kyverno VAP CEL rules, DCGM/kube-state-metrics label allow-lists, promtool rule
 evaluation against real series, and every runbook's `kubectl` steps can only be
 exercised once the pilot cluster exists (U3). The offline loop (`make validate`
 + policy composition + pytest) is the ceiling until then.
+
+---
+
+# Residual Review Findings — walking-skeleton run (plan 002, 2026-07-17)
+
+Source: multi-agent review run `20260717-223549-b3a65f83` (9 personas + 15
+independent validators; 15/15 findings validated true, 0 false positives).
+Applied this pass in `fix(review)`: #1 (P0 team-label on scheduling fixtures),
+#2 (test.sh wired into make integration), #4 (test.sh context pinning),
+#11 (borrowingLimit trap restore). No sink available (repo has no remote /
+tracker) — this file is the durable record. Full artifacts:
+`/tmp/compound-engineering/ce-code-review/20260717-223549-b3a65f83/`.
+
+## Validated, unapplied — controller reclaim lifecycle (decision-gate, do first)
+
+- **#3 P1 `controllers/lending/reconcile.sh:301` — close-time untaint starves the final reclaim wave; nodes return unscrubbed.** tick() runs reconcile_taints before reconcile_waves; schedule.yaml wave-3 startsAt 06:30 == closesAt 06:30 and `window_open` treats that instant as closed, so the final wave's taint-keyed selection is always empty (~37.5% of lent nodes skip scrub). Fix: waves before taints; treat open->closed as a reclaim event, never a bare untaint. (adversarial; validated)
+- **#7 P1 `controllers/lending/reconcile.sh:247` — waves re-fire every tick within the 300s window, compounding ceil(fraction x currently-lent) toward 1-(1-f)^5 (~97% for f=0.5).** Fix: fired-wave memory (state file/annotation) or compute target from lend-open count. (adversarial; validated)
+- **#12 P2 `controllers/lending/reconcile.sh:99` — malformed schedule time reads as window-closed: mass untaint without drain.** validate_schedule is presence-only; "6:3x" errors inside window_open's if-context and reads as closed. Fix: regex-validate all time fields; malformed-time fixture asserting zero taint mutation. (adversarial; validated)
+
+These three share one root cause (wave lifecycle has no once-semantics, wrong
+ordering, weak validation) — redesign once, close together. Blocks a real e2e run.
+
+## Validated, unapplied — e2e teardown and evidence integrity
+
+- **#9 P1 `scripts/lib/ledger.sh:36` — zero-net-release guard vacuously green when terraform outputs unreadable.** `output ... || echo '{}'` makes failure indistinguishable from empty; CI without backend.tf always reads the "none" sentinel at entry AND exit, so the never-release-capacity invariant passes vacuously (violates plan R6). Fix: hard-fail on terraform-output error; snapshot after ODCR init. (adversarial; validated)
+- **#10 P1 `tests/e2e/run.sh:247` — phase_down masks failed destroys.** `phase_down || {...}` disables errexit inside the function (empirically verified); a failed mid-loop terraform destroy still prints DOWN OK and returns 0. Fix: per-module `|| rc=1`, return rc. (adversarial; validated)
+- **#5 P1 `.github/workflows/e2e.yaml` — CI cancellation/timeout kills the teardown trap mid-destroy.** Single run step carries deploy+test+teardown; GitHub kill grace is seconds vs minutes of destroy. Fix: split steps, `if: always()` down step with own timeout; consider janitor workflow. (adversarial; validated)
+- **#14 P2 `tests/e2e/assertions.sh:70` — port-forwards nonexistent `svc/prometheus`.** kube-prometheus-stack creates `<release>-kube-prometheus-prometheus` / `prometheus-operated`. Fix: discover by port 9090 like smoke.sh:270; document E2E_PROM in the runsheet. (correctness; validated)
+- **#15 P2 `tests/e2e/assertions.sh:341` — prom port-forward leaks when readiness times out.** prom_start returns 1 without killing its spawned process; early return skips prom_stop. (reliability; validated)
+- **#16 P2 `tests/e2e/assertions.sh:341` — kill during --test leaves the compressed rehearsal schedule live.** Demoted from P1: ArgoCD selfHeal reverts the ConfigMap; loadgen + training workload are NOT ArgoCD-managed and still need a trap. Fix: trap-based cleanup around the assertion loop. (adversarial; validated, severity demoted by validator)
+
+## Validated, unapplied — deployment hardening
+
+- **#6 P1 `clusters/pilot/lending/lending-controller.yaml:178` — bare Docker Hub image ref on the EKS-facing manifest.** `synorg/lending-controller:0.1.0` pulls docker.io on EKS; sibling workloads use `registry.synorg.io/*`. Fix: private registry + digest for EKS; bare tag only for kind-load. (security; validated)
+- **#8 P1 `controllers/lending/reconcile.sh` kc() — no `--request-timeout`; a stalled API server wedges the tick loop forever (and there is no liveness probe to recover it).** Fix: `--request-timeout=30s` in kc(). One line. (reliability; validated)
+- **#13 P2 `controllers/lending/test.sh:227` — ORIG_LIMIT captured after scenarios 4a/4b already patched the ClusterQueue**, so the trap restore (applied as #11) writes back a test-mutated value on real clusters. Fix: snapshot before the first live tick. (correctness; validated)
+- **#17 P2 `.github/workflows/e2e.yaml:48` — `KUBECTL_VERSION: v1.31.0` drifts from the repo's k8s 1.33 convention** (integration.yaml v1.33.7, EKS cluster_version 1.33). One line. (maintainability; unvalidated — over validation budget)
+- **#18 P2 `clusters/pilot/lending/lending-controller.yaml` — no liveness probe on the controller Deployment.** Fix: per-tick heartbeat file + exec probe. (reliability; unvalidated — over validation budget)
+
+## Advisory (owner: human — e2e assertion strength)
+
+- **#19 P2 `tests/e2e/assertions.sh:208` — assert_reclaim can pass via close-time untaint, not actual reclaim** (driven closesAt +11m clears taints before the +15m ramp deadline regardless of drain). Require reclaim evidence (events / deleted NodeClaims) or move closesAt past the deadline. (adversarial)
+- **#20 P2 `tests/e2e/assertions.sh:224` — scrub "new instance" proof satisfied by any second pool node.** Snapshot all pool providerIDs at lend time; require one outside the entry set. (adversarial)
+
+## Suppressed at gate (anchor 50 — noted for completeness)
+
+- Makefile integration loop would pass green if `find` matched nothing (partially mitigated: the lending suite now runs unconditionally). Consider an empty-set guard (R6).
+- reconcile.sh borrowingLimit JSON patch uses `replace`; `add` also creates the field when absent.
