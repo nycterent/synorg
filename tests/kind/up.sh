@@ -165,12 +165,16 @@ patch_gpu_ds_tolerations() {
 install_fake_gpu_operator() {
   # No --wait: the device-plugin DaemonSet cannot schedule until the toleration
   # patch below lands, so a helm wait here would deadlock against itself.
+  # --force-conflicts: re-runs hit an SSA conflict on .spec.template.spec
+  # .tolerations, which patch_gpu_ds_tolerations took ownership of (helm 4
+  # applies server-side); helm reclaims the field, then the patch re-adds.
   helm --kube-context "$KCTX" upgrade --install gpu-operator \
     oci://ghcr.io/run-ai/fake-gpu-operator/fake-gpu-operator \
     --version "$FAKE_GPU_OPERATOR_VERSION" \
     --namespace "$GPU_OP_NS" --create-namespace \
     --set "topology.nodePools.default.gpuCount=${GPU_COUNT}" \
     --set computeDomainController.enabled=false \
+    --force-conflicts \
     && patch_gpu_ds_tolerations
   # computeDomainController is disabled because its DeviceClass template needs
   # the DRA resource.k8s.io API, which kindest v1.33 does not serve by default;
@@ -228,20 +232,33 @@ install_karpenter_kwok() {
   fi
 
   local img repo tag digest
+  # --platform must match the kind node's architecture — ko defaults to
+  # linux/amd64, which yields a 0/1 CrashLoop (exec format) on arm64 hosts.
+  local arch; arch="$(docker version --format '{{.Server.Arch}}' 2>/dev/null || uname -m)"
+  case "$arch" in aarch64) arch=arm64 ;; x86_64) arch=amd64 ;; esac
   img="$(cd "$src" && KO_DOCKER_REPO=kind.local KIND_CLUSTER_NAME="$CLUSTER_NAME" \
-    go run "github.com/google/ko@${KO_VERSION}" build -B sigs.k8s.io/karpenter/kwok)"
+    go run "github.com/google/ko@${KO_VERSION}" build -B --platform="linux/${arch}" sigs.k8s.io/karpenter/kwok)"
   # ko prints REPO[:TAG]@DIGEST; split it the same way upstream's Makefile does.
   repo="$(echo "$img" | cut -d '@' -f 1 | cut -d ':' -f 1)"
   tag="$(echo "$img" | cut -d '@' -f 1 | cut -d ':' -f 2 -s)"
   digest="$(echo "$img" | cut -d '@' -f 2 -s)"
 
   k apply --server-side --force-conflicts -f "$src/kwok/charts/crds"
+  # The chart's node affinity forbids nodes carrying karpenter.sh/nodepool —
+  # which is every kind worker here (they impersonate the EKS pools). The
+  # control-plane node is the only legal home, so tolerate its taint.
   helm --kube-context "$KCTX" upgrade --install karpenter "$src/kwok/charts" \
     --namespace kube-system --skip-crds \
     --set controller.image.repository="$repo" \
     --set controller.image.tag="${tag:-latest}" \
     --set controller.image.digest="$digest" \
+    --set-json 'tolerations=[{"key":"CriticalAddonsOnly","operator":"Exists"},{"key":"node-role.kubernetes.io/control-plane","operator":"Exists","effect":"NoSchedule"}]' \
+    --set settings.featureGates.staticCapacity=false \
+    --set settings.featureGates.capacityBuffer=false \
     --wait --timeout 5m
+  # ^ staticCapacity/capacityBuffer: the v1.14.0 chart's FEATURE_GATES template
+  # references both but values.yaml defines neither — unset they render empty
+  # and the controller panics at boot ("invalid value of StaticCapacity").
   # Test-only tainted NodePool + KWOKNodeClass: virtual nodes for
   # taint/drift/consolidation tests, unreachable by GPU (or any untolerating)
   # workloads.
