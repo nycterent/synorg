@@ -173,9 +173,12 @@ spec:
         - name: controller
           # Built from controllers/lending/Dockerfile — the U4 thin kubectl
           # reconcile loop (see controllers/lending/README.md for the contract
-          # and how the real operator replaces it). The U1 kind harness builds
-          # this tag and `kind load`s it; on EKS it comes from the registry.
-          image: synorg/lending-controller:0.1.0
+          # and how the real operator replaces it). The kind harness path
+          # builds and `kind load`s this exact tag locally; on EKS it comes
+          # from the org registry. Pin by digest once the first image is
+          # pushed to registry.synorg.io — no real image exists yet, so there
+          # is no digest to pin today.
+          image: registry.synorg.io/platform/lending-controller:0.1.0
           # v0 note: the shell loop is configured by env, not flags. Leader
           # election is deferred to the real operator (the Role keeps the
           # lease verbs for it); replicas: 1 + strategy Recreate is the v0
@@ -196,6 +199,23 @@ spec:
             # writable path — pointed into the emptyDir mounted at /tmp below.
             - name: KUBECTL_CACHE_DIR
               value: /tmp/kubectl-cache
+          # Liveness = LOOP-ALIVE, not tick-success: reconcile.sh touches
+          # $KUBECTL_CACHE_DIR/heartbeat at startup (before the first tick)
+          # and after every tick — including schedule_invalid skips and
+          # handled tick failures — so the probe fails only when the loop
+          # itself is wedged (e.g. a hung process). Staleness threshold 300s
+          # = 5 missed ticks at TICK_SECONDS=60. The path is the
+          # KUBECTL_CACHE_DIR env value above; busybox/alpine stat supports
+          # `-c %Y` (mtime, epoch seconds).
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - test "$(( $(date +%s) - $(stat -c %Y /tmp/kubectl-cache/heartbeat) ))" -lt 300
+            initialDelaySeconds: 90
+            periodSeconds: 60
+            failureThreshold: 3
           resources:
             requests:
               cpu: "50m"

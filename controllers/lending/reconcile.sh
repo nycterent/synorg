@@ -63,7 +63,12 @@ WAVE_FIRE_WINDOW_SECONDS="${WAVE_FIRE_WINDOW_SECONDS:-300}"
 MAX_TICKS="${MAX_TICKS:-0}"
 
 # kc — the single kubectl entrypoint (see RBAC-CHECK CONTRACT above).
-kc() { kubectl --cache-dir="$KUBECTL_CACHE_DIR" "$@"; }
+# --request-timeout bounds every single API request (sibling smoke.sh/test.sh
+# convention) so a stalled API server can never wedge the tick loop forever.
+# Long *operations* are unaffected: drain's --timeout waits span many short
+# requests (eviction creates + pod-gone polls), each individually under 30s,
+# and the loop uses no watch-style single long request.
+kc() { kubectl --cache-dir="$KUBECTL_CACHE_DIR" --request-timeout=30s "$@"; }
 
 # log LEVEL KEY=VALUE... — structured single-line logs (the evidence plane and
 # the kind-path reclaim assertions grep these).
@@ -430,10 +435,18 @@ main() {
   command -v yq >/dev/null 2>&1 || { log error msg="yq not installed"; exit 1; }
   command -v jq >/dev/null 2>&1 || { log error msg="jq not installed"; exit 1; }
   mkdir -p "$KUBECTL_CACHE_DIR"
+  # Heartbeat contract (Deployment livenessProbe): the file's mtime says the
+  # LOOP IS ALIVE — not that the tick succeeded. Touched at startup (so the
+  # probe's initialDelay covers validate+first-tick without a race) and after
+  # every tick below, including schedule_invalid skips and handled failures.
+  touch "$KUBECTL_CACHE_DIR/heartbeat"
   trap 'log info msg="terminating"; exit 0' TERM INT
   log info msg="starting" schedule="$SCHEDULE_FILE" tick_seconds="$TICK_SECONDS"
   while :; do
     tick || log error action=tick msg="tick failed, continuing"
+    # Loop-alive heartbeat: written whether tick succeeded, was skipped by
+    # schedule_invalid, or failed-and-was-handled (see contract above).
+    touch "$KUBECTL_CACHE_DIR/heartbeat"
     ticks=$(( ticks + 1 ))
     if [ "$MAX_TICKS" -gt 0 ] && [ "$ticks" -ge "$MAX_TICKS" ]; then break; fi
     sleep "$TICK_SECONDS"

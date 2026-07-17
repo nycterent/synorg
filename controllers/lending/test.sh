@@ -254,10 +254,21 @@ NODE="${TEST_NODE:-$(k get nodes -o name | head -1 | cut -d/ -f2)}"
 # Remember the node's prior nodepool label so cleanup restores it instead of
 # blindly deleting a label the node carried before the test.
 PRIOR_POOL="$(k get node "$NODE" -o jsonpath='{.metadata.labels.karpenter\.sh/nodepool}')"
-# Shrunk-curve restore state — set by scenario 5, consumed by cleanup_live so
-# a failed assertion cannot strand the ClusterQueue at borrowingLimit 0.
+# Shrunk-curve restore state — captured ONCE here at live-tier entry, BEFORE
+# the first reconcile tick: scenarios 4a/4b run open-window fixtures with
+# borrow curve 100, which already patch training-borrow's borrowingLimit, so
+# a later snapshot would capture a test-mutated value and the EXIT-trap
+# restore would write that back on real clusters. Consumed by scenario 5 and
+# cleanup_live; stays empty when the queue is absent (scenario 5 skips, the
+# restore no-ops).
 ORIG_LIMIT=""
 BORROW_PATH=""
+if k get clusterqueue training-borrow >/dev/null 2>&1; then
+  CQ_JSON="$(k get clusterqueue training-borrow -o json)"
+  ORIG_LIMIT="$(jq -r '[.spec.resourceGroups[].flavors[].resources[] | select(.name == "nvidia.com/gpu")][0].borrowingLimit' <<<"$CQ_JSON")"
+  # Path lookup goes through reconcile.sh's own path-finder, not an inline copy.
+  BORROW_PATH="$(bash "$RECONCILE" --print-borrow-path <<<"$CQ_JSON")"
+fi
 
 cleanup_live() {
   if [ -n "$PRIOR_POOL" ]; then
@@ -315,14 +326,11 @@ k get node "$NODE" -o json | jq -e --arg k "$TAINT_KEY" '.spec.taints // [] | an
   || fail "window closed: lent taint not removed from $NODE"
 pass "window closed: lent taint removed"
 
-# 5. shrunk curve -> borrowingLimit patched to match (needs Kueue + the queue)
-if k get clusterqueue training-borrow >/dev/null 2>&1; then
-  CQ_JSON="$(k get clusterqueue training-borrow -o json)"
-  ORIG_LIMIT="$(jq -r '[.spec.resourceGroups[].flavors[].resources[] | select(.name == "nvidia.com/gpu")][0].borrowingLimit' <<<"$CQ_JSON")"
-  # Path lookup goes through reconcile.sh's own path-finder, not an inline
-  # copy. Capture it BEFORE the tick: the EXIT trap restores the original
-  # limit, so both must be in hand even if the assertion below fails.
-  BORROW_PATH="$(bash "$RECONCILE" --print-borrow-path <<<"$CQ_JSON")"
+# 5. shrunk curve -> borrowingLimit patched to match (needs Kueue + the queue).
+# Uses the pristine ORIG_LIMIT/BORROW_PATH snapshot taken at live-tier entry
+# (before 4a/4b's ticks mutated the queue); the EXIT trap restores from the
+# same snapshot even if the assertion below fails.
+if [ -n "$ORIG_LIMIT" ] && [ -n "$BORROW_PATH" ]; then
   write_fixture "$TMPDIR_T/shrunk.yaml" "00:00" "23:59" "$ALL_DAYS" 0 "[]"
   SCHEDULE_FILE="$TMPDIR_T/shrunk.yaml" MAX_TICKS=1 TICK_SECONDS=0 bash "$RECONCILE"
   GOT="$(k get clusterqueue training-borrow -o json \
@@ -330,7 +338,7 @@ if k get clusterqueue training-borrow >/dev/null 2>&1; then
   [ "$GOT" = "0" ] || fail "shrunk curve: borrowingLimit is $GOT, expected 0"
   pass "shrunk curve: borrowingLimit patched to 0"
 else
-  skip "shrunk curve scenario (no training-borrow ClusterQueue on this cluster)"
+  skip "shrunk curve scenario (no pristine snapshot — training-borrow ClusterQueue absent on this cluster)"
 fi
 
 # Waves now fire at most once per local day, keyed by a marker file under

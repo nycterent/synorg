@@ -132,13 +132,34 @@ harness's job) so the selector finds them.
 ## Build and deploy
 
 ```sh
-docker build -t synorg/lending-controller:0.1.0 controllers/lending
-kind load docker-image synorg/lending-controller:0.1.0 --name <cluster>
+docker build -t registry.synorg.io/platform/lending-controller:0.1.0 controllers/lending
+kind load docker-image registry.synorg.io/platform/lending-controller:0.1.0 --name <cluster>
 kubectl apply -f clusters/pilot/lending/
 ```
 
+The image follows the org registry convention
+(`registry.synorg.io/<domain>/<name>`, platform domain) — never a bare Docker
+Hub ref: the `synorg/` namespace on docker.io is not org-controlled. The kind
+harness path builds and `kind load`s this exact tag locally; on EKS the kubelet
+pulls it from the registry. Pin by digest in `lending-controller.yaml` once the
+first image is pushed (no real image exists yet, so there is no digest to pin
+today).
+
 The Deployment runs non-root with `readOnlyRootFilesystem: true`; the kubectl
 cache writes to `KUBECTL_CACHE_DIR=/tmp/kubectl-cache` on an emptyDir.
+
+## Liveness (loop-alive, not tick-success)
+
+`reconcile.sh` touches `$KUBECTL_CACHE_DIR/heartbeat` at startup (before the
+first tick) and again after **every** tick — including ticks skipped by
+`schedule_invalid` and handled tick failures. The Deployment's exec
+`livenessProbe` asserts that file is fresher than 300 s (5 missed ticks at
+`TICK_SECONDS=60`; `initialDelaySeconds: 90` covers validate + first tick). A
+stale heartbeat therefore means the **loop itself is wedged** (hung process),
+not that a tick failed — per-tick errors are logged and the loop continues.
+Every kubectl request is additionally bounded by `--request-timeout=30s` in
+`kc()`, so a stalled API server cannot wedge a tick indefinitely in the first
+place.
 
 ## Tests
 

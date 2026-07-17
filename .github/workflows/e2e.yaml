@@ -39,7 +39,8 @@ permissions:
 
 env:
   TERRAFORM_VERSION: "1.9.8"
-  KUBECTL_VERSION: v1.31.0
+  # kubectl matches the repo's k8s 1.33 pin (EKS cluster_version 1.33, harness kindest/node v1.33.7) — keeps client version skew in-window.
+  KUBECTL_VERSION: v1.33.7
   HELM_VERSION: v4.1.1
 
 jobs:
