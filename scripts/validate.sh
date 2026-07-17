@@ -74,7 +74,9 @@ done
 # --- 2. Kubeconform on raw cluster manifests -------------------------------
 manifests_in_scope() {
   local f
+  local f
   for f in $( (git ls-files 'clusters/**/*.yaml' 'policies/**/*.yaml'; git ls-files --others --exclude-standard 'clusters/**/*.yaml' 'policies/**/*.yaml') 2>/dev/null | sort -u); do
+    case "$f" in clusters/*/services/*) continue ;; esac   # chart values, rendered below
     if [ "$FULL" = "1" ] || echo "$CHANGED" | grep -qx "$f"; then echo "$f"; fi
   done
 }
@@ -86,6 +88,15 @@ if [ "${#MANIFESTS[@]}" -gt 0 ]; then
     -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
     "${MANIFESTS[@]}" || fail "cluster/policy manifest schema violations"
 fi
+
+# --- 2b. Service values render through the golden chart ---------------------
+for f in $( (git ls-files 'clusters/*/services/*.yaml'; git ls-files --others --exclude-standard 'clusters/*/services/*.yaml') 2>/dev/null | sort -u); do
+  if [ "$FULL" = "1" ] || echo "$CHANGED" | grep -qx "$f"; then
+    echo "render service values: $f"
+    helm template svc charts/golden-service -f "$f" >/dev/null \
+      || fail "$f: does not satisfy the golden chart schema"
+  fi
+done
 
 # --- 3. Policy tests --------------------------------------------------------
 if [ "$FULL" = "1" ] || echo "$CHANGED" | grep -q '^policies/\|^charts/'; then
