@@ -1,0 +1,20 @@
+scripts/validate.sh
+  s_592792c0856826::t_cb61f0ba3102a8 92-100
+  s_592792c0856826::t_65fffa0b977e84 79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "2a9876dee142195c15584cda95281c494f3bb39f",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
