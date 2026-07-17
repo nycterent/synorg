@@ -171,17 +171,31 @@ spec:
           type: RuntimeDefault
       containers:
         - name: controller
-          image: synorg/lending-controller:0.1.0  # placeholder — pin once the U8 controller image is built
-          args:
-            - --schedule=/etc/lending/schedule.yaml
-            - --leader-elect                       # singleton guard across rollovers
-            - --leader-elect-namespace=lending
-            - --emit-events                        # honor the emit-events contract above
+          # Built from controllers/lending/Dockerfile — the U4 thin kubectl
+          # reconcile loop (see controllers/lending/README.md for the contract
+          # and how the real operator replaces it). The U1 kind harness builds
+          # this tag and `kind load`s it; on EKS it comes from the registry.
+          image: synorg/lending-controller:0.1.0
+          # v0 note: the shell loop is configured by env, not flags. Leader
+          # election is deferred to the real operator (the Role keeps the
+          # lease verbs for it); replicas: 1 + strategy Recreate is the v0
+          # singleton guard. The emit-events contract above is honored via
+          # EMIT_EVENTS.
           env:
             # Region-local timezone so schedule clock times resolve correctly
             # even if the node's TZ differs.
             - name: TZ
               value: Europe/Dublin
+            - name: SCHEDULE_FILE
+              value: /etc/lending/schedule.yaml
+            - name: TICK_SECONDS
+              value: "60"
+            - name: EMIT_EVENTS
+              value: "true"
+            # readOnlyRootFilesystem: the kubectl discovery/http cache needs a
+            # writable path — pointed into the emptyDir mounted at /tmp below.
+            - name: KUBECTL_CACHE_DIR
+              value: /tmp/kubectl-cache
           resources:
             requests:
               cpu: "50m"
@@ -198,9 +212,15 @@ spec:
             - name: schedule
               mountPath: /etc/lending
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
       volumes:
         # Mount the git-controlled schedule ConfigMap (schedule.yaml). This is
         # the controller's only source of lending intent.
         - name: schedule
           configMap:
             name: lending-schedule
+        # Writable scratch for the kubectl cache (KUBECTL_CACHE_DIR) under
+        # readOnlyRootFilesystem.
+        - name: tmp
+          emptyDir: {}
