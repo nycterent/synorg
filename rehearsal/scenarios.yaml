@@ -1,0 +1,135 @@
+# Game-day scenarios (U10). Synthetic rehearsal of the morning-ramp preemption
+# storm against the pilot cluster: inference load ramps while training saturates
+# lent nodes, and each scenario drives a different reclaim shape. This is the
+# Phase 2→3 gate — R2 must hold here before real traffic depends on it
+# (Assumption 4: rehearse scheduling-behavior changes, don't ship them blind).
+#
+# Delivered as a ConfigMap so the harness (loadgen.yaml, game-day.md) reads one
+# schema-checked source. Thresholds are parameterized under `parameters` and
+# referenced by name in each scenario's passGates, so retuning a target is a
+# one-line change, not a rewrite. Pass gates read the same SLO series as the
+# read-API (slo-definitions.yaml) so the harness and evidence plane never
+# disagree on a number.
+#
+# The R2 pass gate is identical for every scenario, but it is written out inline
+# per scenario rather than via a YAML anchor: this file is a machine-read
+# contract and naive consumers (jq after `yq -o json`, agents) do not resolve
+# YAML aliases — an un-exploded `*alias` would read as a literal string. Explicit
+# beats clever for a read-API.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: game-day-scenarios
+  namespace: rehearsal
+  labels:
+    app.kubernetes.io/name: game-day
+    app.kubernetes.io/component: scenarios
+data:
+  scenarios.yaml: |
+    schemaVersion: 1
+
+    # Parameterized thresholds — every passGate references these by name.
+    parameters:
+      renderStartP95TargetSeconds: 2.0    # mirrors slo-definitions render_start_p95 target
+      trainingLostWorkMaxSeconds: 300     # KTD12 ≤5-min lost-work budget, under concurrent checkpointing
+      sharedStoreMinThroughputMBps: 2000  # checkpoint shared-store write floor while ALL lent nodes checkpoint at once
+      repeatRuns: 3                       # runs per scenario; variance must be < renderStartP95VarianceMaxSeconds
+      renderStartP95VarianceMaxSeconds: 0.25  # cross-run spread small enough that a regression != noise
+
+    # Every scenario shares the same R2 pass gate (written inline below): the
+    # render floor holds during reclaim AND training loses no more than its budget
+    # while the shared store sustains concurrent checkpoint writes. Each gate's
+    # `metric` is a recording-rule series (recording-rules.yaml) and `param`
+    # names a threshold in `parameters` above.
+    scenarios:
+      # 1. The happy path: the schedule's staged waves (05:30/06:00/06:30).
+      - name: staged-reclaim-normal
+        description: Reclaim runs in the three scheduled waves ahead of the 07:00 ramp.
+        loadProfile:
+          inference: ramp                 # ramp from floor to peak across the reclaim window
+          inferenceRampToPeakRPS: 4000
+          inferenceRampDurationMinutes: 90
+          training: saturate-lent         # training fills every lent GPU (max borrow)
+        reclaim: from-schedule            # use clusters/pilot/lending/schedule.yaml waves as-is
+        passGates:
+          - metric: render_start_seconds:p95:reclaim_window
+            comparison: "<="
+            param: renderStartP95TargetSeconds
+          - metric: max(training_checkpoint_lost_seconds)
+            comparison: "<="
+            param: trainingLostWorkMaxSeconds
+          - metric: min(checkpoint_store_write_throughput_mbps)
+            comparison: ">="
+            param: sharedStoreMinThroughputMBps
+
+      # 2. Late/compressed: waves collapse into a short window (ops ran late).
+      - name: compressed-reclaim
+        description: All three waves compressed into a 20-minute window just before the ramp.
+        loadProfile:
+          inference: ramp
+          inferenceRampToPeakRPS: 4000
+          inferenceRampDurationMinutes: 90
+          training: saturate-lent
+        reclaim:
+          override: compressed
+          startsAt: "06:40"
+          windowMinutes: 20               # waves 1–3 fire inside this window
+        passGates:
+          - metric: render_start_seconds:p95:reclaim_window
+            comparison: "<="
+            param: renderStartP95TargetSeconds
+          - metric: max(training_checkpoint_lost_seconds)
+            comparison: "<="
+            param: trainingLostWorkMaxSeconds
+          - metric: min(checkpoint_store_write_throughput_mbps)
+            comparison: ">="
+            param: sharedStoreMinThroughputMBps
+
+      # 3. Storm: every lent node reclaimed at once (worst case — no stagger).
+      - name: storm-all-at-once
+        description: All lent nodes reclaimed simultaneously; the warm floor alone must hold the render SLO.
+        loadProfile:
+          inference: spike                # step to peak, no ramp
+          inferenceRampToPeakRPS: 4000
+          inferenceRampDurationMinutes: 0
+          training: saturate-lent
+        reclaim:
+          override: all-at-once
+          startsAt: "06:55"
+        passGates:
+          - metric: render_start_seconds:p95:reclaim_window
+            comparison: "<="
+            param: renderStartP95TargetSeconds
+          - metric: max(training_checkpoint_lost_seconds)
+            comparison: "<="
+            param: trainingLostWorkMaxSeconds
+          - metric: min(checkpoint_store_write_throughput_mbps)
+            comparison: ">="
+            param: sharedStoreMinThroughputMBps
+
+      # 4. Failure-injection: a driver wedges mid-reclaim (DCGM failure path).
+      - name: driver-wedge-during-reclaim
+        description: A GPU driver wedges on a reclaiming node mid-wave; quarantine must fire without breaching R2.
+        loadProfile:
+          inference: ramp
+          inferenceRampToPeakRPS: 4000
+          inferenceRampDurationMinutes: 90
+          training: saturate-lent
+        reclaim:
+          override: compressed
+          startsAt: "06:30"
+          windowMinutes: 30
+        faultInjection:
+          type: driver-wedge              # inject a DCGM XID fault on one reclaiming node
+          atMinuteIntoReclaim: 5
+          expect: quarantine              # gpu-node-quarantine.md path fires; node fenced, not returned
+        passGates:
+          - metric: render_start_seconds:p95:reclaim_window
+            comparison: "<="
+            param: renderStartP95TargetSeconds
+          - metric: max(training_checkpoint_lost_seconds)
+            comparison: "<="
+            param: trainingLostWorkMaxSeconds
+          - metric: min(checkpoint_store_write_throughput_mbps)
+            comparison: ">="
+            param: sharedStoreMinThroughputMBps

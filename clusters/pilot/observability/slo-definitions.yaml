@@ -1,0 +1,104 @@
+# Machine-readable SLO definitions (U9). This is the read-API contract: agents
+# and the game-day harness read *these* targets and queries, not Grafana
+# dashboards. Each SLO names a target, a comparison, and the exact PromQL to
+# evaluate it — so "what is my render-start p95 during this morning's reclaim?"
+# is answerable from config alone.
+#
+# Delivered as a ConfigMap (schema-checked, mountable). The body is the source of
+# truth; docs/slo-catalog.md is a hand-mirrored table of it and MUST stay in sync
+# (see the note at the top of that file).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slo-definitions
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: evidence-plane
+    app.kubernetes.io/component: slo-definitions
+data:
+  slos.yaml: |
+    schemaVersion: 1
+    slos:
+      # Success Criterion 1 — render path latency, the SLO the whole lending
+      # design exists to protect.
+      - name: render_start_p95
+        description: Render-start p95 latency, steady state, per region.
+        criterion: 1
+        query: render_start_seconds:p95
+        comparison: "<="
+        target: 2.0
+        unit: seconds
+      - name: render_start_p95_reclaim_window
+        description: Render-start p95 during the morning reclaim window (R2 — the storm must not breach the floor).
+        criterion: 1
+        query: render_start_seconds:p95:reclaim_window
+        comparison: "<="
+        target: 2.0
+        unit: seconds
+
+      # R2 — training preemption budget (KTD12). Aggregate lost work per preempted
+      # job under concurrent checkpointing; the game-day pass gate reads this.
+      - name: training_lost_work_max
+        description: Max lost work across preempted training jobs during a reclaim wave (shared-store throughput bound).
+        criterion: 2
+        query: max(training_checkpoint_lost_seconds)
+        comparison: "<="
+        target: 300
+        unit: seconds
+
+      # Assumption 2 — is idle allocation-idle or kernel-idle? Trigger, not a
+      # hard SLO: kernel util well below allocation means revisit lending.
+      - name: gpu_kernel_util_floor
+        description: Fleet GPU kernel-util floor; sustained lows under high allocation trigger the Assumption 2 revisit.
+        criterion: 2
+        query: avg(gpu_kernel_util:ratio)
+        comparison: ">="
+        target: 0.35
+        unit: ratio
+
+      # R6 — attribution completeness. No unattributed GPU-hours: allocated GPUs
+      # summed across teams must equal total allocated GPUs (remainder == 0).
+      - name: gpu_attribution_complete
+        description: Every allocated GPU attributes to exactly one team (no unattributed remainder).
+        criterion: 6
+        query: |
+          sum(team:gpu_allocated:sum)
+          / clamp_min(sum(kube_pod_container_resource_requests{resource="nvidia_com_gpu"}), 1)
+        comparison: ">="
+        target: 1.0
+        unit: ratio
+
+      # R8 / KTD5 — scarcity is evidence. Unmet capacity ratio is surfaced, not
+      # alerted as failure; the target is a shaping threshold for the fleet loop.
+      - name: capacity_unmet_ratio
+        description: Fraction of asked GPU capacity not satisfied (scarcity signal for fleet shaping, not an error).
+        criterion: 8
+        query: max(capacity_unmet:ratio)
+        comparison: "<="
+        target: 0.10
+        unit: ratio
+
+      # Success Criterion 3 — economics of lending.
+      - name: reclaimed_hours_served
+        description: GPUs served on reclaimed night capacity via the training-borrow queue (integrate for hours).
+        criterion: 3
+        query: reclaimed_hours_served:gpus
+        comparison: ">="
+        target: 1
+        unit: gpus
+
+      # Success Criterion 5 — flow: change lands fast and mostly without humans.
+      - name: pr_to_converged_p95
+        description: PR-open to ArgoCD-converged p95 (CI + sync stitched).
+        criterion: 5
+        query: pr_to_converged_seconds:p95
+        comparison: "<="
+        target: 900
+        unit: seconds
+      - name: auto_approved_ratio
+        description: Share of merged PRs that went through the auto-approved lane (vs human-by-exception).
+        criterion: 5
+        query: auto_approved:ratio
+        comparison: ">="
+        target: 0.80
+        unit: ratio

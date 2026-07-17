@@ -1,0 +1,117 @@
+# Game-day load generator (U10). Synthetic inference load that ramps against the
+# pilot cluster's render endpoint while training saturates the lent nodes. k6
+# drives the render-path RPS profile from the active scenario (scenarios.yaml);
+# the reclaim itself is driven by the lending-controller, not here — this only
+# produces the demand the reclaim must survive.
+#
+# Skeleton: the target endpoint, RPS, and duration come from env wired by the CI
+# job (see README.md) off the selected scenario's loadProfile. Runs in the
+# rehearsal namespace, on the web pool — never on a GPU node under test.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: game-day-loadgen-script
+  namespace: rehearsal
+  labels:
+    app.kubernetes.io/name: game-day
+    app.kubernetes.io/component: loadgen-script
+data:
+  render-load.js: |
+    // k6 render-path load. Executor and rates are parameterized by env so one
+    // script serves ramp / spike profiles; CI sets them from the scenario.
+    import http from 'k6/http';
+    import { check } from 'k6';
+
+    const TARGET_URL = __ENV.TARGET_URL;            // pilot inference render endpoint
+    const PEAK_RPS = Number(__ENV.PEAK_RPS || 4000);
+    const RAMP_MIN = Number(__ENV.RAMP_MINUTES || 90);  // 0 => spike (storm scenario)
+
+    export const options = {
+      scenarios: {
+        render: {
+          executor: 'ramping-arrival-rate',
+          startRate: RAMP_MIN > 0 ? 1 : PEAK_RPS,   // spike starts at peak
+          timeUnit: '1s',
+          preAllocatedVUs: 500,
+          maxVUs: 5000,
+          stages: RAMP_MIN > 0
+            ? [{ target: PEAK_RPS, duration: `${RAMP_MIN}m` }, { target: PEAK_RPS, duration: '15m' }]
+            : [{ target: PEAK_RPS, duration: '15m' }],
+        },
+      },
+      // Client-side guardrail only; the authoritative gate is the server-side
+      // render_start_seconds:p95 recording rule (scenarios.yaml passGates).
+      thresholds: {
+        http_req_duration: ['p(95)<2000'],
+      },
+    };
+
+    export default function () {
+      const res = http.get(TARGET_URL);
+      check(res, { 'status is 2xx': (r) => r.status >= 200 && r.status < 300 });
+    }
+---
+# Deployment skeleton. A long-lived driver so the harness can start/stop it around
+# a reclaim window; CI scales it to 1 to begin load and to 0 to stop. For a
+# one-shot run, swap kind to Job (README notes the trade-off).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: game-day-loadgen
+  namespace: rehearsal
+  labels:
+    app.kubernetes.io/name: game-day
+    app.kubernetes.io/component: loadgen
+spec:
+  # CI scales this: 0 = idle, 1 = generating load. Starts idle.
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: game-day
+      app.kubernetes.io/component: loadgen
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: game-day
+        app.kubernetes.io/component: loadgen
+    spec:
+      # Never on a GPU node under test.
+      nodeSelector:
+        pool.synorg.io/name: web
+      restartPolicy: Always
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: k6
+          image: grafana/k6:0.52.0
+          args: ["run", "/scripts/render-load.js"]
+          env:
+            # Wired by CI from the selected scenario's loadProfile.
+            - name: TARGET_URL
+              value: "http://inference.pilot.svc.cluster.local/render"  # placeholder pilot endpoint
+            - name: PEAK_RPS
+              value: "4000"
+            - name: RAMP_MINUTES
+              value: "90"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: game-day-loadgen-script

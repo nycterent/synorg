@@ -1,0 +1,109 @@
+# Lending schedule — the ONLY write path for lending intent (KTD5: capacity
+# intent lives in git; scarcity is evidence, not an error). A PR editing the
+# `data.schedule.yaml` document below is the sole way to change when GPU nodes
+# are lent, how far the training borrow curve is allowed to grow, and how the
+# morning reclaim is staged. Nothing else — no imperative kubectl, no console —
+# moves lending state; the U8 lifecycle controller only reads this file and
+# actuates from it (region-local, so it survives a hub/ArgoCD outage: once this
+# ConfigMap is applied the controller keeps running the schedule locally).
+#
+# Delivered as a ConfigMap so it is a first-class, schema-checked cluster object
+# and mounts straight into the controller (see lending-controller.yaml). The
+# schedule body is a block scalar the controller parses as YAML; the `#` field
+# comments are ordinary YAML comments and are ignored by the parser.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lending-schedule
+  namespace: lending
+  labels:
+    app.kubernetes.io/name: lending-controller
+    app.kubernetes.io/component: schedule
+data:
+  schedule.yaml: |
+    # ---- Lending schedule (git-controlled intent) --------------------------
+    # schemaVersion: bump when fields change so the controller can reject a
+    # schedule it does not understand rather than mis-actuate on it.
+    schemaVersion: 1
+
+    # timezone: all clock times below are region-local and DST-aware. The pilot
+    # region (eu-west-1) is Europe/Dublin; off-peak is defined in local time so
+    # the window tracks local demand, not UTC.
+    timezone: Europe/Dublin
+
+    # productionRampAt: the render-demand ramp the reclaim must finish before.
+    # Every reclaim wave lead time is measured back from this instant.
+    productionRampAt: "07:00"
+
+    # targets: the conventions.md pinned names this schedule actuates against.
+    # The controller patches Node taints and the Kueue ClusterQueue borrowingLimit
+    # for exactly these objects — never the NodePool spec.template (drift trap,
+    # see lending-controller.yaml RBAC comment).
+    targets:
+      lendablePool: gpu-lendable                       # Karpenter NodePool name (never edited, only its Nodes tainted)
+      lentTaint: "lending.synorg.io/lent=true:NoSchedule"  # added to Node objects while lent; removed on return-to-prod
+      trainingQueue: training-borrow                   # Kueue ClusterQueue whose borrowingLimit this curve drives (U6 owns the file)
+
+    # windows: when the lendable pool may carry training. Opening the window
+    # flips the lent taint ON (training tolerates it, inference does not);
+    # closing it is the deadline by which the reclaim waves must have returned
+    # every lent node to the prod-tolerable state.
+    windows:
+      - name: nightly-offpeak
+        opensAt: "22:00"    # window opens; lending.synorg.io/lent flips ON across lendable Nodes
+        closesAt: "06:30"   # last instant a node may still be lent; final wave completes here
+        days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+    # borrowingLimitCurve: the Kueue `training-borrow` ClusterQueue borrowingLimit,
+    # expressed as a percentage of lendable GPU capacity, stepping DOWN ahead of
+    # the ramp. Shrinking the borrow limit stops Kueue admitting *new* borrow
+    # before kube-scheduler PriorityClass preemption is needed — the render path
+    # never queues (KTD6). The controller converts gpuLimitPct → an absolute
+    # nvidia.com/gpu quantity against current lendable capacity and patches the
+    # ClusterQueue borrowingLimit; kube-scheduler preemption is only the
+    # emergency layer if demand outruns this curve.
+    borrowingLimitCurve:
+      - at: "22:00"
+        gpuLimitPct: 100    # full borrow allowed once the window opens
+      - at: "05:30"
+        gpuLimitPct: 75     # first cut, aligned to reclaim wave-1
+      - at: "06:00"
+        gpuLimitPct: 50     # aligned to wave-2
+      - at: "06:30"
+        gpuLimitPct: 0      # no borrow past the window close; aligned to wave-3
+
+    # reclaimWaves: staged drain-and-return of lent nodes ahead of the ramp
+    # (KTD12: staged waves so the warm floor plus stagger protect R2, never a
+    # single storm). Each wave shrinks quota (via the curve above) then drains
+    # and returns a fraction of the still-lent nodes. Preferring pre-scrubbed
+    # nodes keeps the reimage off the morning critical path (TRIZ preliminary
+    # action; see nightScrubRotation).
+    reclaimWaves:
+      - name: wave-1-early
+        startsAt: "05:30"
+        reclaimFraction: 0.25   # fraction of currently-lent nodes drained + returned this wave
+        drainGraceSeconds: 120  # KTD12 training-eviction grace; matches the 5-min checkpoint cadence
+        preferPreScrubbed: true # take night-scrubbed nodes first so return does not wait on reimage
+      - name: wave-2-mid
+        startsAt: "06:00"
+        reclaimFraction: 0.50
+        drainGraceSeconds: 120
+        preferPreScrubbed: true
+      - name: wave-3-final
+        startsAt: "06:30"
+        reclaimFraction: 1.0    # all remaining lent nodes returned before productionRampAt
+        drainGraceSeconds: 120
+        preferPreScrubbed: true
+
+    # nodeReturnToServiceBudgetSeconds: the measured p95 reimage → prod-ready
+    # budget (KTD12). Pinned here from U8 evidence; it is the wave lead-time
+    # input — each wave's startsAt sits at least this far ahead of when its
+    # nodes must be serving. Revisit when U9 telemetry moves the measured p95.
+    nodeReturnToServiceBudgetSeconds: 600
+
+    # nightScrubRotation: rotate node scrub through the night where training
+    # backlog allows, so reclaim waves draw from a pool of already-fresh nodes
+    # and the morning ramp never blocks on a reimage (TRIZ: scrub off the
+    # critical path, adopted U8). true = controller may pre-scrub idle lent
+    # nodes mid-window; false = scrub only at reclaim time.
+    nightScrubRotation: true

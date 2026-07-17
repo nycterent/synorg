@@ -1,0 +1,111 @@
+# Evidence-plane recording rules (U9). Precompute the series the read-API and the
+# success-criteria queries depend on so agents and game-day checks read stable
+# metric names, not ad-hoc PromQL. Grouped by concern; every rule carries its
+# source. Rendered as a PrometheusRule CRD (discovered by the kube-prometheus
+# stack). The `.spec.groups` body is a plain Prometheus rules document and is
+# promtool-checkable by extracting it (see the directory's verification notes).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: evidence-plane
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: evidence-plane
+    app.kubernetes.io/component: recording-rules
+spec:
+  groups:
+    # -- Render-start latency (Success Criterion 1) -------------------------
+    # Source: render_start_seconds histogram emitted by the inference service
+    # (R1 render path). The reclaim-window-scoped variant isolates the morning
+    # storm so the SLO can be proven precisely when it is under threat.
+    - name: render-latency
+      interval: 30s
+      rules:
+        - record: render_start_seconds:p95
+          expr: histogram_quantile(0.95, sum by (region, le) (rate(render_start_seconds_bucket[5m])))
+        # Same p95, gated to the reclaim window via the controller-emitted flag
+        # (1 while any reclaim wave is active). on() = match the single flag
+        # series against every region.
+        - record: render_start_seconds:p95:reclaim_window
+          expr: render_start_seconds:p95 and on() (lending_reclaim_window_active == 1)
+
+    # -- GPU utilization: allocation-idle vs kernel-idle (Assumption 2) ------
+    # Source: DCGM exporter (kernel work) and kube-state-metrics (allocation).
+    # Keeping the two separate is exactly the revisit trigger for Assumption 2:
+    # high allocation with low kernel util means lending is not the fix.
+    - name: gpu-utilization
+      interval: 30s
+      rules:
+        # Real kernel work: graphics/compute engine active fraction (0..1).
+        - record: gpu_kernel_util:ratio
+          expr: avg by (node) (DCGM_FI_PROF_GR_ENGINE_ACTIVE)
+        # Allocation idle: 1 - (GPUs requested / GPUs allocatable) per node.
+        - record: gpu_allocation_idle:ratio
+          expr: |
+            1 - (
+              sum by (node) (kube_pod_container_resource_requests{resource="nvidia_com_gpu"})
+              /
+              sum by (node) (kube_node_status_allocatable{resource="nvidia_com_gpu"})
+            )
+
+    # -- Per-team GPU-hour attribution (R6, Success Criterion) --------------
+    # Source: join pod GPU requests to the team.synorg.io/name label (enforced by
+    # U5 — unlabeled GPU pods are denied, so there is no unattributed remainder)
+    # and to node lifecycle (lent nodes attribute their training borrow to the
+    # borrowing team). This gauge is allocated-GPUs-per-team; the catalog query
+    # integrates it over the window to get GPU-hours.
+    - name: gpu-attribution
+      interval: 30s
+      rules:
+        - record: team:gpu_allocated:sum
+          expr: |
+            sum by (team) (
+              kube_pod_container_resource_requests{resource="nvidia_com_gpu"}
+              * on (pod, namespace) group_left(team)
+              label_replace(kube_pod_labels, "team", "$1", "label_team_synorg_io_name", "(.+)")
+            )
+
+    # -- Scarcity: asked vs got (R8, KTD5 "scarcity is evidence") -----------
+    # Source: Karpenter provisioning events shaped into rates. asked = capacity
+    # Karpenter tried to create; got = capacity that registered Ready. The unmet
+    # ratio is the scarcity signal the fleet-shaping loop consumes — a data point,
+    # never an error.
+    - name: capacity-scarcity
+      interval: 1m
+      rules:
+        - record: capacity_asked:rate5m
+          expr: sum by (nodepool) (rate(karpenter_nodeclaims_created_total[5m]))
+        - record: capacity_got:rate5m
+          expr: sum by (nodepool) (rate(karpenter_nodeclaims_registered_total[5m]))
+        - record: capacity_unmet:ratio
+          expr: |
+            1 - (
+              capacity_got:rate5m
+              / clamp_min(capacity_asked:rate5m, 1)
+            )
+
+    # -- Success Criterion 3: $/GPU-hour and reclaimed-hours-served ---------
+    # Source: billing-derived hourly cost gauge joined to region; Kueue borrow
+    # usage on the training-borrow queue (GPUs served on reclaimed night capacity;
+    # integrated over the window in the catalog to get reclaimed hours served).
+    - name: criterion3-cost
+      interval: 1m
+      rules:
+        - record: gpu_hour_cost:usd
+          expr: sum by (region) (synorg_gpu_instance_hourly_usd)
+        - record: reclaimed_hours_served:gpus
+          expr: sum(kueue_cluster_queue_resource_usage{cluster_queue="training-borrow", resource="nvidia_com_gpu"})
+
+    # -- Success Criterion 5: PR-to-converged and auto-approval share -------
+    # Source: a CI+ArgoCD bridge that stitches PR-open→merge (CI) with sync→Healthy
+    # (ArgoCD sync events) into one histogram; CI merge events labeled by lane
+    # (auto = auto-approved lane, exception = human-by-exception).
+    - name: criterion5-flow
+      interval: 1m
+      rules:
+        - record: pr_to_converged_seconds:p95
+          expr: histogram_quantile(0.95, sum by (le) (rate(pr_to_converged_seconds_bucket[1d])))
+        - record: auto_approved:ratio
+          expr: |
+            sum(rate(ci_pr_merged_total{lane="auto"}[1d]))
+            / clamp_min(sum(rate(ci_pr_merged_total[1d])), 1)

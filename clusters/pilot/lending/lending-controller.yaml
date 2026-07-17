@@ -1,0 +1,206 @@
+# Lend/reclaim lifecycle controller (U8). Runs the HTD state machine from the
+# git-controlled schedule (schedule.yaml): open/close the lending window, drive
+# the Kueue borrow curve, stage the morning reclaim, scrub returned nodes, and
+# quarantine unhealthy GPUs.
+#
+# REGION-LOCAL BY DESIGN (KTD7). This controller runs *in the pilot cluster*,
+# not on the ArgoCD hub. Time-critical lend/reclaim actuation must survive a hub
+# outage: if the management cluster dies, ArgoCD reconcile pauses but this
+# controller keeps reading the already-applied schedule ConfigMap and keeps the
+# morning reclaim on time. Git remains the only write path for *intent*; this
+# controller is the region-local *actuator* of that intent.
+#
+# ---------------------------------------------------------------------------
+# EMIT-EVENTS CONTRACT (consumed by U9 evidence plane)
+# ---------------------------------------------------------------------------
+# Every state transition emits a Kubernetes Event on the Node (and, for quota
+# changes, on the ClusterQueue) so the evidence plane can reconstruct the full
+# lifecycle timeline without scraping controller logs. The state machine and its
+# event reasons:
+#
+#   ProdServing --window opens-->      Idle         reason: LendWindowOpened
+#   Idle        --taint flipped-->     Lent         reason: NodeLent
+#   Lent        --wave starts-->       Reclaiming   reason: ReclaimWaveStarted
+#   Reclaiming  --drained-->           Scrubbing    reason: NodeDraining / NodeScrubStarted
+#   Scrubbing   --nodeclaim deleted--> (new node)   reason: NodeScrubbed (new EC2 instance-id in message)
+#   Scrubbing   --verified + untaint-->ProdServing  reason: NodeReturnedToProd
+#   (any GPU)   --DCGM failure-->      Quarantined  reason: NodeQuarantined (see gpu-node-quarantine.md)
+#
+# Additional evidence events:
+#   BorrowLimitPatched  — on ClusterQueue training-borrow, when the curve steps
+#   ScrubRotated        — on a Node pre-scrubbed mid-window (nightScrubRotation)
+#
+# The controller is the ONLY emitter of these reasons; U9 recording rules and
+# attribution joins key off them (lifecycle events × pod team labels).
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: lending-controller
+  namespace: lending
+  labels:
+    app.kubernetes.io/name: lending-controller
+---
+# Cluster-scoped permissions. DRIFT TRAP — READ BEFORE WIDENING:
+# This role deliberately grants NO verbs on karpenter.sh NodePools or
+# karpenter.k8s.aws EC2NodeClasses. Lending is actuated by tainting the *Node*
+# objects, never by editing a NodePool spec.template taint: Karpenter drift-
+# detects a template change and answers with a full-pool replacement at every
+# window transition (KTD5, and the comment on nodepool-gpu-lendable.yaml). If a
+# future change "needs" nodepools/patch here, it is almost certainly the drift
+# bug in disguise — stop and reconsider.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: lending-controller
+  labels:
+    app.kubernetes.io/name: lending-controller
+rules:
+  # Flip the lending.synorg.io/lent taint and the prod-return untaint on Node
+  # objects; read node state to drive the machine.
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  # Scrub = delete the NodeClaim; Karpenter terminates the EC2 instance and the
+  # returning node is a fresh instance booting a fresh AMI (GPU VRAM cannot
+  # survive the boundary). Read NodeClaims to map Node → instance and confirm a
+  # new instance-id after scrub.
+  - apiGroups: ["karpenter.sh"]
+    resources: ["nodeclaims"]
+    verbs: ["get", "list", "watch", "delete"]
+  # Drive the borrow curve: patch the training-borrow ClusterQueue borrowingLimit
+  # (U6 owns the queue file; this controller only patches the numeric limit from
+  # the git curve — it does not author or replace the queue).
+  - apiGroups: ["kueue.x-k8s.io"]
+    resources: ["clusterqueues"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  # Emit the lifecycle Events above (cluster-scoped so it can annotate Node and
+  # ClusterQueue objects, which live outside the controller namespace).
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: ["events.k8s.io"]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  # Drain support: evict/read pods on a reclaiming node (respect the 120 s grace).
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/eviction"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: lending-controller
+  labels:
+    app.kubernetes.io/name: lending-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: lending-controller
+subjects:
+  - kind: ServiceAccount
+    name: lending-controller
+    namespace: lending
+---
+# Namespaced permissions: read the schedule ConfigMap and hold the leader-
+# election lease. Scoped to the lending namespace only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: lending-controller
+  namespace: lending
+  labels:
+    app.kubernetes.io/name: lending-controller
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lending-controller
+  namespace: lending
+  labels:
+    app.kubernetes.io/name: lending-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: lending-controller
+subjects:
+  - kind: ServiceAccount
+    name: lending-controller
+    namespace: lending
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lending-controller
+  namespace: lending
+  labels:
+    app.kubernetes.io/name: lending-controller
+    app.kubernetes.io/component: controller
+spec:
+  # Single active replica: the reclaim state machine is a singleton actuator.
+  # A lease guards against a rollover double-run (see leader-election flag).
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lending-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lending-controller
+        app.kubernetes.io/component: controller
+    spec:
+      serviceAccountName: lending-controller
+      # Run on the web/system pool, never on a GPU node it might reclaim.
+      nodeSelector:
+        pool.synorg.io/name: web
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: controller
+          image: synorg/lending-controller:0.1.0
+          args:
+            - --schedule=/etc/lending/schedule.yaml
+            - --leader-elect                       # singleton guard across rollovers
+            - --leader-elect-namespace=lending
+            - --emit-events                        # honor the emit-events contract above
+          env:
+            # Region-local timezone so schedule clock times resolve correctly
+            # even if the node's TZ differs.
+            - name: TZ
+              value: Europe/Dublin
+          resources:
+            requests:
+              cpu: "50m"
+              memory: 128Mi
+            limits:
+              cpu: "500m"
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: schedule
+              mountPath: /etc/lending
+              readOnly: true
+      volumes:
+        # Mount the git-controlled schedule ConfigMap (schedule.yaml). This is
+        # the controller's only source of lending intent.
+        - name: schedule
+          configMap:
+            name: lending-schedule
