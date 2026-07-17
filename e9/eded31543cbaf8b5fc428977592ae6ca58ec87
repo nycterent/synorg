@@ -1,0 +1,53 @@
+docs/region-set.md
+  s_592792c0856826::t_9d155b1fcb19cc 1-64
+tools/env-spec-bridge/fixtures/errors/env-vars.envspec.yaml
+  s_592792c0856826::t_f72a6e24c2d1f9 1-12
+clusters/pilot/services/example-inference.yaml
+  s_592792c0856826::t_2679bde8091b8f 1-37
+clusters/pilot/services/README.md
+  s_592792c0856826::t_484c3895e5a96c 1-44
+docs/agent-interface.md
+  s_592792c0856826::t_7dfb3443368003 1-137
+tools/env-spec-bridge/fixtures/expected/web-checkout.values.yaml
+  s_592792c0856826::t_8ff83627554d71 1-22
+tools/env-spec-bridge/fixtures/inference-vision.envspec.yaml
+  s_592792c0856826::t_f184f5318710ff 1-23
+docs/ecs-retirement.md
+  s_592792c0856826::t_3ccaa9a11b1eb5 1-53
+tools/env-spec-bridge/fixtures/web-payments.envspec.yaml
+  s_592792c0856826::t_36dcf8f39b2f0f 1-16
+docs/env-spec-retirement.md
+  s_592792c0856826::t_71289777f54fa9 1-40
+tools/env-spec-bridge/test_bridge.py
+  s_592792c0856826::t_8dbcc7f15ef5e8 1-144
+tools/env-spec-bridge/fixtures/errors/unknown-key.envspec.yaml
+  s_592792c0856826::t_d46f760d0d9273 1-9
+runbooks/service-migration.md
+  s_592792c0856826::t_288998ab0e3a57 1-104
+tools/env-spec-bridge/fixtures/web-checkout.envspec.yaml
+  s_592792c0856826::t_111d801d501c86 1-17
+tools/env-spec-bridge/fixtures/expected/inference-vision.values.yaml
+  s_592792c0856826::t_8ff83627554d71 1-30
+tools/env-spec-bridge/bridge.py
+  s_592792c0856826::t_7b137bd589de37 1-268
+tools/env-spec-bridge/fixtures/expected/web-payments.values.yaml
+  s_592792c0856826::t_8ff83627554d71 1-30
+tools/env-spec-bridge/README.md
+  s_592792c0856826::t_f3d4f67838fe85 1-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e9eded31543cbaf8b5fc428977592ae6ca58ec87",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
