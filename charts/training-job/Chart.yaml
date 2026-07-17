@@ -1,0 +1,12 @@
+apiVersion: v2
+name: training-job
+description: >-
+  The training-job chart — the deploy interface for R&D training workloads, the
+  R4 symmetry twin of golden-service. values.yaml + values.schema.json is the
+  whole contract and the schema is the documentation (R11). Renders a Kueue-
+  admitted, checkpoint-tolerant, lendable-pool-only batch Job (KTD12): survives
+  120 s preemption grace and resumes from the latest checkpoint.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.33.0-0"

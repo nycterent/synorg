@@ -1,0 +1,108 @@
+# The training Job. Suspended at creation so Kueue is the only admitter (KTD6);
+# lendable-pool-only so training can never touch the warm floor (R12); checkpoint-
+# tolerant so a 120 s preemption loses <=5 min of work (KTD12).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "training-job.fullname" . }}
+  labels:
+    {{- include "training-job.labels" . | nindent 4 }}
+    # Kueue reads the queue off the Job object. This is the label serving never
+    # carries: training is Kueue-admitted, the render path is not (KTD6).
+    kueue.x-k8s.io/queue-name: {{ .Values.queue | quote }}
+spec:
+  # Kueue admits by unsuspending. Never let the Job schedule before it has quota.
+  suspend: true
+  parallelism: {{ .Values.workers }}
+  completions: {{ .Values.workers }}
+  # Indexed: each worker gets a stable JOB_COMPLETION_INDEX = torchrun node rank.
+  completionMode: Indexed
+  # Preemption deletes pods (a failure); absorb the expected preemptions.
+  backoffLimit: {{ .Values.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "training-job.labels" . | nindent 8 }}
+    spec:
+      # Preemptible, never-preempt (KTD12): training yields to inference via the
+      # checkpoint contract, it never takes capacity.
+      priorityClassName: training-preemptible
+      # The whole preemption budget: 120 s from SIGTERM to kill, so the preStop
+      # final checkpoint has time to flush (KTD12).
+      terminationGracePeriodSeconds: 120
+      restartPolicy: Never
+      # Lendable pool only. No warm-floor toleration exists here, so these pods
+      # physically cannot land on the never-lent inference floor (R12 containment).
+      nodeSelector:
+        karpenter.sh/nodepool: gpu-lendable
+      tolerations:
+        - key: pool.synorg.io/lendable
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+        - key: lending.synorg.io/lent
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      # Shared checkpoint store (infra/terraform/regions/pilot/checkpoint-store).
+      # RWX so every worker across every job writes to the same checkpoint-store
+      # volume (Mountpoint-S3 CSI by default, FSx for Lustre when var.enable_fsx);
+      # this is what makes checkpoints survive pod deletion, so a preempted worker
+      # resumes from the latest checkpoint instead of restarting (KTD12). The claim
+      # name is the pinned convention `training-checkpoints`, created per team
+      # namespace at onboarding (runbooks/training-onboarding.md).
+      volumes:
+        - name: checkpoints
+          persistentVolumeClaim:
+            claimName: training-checkpoints
+      containers:
+        - name: trainer
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.command | nindent 12 }}
+          env:
+            # Referenced by the torchrun-elastic command scaffold.
+            - name: WORKERS
+              value: {{ .Values.workers | quote }}
+            - name: GPU
+              value: {{ .Values.gpu | quote }}
+            - name: JOB_NAME
+              value: {{ include "training-job.fullname" . | quote }}
+            # Stable per-worker rank for Indexed jobs (downward API off the
+            # job-completion-index annotation).
+            - name: JOB_COMPLETION_INDEX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
+            # The checkpoint contract (KTD12). The image entrypoint MUST resume
+            # from the latest checkpoint under CHECKPOINT_DIR on start, and flush
+            # every CHECKPOINT_INTERVAL_SECONDS, so a preemption costs one interval.
+            - name: CHECKPOINT_DIR
+              value: {{ .Values.checkpoint.dir | quote }}
+            - name: CHECKPOINT_INTERVAL_SECONDS
+              value: {{ .Values.checkpoint.intervalSeconds | quote }}
+          volumeMounts:
+            # CHECKPOINT_DIR is this mount, so periodic + final checkpoints land on
+            # the shared store and outlive the pod (KTD12 resume contract).
+            - name: checkpoints
+              mountPath: {{ .Values.checkpoint.dir }}
+          lifecycle:
+            preStop:
+              exec:
+                # Best-effort final checkpoint inside the grace window. The image
+                # should watch for this marker (or trap SIGTERM) and flush one
+                # last checkpoint; even if it does not, periodic checkpointing
+                # already bounds lost work to one interval (KTD12).
+                command:
+                  - /bin/sh
+                  - -c
+                  - "touch ${CHECKPOINT_DIR}/.final-checkpoint-requested && sleep 110"
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu | quote }}
+              memory: {{ .Values.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu | quote }}
+              memory: {{ .Values.resources.limits.memory | quote }}
+              nvidia.com/gpu: {{ .Values.gpu }}

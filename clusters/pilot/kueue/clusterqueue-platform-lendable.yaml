@@ -1,0 +1,32 @@
+# platform-lendable — the ClusterQueue that OWNS the lendable GPU quota. It sits
+# in the gpu-lending cohort and holds the whole lendable pool as nominal quota,
+# but it admits nothing itself: serving never passes Kueue (KTD6), so this queue
+# is a quota anchor, not a workload queue. training-borrow (nominal 0) borrows
+# this capacity from the cohort; shrinking training's borrowingLimit curve — or,
+# in emergencies, inference PriorityClass preemption — returns it to the floor.
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: platform-lendable
+spec:
+  cohort: gpu-lending
+  # No workload ever targets this queue (no LocalQueue points at it); it exists
+  # to own the lendable quota that training borrows against.
+  namespaceSelector: {}
+  # This queue holds the lent capacity for the cohort but never admits, so it
+  # never itself preempts. Reclaim of borrowed capacity is driven by shrinking
+  # training-borrow's borrowingLimit curve (planned) and, as the emergency layer,
+  # kube-scheduler PriorityClass preemption by inference — neither needs this
+  # queue to admit a pod.
+  preemption:
+    reclaimWithinCohort: Never
+    withinClusterQueue: Never
+  resourceGroups:
+    - coveredResources: ["nvidia.com/gpu"]
+      flavors:
+        - name: gpu-lendable
+          resources:
+            # Whole lendable pool cap (matches the gpu-lendable NodePool GPU
+            # limit). Placeholder 64 — reconciled with the NodePool limit.
+            - name: nvidia.com/gpu
+              nominalQuota: 64

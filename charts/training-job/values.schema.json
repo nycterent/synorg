@@ -1,0 +1,104 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "training-job values",
+  "description": "The complete deploy interface for an R&D training workload. Strict by design: additionalProperties is false everywhere, so an unknown key fails validation with a named field (R10). This schema is the documentation (R11). The R4 symmetry twin of golden-service — same values+schema contract, different (batch Job) shape.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["team", "queue", "gpu", "image"],
+  "properties": {
+    "team": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Owning team; becomes the team.synorg.io/name label. GPU pods without it are denied by policy."
+    },
+    "queue": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Kueue LocalQueue in the team namespace (conventions.md: team-<name>); becomes the kueue.x-k8s.io/queue-name label. Admission flows LocalQueue -> training-borrow ClusterQueue."
+    },
+    "gpu": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "GPUs per worker pod; becomes nvidia.com/gpu in limits. Training is always GPU work, so the minimum is 1 (unlike serving, which allows 0)."
+    },
+    "workers": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of worker pods (Job parallelism/completions, Indexed). Each pod is one torchrun-elastic node; JOB_COMPLETION_INDEX is the node rank."
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Image repository, e.g. registry.synorg.io/team/trainer. The entrypoint MUST resume from the latest checkpoint under CHECKPOINT_DIR."
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Immutable image tag; also published as app.kubernetes.io/version."
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": ["Always", "IfNotPresent", "Never"],
+          "description": "Image pull policy."
+        }
+      }
+    },
+    "command": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "description": "Container command override. Defaults to a torchrun-elastic scaffold; override to point at your training entrypoint while keeping elastic restart + checkpoint resume."
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dir"],
+      "description": "The KTD12 preemption contract: checkpoint often, resume from latest, so a preemption loses at most one interval of progress.",
+      "properties": {
+        "dir": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Mount path the trainer writes checkpoints to (backed by the shared checkpoint store, infra/.../checkpoint-store). Published as CHECKPOINT_DIR; the entrypoint resumes from the latest checkpoint here."
+        },
+        "intervalSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300,
+          "description": "Checkpoint cadence. Published as CHECKPOINT_INTERVAL_SECONDS. Capped at 300 (5 min): the schema enforces the <=5 min lost-work budget (KTD12) — a slower cadence is rejected by name."
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cpu": { "type": "string", "description": "CPU request quantity, e.g. \"8\"." },
+            "memory": { "type": "string", "description": "Memory request quantity, e.g. \"64Gi\"." }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cpu": { "type": "string", "description": "CPU limit quantity, e.g. \"16\"." },
+            "memory": { "type": "string", "description": "Memory limit quantity, e.g. \"128Gi\"." }
+          }
+        }
+      }
+    },
+    "backoffLimit": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Job backoffLimit. Preemption deletes a pod (a failure), so this must be generous enough to absorb the expected preemptions across a run; Kueue re-admits when the borrowing curve has headroom again."
+    }
+  }
+}

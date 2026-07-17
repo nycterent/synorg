@@ -1,0 +1,13 @@
+# LocalQueue — the per-team admission handle (conventions.md: team-<name> in the
+# team's own namespace). Training jobs set kueue.x-k8s.io/queue-name to this
+# LocalQueue; it forwards to the training-borrow ClusterQueue, so every team
+# borrows from the same lendable pool while Kueue attributes usage per team.
+# This is the example/pilot team; each onboarded team ships one of these (see
+# runbooks/training-onboarding.md).
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: team-ml
+  namespace: team-ml
+spec:
+  clusterQueue: training-borrow

@@ -1,0 +1,46 @@
+# training-job values — minimal defaults. The required keys (team, queue, gpu,
+# image.repository, image.tag) have no default: values.schema.json rejects any
+# release that omits them, naming the missing field. See README.md (generated
+# from the schema) for the full key reference.
+
+# team: ""                 # required — team.synorg.io/name label
+# queue: ""                # required — Kueue LocalQueue (team-<name>)
+# gpu: 1                   # required — GPUs per worker (>=1)
+# image:
+#   repository: ""         # required
+#   tag: ""                # required
+
+workers: 1                 # worker pods = torchrun-elastic nodes (Indexed Job)
+
+image:
+  pullPolicy: IfNotPresent
+
+# torchrun-elastic scaffold. Elastic within-node restarts (--max-restarts) keep a
+# worker alive across transient failures; the entrypoint (image responsibility)
+# resumes from the latest checkpoint under CHECKPOINT_DIR. Override `command` in
+# values to point at your real training module while keeping this shape.
+command:
+  - torchrun
+  - --nnodes=$(WORKERS)
+  - --nproc-per-node=$(GPU)
+  - --node-rank=$(JOB_COMPLETION_INDEX)
+  - --max-restarts=3
+  - --rdzv-backend=c10d
+  - --rdzv-id=$(JOB_NAME)
+  - -m
+  - your_training_module   # override: the module that checkpoints + resumes
+
+checkpoint:
+  dir: /mnt/checkpoints    # backed by the shared checkpoint store (see infra)
+  intervalSeconds: 300     # <=5 min lost-work budget (KTD12); schema caps at 300
+
+resources:
+  requests:
+    cpu: "8"
+    memory: 64Gi
+  limits:
+    cpu: "16"
+    memory: 128Gi
+
+# Preemption deletes a pod (counts as a failure), so absorb expected preemptions.
+backoffLimit: 12

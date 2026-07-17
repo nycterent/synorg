@@ -1,0 +1,20 @@
+# CI fixture: a minimal two-worker training job. Kueue queue label, lendable-only
+# scheduling, checkpoint contract at the 300 s cap. Exercised by make validate.
+team: ml
+queue: team-ml
+gpu: 1
+workers: 2
+image:
+  repository: registry.synorg.io/ml/trainer
+  tag: "2026-07-17-def456"
+checkpoint:
+  dir: /mnt/checkpoints/ml
+  intervalSeconds: 300
+resources:
+  requests:
+    cpu: "8"
+    memory: 64Gi
+  limits:
+    cpu: "16"
+    memory: 128Gi
+backoffLimit: 12

@@ -1,0 +1,41 @@
+# ResourceFlavors — how Kueue quota maps onto real GPU nodes (KTD6). One flavor
+# per GPU pool, keyed on the karpenter.sh/nodepool label Karpenter stamps on every
+# node it provisions, plus the tolerations a flavor's pods need to land on the
+# pool's tainted nodes. Training only ever runs on gpu-lendable; the warm-floor
+# flavor exists so the cohort accounting can see the never-lent floor, but nothing
+# in this repo grants training quota on it (R12 containment).
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ResourceFlavor
+metadata:
+  name: gpu-warm-floor
+spec:
+  # Never-lent inference floor. No training ClusterQueue references this flavor;
+  # it is here only so cohort math and future accounting can name the floor.
+  nodeLabels:
+    karpenter.sh/nodepool: gpu-warm-floor
+  tolerations:
+    - key: pool.synorg.io/warm-floor
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ResourceFlavor
+metadata:
+  name: gpu-lendable
+spec:
+  # Lending-window pool. Tolerates both the base lendable taint and the
+  # lending.synorg.io/lent taint the U8 controller flips on Node objects while a
+  # node is actively lent, so admitted training keeps running across the taint
+  # flip until the borrowing-limit curve (or PriorityClass preemption) reclaims it.
+  nodeLabels:
+    karpenter.sh/nodepool: gpu-lendable
+  tolerations:
+    - key: pool.synorg.io/lendable
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+    - key: lending.synorg.io/lent
+      operator: Equal
+      value: "true"
+      effect: NoSchedule

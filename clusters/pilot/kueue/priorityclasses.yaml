@@ -1,0 +1,28 @@
+# PriorityClasses — the emergency reclaim layer that sits UNDER Kueue (KTD6).
+# Kueue's borrowingLimit curve is the planned reclaim; when inference demand
+# outruns the curve, these kube-scheduler priorities let a pending inference pod
+# preempt training node-level with zero Kueue involvement — the render path never
+# queues. (warm-floor-balloon, value -10, lives in
+# clusters/pilot/karpenter/warm-floor-balloon.yaml — not duplicated here.)
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: inference-critical
+value: 1000000
+# Default policy: a pending inference pod preempts lower-priority pods (training)
+# to schedule. This is the emergency layer of the render path (R1).
+preemptionPolicy: PreemptLowerPriority
+globalDefault: false
+description: "Customer inference (render path). Preempts training node-level when demand outruns the Kueue borrowing curve (KTD6)."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: training-preemptible
+value: 1000
+# Training never preempts anything — it only ever soaks borrowed headroom and
+# yields it (via checkpoint, KTD12) when inference reclaims. Never-preempt makes
+# that one-directional: training waits for room, it never takes it.
+preemptionPolicy: Never
+globalDefault: false
+description: "R&D training jobs. Preemptible, checkpoint-tolerant; never preempts (KTD12)."
