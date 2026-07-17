@@ -1,0 +1,29 @@
+.github/workflows/validate.yaml
+  s_592792c0856826::t_acc095723f0b1f 7-11,19-26,28-39
+scripts/validate.sh
+  s_592792c0856826::t_2718df694ea070 43-49,56
+  s_592792c0856826::t_b670a3e81ea7af 11,14-15
+  s_592792c0856826::t_540e3dbe8952f3 86-90,92,95,97,104-105,110-111,117,120
+  s_592792c0856826::t_d46b472b98e8e2 63-64
+  s_592792c0856826::t_6beff40f599124 76-81
+Makefile
+  s_592792c0856826::t_f88ed245286455 12-13
+.github/workflows/nightly-full-validate.yaml
+  s_592792c0856826::t_a2eb5ad46131ab 7-11,17-24,26-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "989178080bc21bd2b30575576a9664cc6b044354",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
