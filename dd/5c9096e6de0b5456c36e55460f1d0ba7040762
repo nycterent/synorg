@@ -1,0 +1,26 @@
+clusters/mgmt/appsets/regions.yaml
+  s_592792c0856826::t_446ce1329aaf5d 45-47
+  s_592792c0856826::t_0211e306ac6f15 12-16
+clusters/mgmt/appsets/services.yaml
+  s_592792c0856826::t_f55860fe792eb2 1-68
+clusters/pilot/services/README.md
+  s_592792c0856826::t_6886e27226ead8 5-8
+docs/residual-review-findings/feat-eks-gpu-platform.md
+  s_592792c0856826::t_71bd75acdddcf2 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "dd5c9096e6de0b5456c36e55460f1d0ba7040762",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
