@@ -1,0 +1,29 @@
+tests/integration/scheduling/workloads/training-job.yaml
+  s_93f8bad0fe0b70::t_46ba70d4011e26 1-49
+tests/integration/scheduling/scheduling_test.sh
+  s_93f8bad0fe0b70::t_c83d8abd881935 42-43
+  s_93f8bad0fe0b70::t_3b9bc3eb4ee051 1-41,44-481,483-572
+  s_93f8bad0fe0b70::t_66abd6146eee53 482
+tests/integration/scheduling/workloads/training-pod-warm-floor.yaml
+  s_93f8bad0fe0b70::t_7a7d41d4021df8 1-40
+tests/integration/scheduling/workloads/inference-pod.yaml
+  s_93f8bad0fe0b70::t_88641a50acedfa 1-44
+tests/integration/scheduling/workloads/kwok-deployment.yaml
+  s_93f8bad0fe0b70::t_0b89c357d78f7e 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "a8cdca5f756d5b923cd387265e066750147d6d8d",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
