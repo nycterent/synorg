@@ -28,12 +28,15 @@ spec:
         has(object.spec.volumes)
           ? object.spec.volumes.filter(v, has(v.configMap) && has(v.configMap.name)).map(v, v.configMap.name)
           : []
-    - name: projectedSecretNames
+    # Kept as a list-of-lists: CEL's k8s environment (through at least 1.33)
+    # does not provide flatten(); the validation below nests .all() instead,
+    # which is semantically identical to all() over the flattened list.
+    - name: projectedSecretLists
       expression: >-
         has(object.spec.volumes)
           ? object.spec.volumes.filter(v, has(v.projected)).map(v,
               v.projected.sources.filter(s, has(s.secret) && has(s.secret.name)).map(s, s.secret.name)
-            ).flatten()
+            )
           : []
   validations:
     - expression: >-
@@ -42,7 +45,7 @@ spec:
         'Pod in namespace ' + variables.ns + ' mounts a Secret volume that names another team namespace; cross-namespace secret references are denied (never tier).'
       reason: Forbidden
     - expression: >-
-        variables.projectedSecretNames.all(n, !n.startsWith('team-') || n == variables.ns)
+        variables.projectedSecretLists.all(l, l.all(n, !n.startsWith('team-') || n == variables.ns))
       messageExpression: >-
         'Pod in namespace ' + variables.ns + ' projects a Secret from another team namespace; cross-namespace secret references are denied (never tier).'
       reason: Forbidden

@@ -170,7 +170,11 @@ install_fake_gpu_operator() {
     --version "$FAKE_GPU_OPERATOR_VERSION" \
     --namespace "$GPU_OP_NS" --create-namespace \
     --set "topology.nodePools.default.gpuCount=${GPU_COUNT}" \
+    --set computeDomainController.enabled=false \
     && patch_gpu_ds_tolerations
+  # computeDomainController is disabled because its DeviceClass template needs
+  # the DRA resource.k8s.io API, which kindest v1.33 does not serve by default;
+  # the device-plugin path (all we use) does not depend on it.
 }
 
 # Fallback: advertise the extended resource by patching node status directly

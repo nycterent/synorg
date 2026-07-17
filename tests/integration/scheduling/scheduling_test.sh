@@ -148,12 +148,28 @@ assert_pod_on_lendable() {
 }
 
 # --- ClusterQueue borrowingLimit read/patch ---------------------------------
-# Index paths are guarded by preflight (flavor[0] must be gpu-lendable). The
-# patch is deliberately the same write surface the U4 lending controller uses.
-cq_limit() { k get clusterqueue "$CQ" -o jsonpath='{.spec.resourceGroups[0].flavors[0].resources[0].borrowingLimit}'; }
+# The nvidia.com/gpu entry is located by NAME, not index — the resourceGroup
+# also covers cpu/memory (Kueue refuses admission for uncovered resources), so
+# resources[0] is not the GPU. Same name-keyed discovery and write surface the
+# U4 lending controller uses (reconcile.sh borrow_limit_path).
+cq_gpu_path() {
+  k get clusterqueue "$CQ" -o json | jq -r '
+    first(.spec.resourceGroups | to_entries[] as $g
+      | $g.value.flavors | to_entries[] as $f
+      | $f.value.resources | to_entries[] as $r
+      | select($r.value.name == "nvidia.com/gpu")
+      | "/spec/resourceGroups/\($g.key)/flavors/\($f.key)/resources/\($r.key)/borrowingLimit") // empty'
+}
+cq_limit() {
+  k get clusterqueue "$CQ" -o json | jq -r '
+    first(.spec.resourceGroups[].flavors[].resources[]
+      | select(.name == "nvidia.com/gpu") | .borrowingLimit) // empty'
+}
 cq_set_limit() {
+  local path; path="$(cq_gpu_path)"
+  [ -n "$path" ] || fail "cannot locate nvidia.com/gpu borrowingLimit path in ClusterQueue $CQ"
   k patch clusterqueue "$CQ" --type=json \
-    -p "[{\"op\":\"replace\",\"path\":\"/spec/resourceGroups/0/flavors/0/resources/0/borrowingLimit\",\"value\":$1}]" >/dev/null
+    -p "[{\"op\":\"replace\",\"path\":\"$path\",\"value\":$1}]" >/dev/null
 }
 
 # begin_cq_window — save the live borrowingLimit and pin it to the physical
@@ -203,7 +219,7 @@ preflight() {
   k -n "$TEAM_NS" get localqueue "$LQ" >/dev/null 2>&1 \
     || fail "LocalQueue '$LQ' in ns '$TEAM_NS' not found — U1 applies clusters/pilot/kueue/"
   [ "$(k get clusterqueue "$CQ" -o jsonpath='{.spec.resourceGroups[0].flavors[0].name}')" = "$FLAVOR" ] \
-    || fail "ClusterQueue $CQ flavor[0] is not '$FLAVOR' — the borrowingLimit patch paths here assume it"
+    || fail "ClusterQueue $CQ flavor[0] is not '$FLAVOR' — the harness expects the lendable flavor to lead this queue"
   # Size requests to what the lendable worker really advertises (GPU_COUNT in
   # tests/kind/up.sh, default 8) instead of hardcoding it.
   GPU_CAP="$(k get nodes -l pool.synorg.io/name=lendable -o jsonpath='{.items[0].status.allocatable.nvidia\.com/gpu}' 2>/dev/null)" || true

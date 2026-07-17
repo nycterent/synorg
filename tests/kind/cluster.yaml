@@ -20,6 +20,14 @@
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: synorg
+# fake-gpu-operator 0.0.70's compute-domain DeviceClass template renders
+# unconditionally (no chart toggle) and requires a served resource.k8s.io
+# API; k8s 1.33 has DRA as beta behind this gate. Harness-side only — no
+# workload or policy under test touches DRA.
+featureGates:
+  DynamicResourceAllocation: true
+runtimeConfig:
+  "resource.k8s.io/v1beta1": "true"
 nodes:
   - role: control-plane
     image: kindest/node:v1.33.7

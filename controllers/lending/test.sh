@@ -312,6 +312,10 @@ EOF
 
 ALL_DAYS='["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]'
 
+# The harness has no `lending` namespace, so Event emission would fail loudly
+# (non-fatally) on every action; the live scenarios assert on logs, not Events.
+export EMIT_EVENTS=false
+
 # 4a. window open -> lent taint added
 write_fixture "$TMPDIR_T/open.yaml" "00:00" "23:59" "$ALL_DAYS" 100 "[]"
 SCHEDULE_FILE="$TMPDIR_T/open.yaml" MAX_TICKS=1 TICK_SECONDS=0 bash "$RECONCILE"

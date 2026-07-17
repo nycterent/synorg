@@ -78,3 +78,32 @@ ordering, weak validation) — redesigned once, closed together (2026-07-17).
 
 - Makefile integration loop would pass green if `find` matched nothing (partially mitigated: the lending suite now runs unconditionally). Consider an empty-set guard (R6).
 - reconcile.sh borrowingLimit JSON patch uses `replace`; `add` also creates the field when absent.
+
+---
+
+# First live integration run — findings fixed (2026-07-18, mini/colima)
+
+`make integration` now passes CLEAN-SLATE on a real kind cluster (colima on
+mini): lending controller suite ALL CHECKS PASSED (incl. the #3/#7 live
+scenarios), admission 10/10, scheduling 5 passed / 2 loud-skips (kwok absent
+under SKIP_KWOK=1; TAS out-of-scope) / 0 failed, teardown clean. Two REAL
+product defects and two harness gaps were caught live and fixed:
+
+- **VAP CEL `flatten()` does not exist in the k8s CEL environment** (through
+  1.33) — `deny-cross-namespace-refs` never compiled on a real API server;
+  exactly the offline blind spot the plan named. Rewritten as a nested
+  `.all(l, l.all(n, ...))` over the list-of-lists (semantically identical).
+- **`training-borrow` ClusterQueue covered only `nvidia.com/gpu`** — Kueue
+  refuses admission for any pod requesting uncovered resources ("resource cpu
+  unavailable in ClusterQueue"); NO training job could ever admit, on kind or
+  the real pilot. Added generous non-constraining cpu/memory quotas (GPU stays
+  the only constraining resource). Kueue webhook also requires `resources[]`
+  order to mirror `coveredResources[]`.
+- fake-gpu-operator 0.0.70's compute-domain DeviceClass template renders
+  unconditionally and needs a served `resource.k8s.io` API → kind cluster now
+  enables the DRA beta gate (harness-side only). The `--fallback` status-patch
+  path proved scheduling-only (kubelet device-plugin admission blocks the probe
+  pod) — verify.sh caught it as designed.
+- scheduling_test.sh's borrowingLimit read/patch was index-based
+  (`resources[0]`) and broke when cpu/memory coverage landed — now name-keyed
+  like the controller's own path-finder.
