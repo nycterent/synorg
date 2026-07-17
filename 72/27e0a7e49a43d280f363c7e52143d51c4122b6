@@ -1,0 +1,62 @@
+policies/tests/lendable-networkpolicy/kyverno-test.yaml
+  s_592792c0856826::t_c268507f19c50c 1-16
+policies/tests/deny-inline-secrets/resources.yaml
+  s_592792c0856826::t_bca238d30207ca 1-28
+policies/tests/eso-namespace-scope/resources.yaml
+  s_592792c0856826::t_03bbdf6cfd13f1 1-67
+policies/tests/tenancy-guard/resources.yaml
+  s_592792c0856826::t_6df299c772e16c 1-67
+policies/kyverno/lendable-networkpolicy.yaml
+  s_592792c0856826::t_c86380344280e2 1-61
+policies/vap/deny-cross-namespace-refs.yaml
+  s_592792c0856826::t_d7eddcf4c4e342 1-66
+policies/kyverno/require-team-label.yaml
+  s_592792c0856826::t_75bec1bad3381c 1-22,25-26,28-40
+  s_592792c0856826::t_31aa568da7cd7a 24,27
+  s_592792c0856826::t_4f1c7af3b00bc8 23
+policies/kyverno/eso-namespace-scope.yaml
+  s_592792c0856826::t_8cddd327ffac96 1-81
+policies/tests/lendable-networkpolicy/generated-networkpolicy.yaml
+  s_592792c0856826::t_11a558b961c043 1-28
+docs/capability-tiers.md
+  s_592792c0856826::t_91835fd947bc25 1-67
+policies/tests/tenancy-guard/kyverno-test.yaml
+  s_592792c0856826::t_9cf0eccacc6321 1-47
+policies/tests/require-team-label/kyverno-test.yaml
+  s_592792c0856826::t_57cd145a2bbe91 1-27
+policies/kyverno/tenancy-guard.yaml
+  s_592792c0856826::t_1e485cac8636a2 1-66
+policies/kyverno/deny-inline-secrets.yaml
+  s_592792c0856826::t_dbbd82793bb2a8 1-40,43,49-50
+  s_592792c0856826::t_27b2632589f840 41-42,44-48
+policies/tests/deny-inline-secrets/kyverno-test.yaml
+  s_592792c0856826::t_a79886f16ddc88 1-20,22-27
+  s_592792c0856826::t_ec9cd8696fff52 21
+policies/tests/require-team-label/resources.yaml
+  s_592792c0856826::t_cee4eadf6ef858 1-40
+docs/conventions.md
+  s_592792c0856826::t_1d4347f77cc68e 37-41
+policies/tests/lendable-networkpolicy/resources.yaml
+  s_592792c0856826::t_5209500bbf2d18 1-13
+policies/README.md
+  s_592792c0856826::t_d99a046bb81048 55-56
+  s_592792c0856826::t_c62ef8daac9218 1-54
+policies/tests/eso-namespace-scope/kyverno-test.yaml
+  s_592792c0856826::t_05e881dbfc3fc1 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "7227e0a7e49a43d280f363c7e52143d51c4122b6",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
