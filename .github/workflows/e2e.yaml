@@ -1,0 +1,100 @@
+# e2e — real-GPU proof (U7). workflow_dispatch ONLY: this deploys a spot-GPU
+# pilot, spends real money, and touches held capacity. It must never run on
+# push, pull_request, or a schedule.
+#
+# Required repository secrets:
+#   E2E_AWS_ROLE_ARN  IAM role assumed via GitHub OIDC
+#                     (aws-actions/configure-aws-credentials). The role needs
+#                     terraform apply/destroy for infra/terraform/*, EKS
+#                     access, ec2:DescribeCapacityReservations, and
+#                     servicequotas:GetServiceQuota — but NOT
+#                     ec2:CancelCapacityReservation: the ODCR capture is never
+#                     created or released from CI (capacity-carve.md).
+#
+# Read runbooks/e2e-gpu-run.md BEFORE dispatching: the spot quota (L-3819A6DF)
+# and the Karpenter ReservedCapacity feature gate must be in place ahead of
+# time or the run fails (or silently proves the wrong thing).
+name: e2e
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: AWS region for the pilot
+        required: true
+        default: eu-west-1
+        type: string
+      confirm:
+        description: Type "run-e2e" to confirm real spend + real capacity
+        required: true
+        type: string
+      keep-on-failure:
+        description: Keep the pilot up if a phase fails (debugging; costs money)
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write # AWS OIDC federation
+
+env:
+  TERRAFORM_VERSION: "1.9.8"
+  KUBECTL_VERSION: v1.31.0
+  HELM_VERSION: v4.1.1
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300 # runsheet time budget: deploy + physics + game-day + teardown
+    steps:
+      # Second gate on top of the dispatch UI: a mistyped confirm input stops
+      # the job before checkout, credentials, or any cloud call.
+      - name: Refuse without explicit confirmation
+        if: inputs.confirm != 'run-e2e'
+        run: |
+          echo "::error::confirm input was not 'run-e2e' — refusing to run the e2e tier"
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          mkdir -p ~/bin
+          curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o /tmp/tf.zip
+          unzip -o -d ~/bin /tmp/tf.zip terraform
+          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o ~/bin/kubectl
+          chmod +x ~/bin/kubectl
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" | tar -xz --strip-components=1 -C ~/bin linux-amd64/helm
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.E2E_AWS_ROLE_ARN }}
+          aws-region: ${{ inputs.region }}
+
+      # run.sh --check is the same credential gate the full cycle uses; failing
+      # here costs nothing (no deploy has started).
+      - name: Pre-flight check (credentials, quotas)
+        run: make e2e ARGS=--check
+        env:
+          AWS_REGION: ${{ inputs.region }}
+
+      - name: Full e2e cycle (up -> test -> down, trap-guarded teardown)
+        run: |
+          set -o pipefail
+          mkdir -p build/e2e
+          make e2e 2>&1 | tee build/e2e/e2e-run.log
+        env:
+          AWS_REGION: ${{ inputs.region }}
+          E2E_CONFIRM: "yes" # auto-confirm: the dispatch confirm input already gated this run
+          E2E_KEEP: ${{ inputs.keep-on-failure && '1' || '0' }}
+
+      - name: Upload run logs + ledger snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-run-${{ github.run_id }}
+          path: build/e2e/
+          if-no-files-found: warn
+          retention-days: 30

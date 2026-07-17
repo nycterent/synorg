@@ -1,7 +1,7 @@
 # Platform monorepo entrypoints. `make validate` is the contract (R10):
 # byte-for-byte the same script locally and in CI.
 
-.PHONY: validate validate-full render clean help integration integration-down deploy smoke
+.PHONY: validate validate-full render clean help integration integration-down deploy smoke e2e
 
 validate: ## Diff-scoped validation: helm template + kubeconform + kyverno test
 	bash scripts/validate.sh
@@ -37,6 +37,9 @@ deploy: ## Credential-gated platform bootstrap (runbooks/deploy-platform.md); AR
 smoke: ## Live-cluster smoke against the CURRENT kubecontext (SMOKE_CONTEXT=<ctx> to pin)
 	bash tests/smoke/smoke.sh
 
+e2e: ## Real-GPU e2e (runbooks/e2e-gpu-run.md); credential-gated; ARGS=--check|--up|--test|--down
+	bash tests/e2e/run.sh $(ARGS)
+
 # --- Docs site (Material for MkDocs, Diátaxis nav) --------------------------
 DOCS_VENV := .venv-docs
 $(DOCS_VENV): docs/requirements.txt
@@ -57,4 +60,4 @@ clean:
 	rm -rf build/
 
 help:
-	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "%-16s %s\n", $$1, $$2}'
+	@grep -E '^[a-z0-9-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "%-16s %s\n", $$1, $$2}'
