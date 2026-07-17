@@ -1,0 +1,44 @@
+charts/golden-service/README.md
+  s_592792c0856826::t_8af7a0fcf04bb3 1-75
+charts/golden-service/values.schema.json
+  s_592792c0856826::t_0c9f3e2b45e46b 1-155
+scripts/validate.sh
+  s_592792c0856826::t_41e3240feb783d 30-32,34-35
+  s_592792c0856826::t_40844f974cac2f 77
+charts/golden-service/templates/pdb.yaml
+  s_592792c0856826::t_ed86fadfd5ea68 1-13
+charts/golden-service/ci/web.yaml
+  s_592792c0856826::t_108aefa7ac7d12 1-20
+charts/golden-service/templates/deployment.yaml
+  s_592792c0856826::t_29a210912bd976 1-72
+charts/golden-service/templates/_helpers.tpl
+  s_592792c0856826::t_b205c762eee5ec 1-51
+charts/golden-service/templates/service.yaml
+  s_592792c0856826::t_1bb8f16813d697 1-15
+charts/golden-service/templates/hpa.yaml
+  s_592792c0856826::t_185d8b0daa3afa 1-22
+charts/golden-service/values.yaml
+  s_592792c0856826::t_ec50b9508bf322 1-53
+charts/golden-service/Chart.yaml
+  s_592792c0856826::t_0c3d087ada7726 1-11
+charts/golden-service/templates/serviceaccount.yaml
+  s_592792c0856826::t_c092d8cf740714 1-8
+charts/golden-service/ci/gpu-inference.yaml
+  s_592792c0856826::t_309979ba12137f 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "ffa6f7bdd95a70402b471730d042f2be4902fae5",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
