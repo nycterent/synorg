@@ -131,7 +131,9 @@ trap cleanup EXIT
 # Precheck — an unreachable cluster fails everything at once, loudly.
 # ============================================================================
 step "cluster precheck (context: ${SMOKE_CONTEXT:-$(kubectl config current-context 2>/dev/null || echo '<none>')})"
-k get nodes --request-timeout=20s >/dev/null \
+# One node fetch: command success proves reachability here, and check 1 reads
+# node readiness from the captured JSON.
+NODES_JSON="$(k get nodes -o json --request-timeout=20s)" \
   || fail "cluster not reachable — check your kubecontext (or set SMOKE_CONTEXT)"
 echo "OK: cluster reachable"
 
@@ -143,7 +145,6 @@ echo "created namespace $NS (deleted on exit)"
 # 1. nodes-ready — every node reports Ready
 # ============================================================================
 step "1. nodes-ready"
-NODES_JSON="$(k get nodes -o json)"
 NODE_TOTAL="$(jq '.items | length' <<<"$NODES_JSON")"
 NOT_READY="$(jq -r '.items[]
   | select(([.status.conditions[] | select(.type == "Ready" and .status == "True")] | length) == 0)

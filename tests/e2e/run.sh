@@ -33,10 +33,10 @@ cd "$ROOT"
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-eu-west-1}}"
 PILOT_CONTEXT="${PILOT_CONTEXT:-synorg-pilot}"
 MGMT_CONTEXT="${MGMT_CONTEXT:-synorg-mgmt}"
-ODCR_DIR="infra/terraform/regions/pilot/odcr"
-MGMT_DIR="infra/terraform/mgmt"
-PILOT_DIR="infra/terraform/regions/pilot"
-CKPT_DIR="infra/terraform/regions/pilot/checkpoint-store"
+# Module dirs (ODCR_DIR/MGMT_DIR/PILOT_DIR/CKPT_DIR) + the shared ledger
+# reader come from the same lib scripts/deploy.sh uses.
+# shellcheck source=scripts/lib/ledger.sh
+source "$ROOT/scripts/lib/ledger.sh"
 
 E2E_STATE_DIR="${E2E_STATE_DIR:-build/e2e}"    # snapshots + logs (workflow artifact)
 E2E_CONFIRM="${E2E_CONFIRM:-}"                 # yes = skip the interactive confirm
@@ -111,33 +111,31 @@ No cloud call was made beyond sts; nothing was deployed or mutated."
 }
 
 # --- Zero-net-release ledger (U6 guard pattern, capacity-carve.md) -----------
-# ledger_read prints one "key id total held" line per declared reservation,
-# from the ODCR module's declared_instance_counts/reservation_ids outputs —
-# the same sources scripts/deploy.sh guard_zero_net_release verifies.
-ledger_read() {
-  local declared ids k id total avail
-  declared="$(terraform -chdir="$ODCR_DIR" output -json declared_instance_counts 2>/dev/null || echo '{}')"
-  ids="$(terraform -chdir="$ODCR_DIR" output -json reservation_ids 2>/dev/null || echo '{}')"
-  if [ "$(jq 'length' <<<"$declared")" -eq 0 ]; then
-    echo "none - 0 0"
-    return 0
+# ledger_read (scripts/lib/ledger.sh, shared with deploy.sh's guard) prints one
+# "key id declared total held" line per declared reservation, from the ODCR
+# module's declared_instance_counts/reservation_ids outputs — the same sources
+# scripts/deploy.sh guard_zero_net_release verifies. These hooks keep this
+# script's error wording.
+ledger_fail_missing_id() { fail "ledger: no reservation id for '$1' — ODCR capture incomplete"; }
+ledger_fail_describe() { fail "ledger: cannot describe $1"; }
+
+# ledger_capture FILE — snapshot the ledger to FILE; the "none" sentinel keeps
+# the entry/exit diff meaningful when no reservations are declared.
+ledger_capture() {
+  local out
+  out="$(ledger_read)" || exit 1
+  if [ -z "$out" ]; then
+    echo "none - 0 0" > "$1"
+  else
+    printf '%s\n' "$out" > "$1"
   fi
-  for k in $(jq -r 'keys[]' <<<"$declared"); do
-    id="$(jq -r --arg k "$k" '.[$k] // empty' <<<"$ids")"
-    [ -n "$id" ] || fail "ledger: no reservation id for '$k' — ODCR capture incomplete"
-    read -r total avail < <(aws ec2 describe-capacity-reservations --region "$REGION" \
-      --capacity-reservation-ids "$id" \
-      --query 'CapacityReservations[0].[TotalInstanceCount,AvailableInstanceCount]' \
-      --output text) || fail "ledger: cannot describe $id"
-    echo "$k $id $total $((total - avail))"
-  done
 }
 
 LEDGER_ENTRY_FILE="$E2E_STATE_DIR/ledger-entry.txt"
 
 ledger_snapshot_entry() {
   step "ledger: entry snapshot (zero-net-release invariant)"
-  ledger_read > "$LEDGER_ENTRY_FILE"
+  ledger_capture "$LEDGER_ENTRY_FILE"
   sed 's/^/  entry: /' "$LEDGER_ENTRY_FILE"
 }
 
@@ -145,7 +143,7 @@ ledger_assert_unchanged() {
   step "ledger: exit assertion (zero-net-release invariant)"
   [ -f "$LEDGER_ENTRY_FILE" ] || fail "ledger: no entry snapshot at $LEDGER_ENTRY_FILE — cannot prove zero net release"
   local now_file="$E2E_STATE_DIR/ledger-exit.txt"
-  ledger_read > "$now_file"
+  ledger_capture "$now_file"
   if ! diff -u "$LEDGER_ENTRY_FILE" "$now_file"; then
     fail "zero-net-release VIOLATED: reservation totals/held changed across the \
 e2e run — STOP, follow runbooks/capacity-carve.md abort semantics before anything else"
@@ -212,12 +210,11 @@ phase_down() {
   # ODCR is deliberately NOT destroyed: releasing held capacity is irreversible
   # and human-gated (capacity-carve.md). Destroying the fleet returns slots to
   # the reservation — totals stay constant, which the ledger assertion proves.
-  terraform -chdir="$CKPT_DIR" init -input=false
-  terraform -chdir="$CKPT_DIR" destroy -input=false -auto-approve
-  terraform -chdir="$PILOT_DIR" init -input=false
-  terraform -chdir="$PILOT_DIR" destroy -input=false -auto-approve
-  terraform -chdir="$MGMT_DIR" init -input=false
-  terraform -chdir="$MGMT_DIR" destroy -input=false -auto-approve
+  local dir
+  for dir in "$CKPT_DIR" "$PILOT_DIR" "$MGMT_DIR"; do
+    terraform -chdir="$dir" init -input=false
+    terraform -chdir="$dir" destroy -input=false -auto-approve
+  done
   echo "DOWN OK — pilot destroyed; held reservations untouched"
 }
 

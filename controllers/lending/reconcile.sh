@@ -26,6 +26,11 @@
 # directly and do not split a kc invocation across lines — test.sh maps each
 # invocation to RBAC verbs and fails closed on anything it cannot parse.
 #
+# Offline mode: `reconcile.sh --print-borrow-path` reads ClusterQueue JSON on
+# stdin and prints the JSON-pointer path of its nvidia.com/gpu borrowingLimit
+# (empty when absent), then exits 0 — no cluster access. test.sh uses it so
+# its path lookup and the controller's are one implementation.
+#
 # Config (env):
 #   SCHEDULE_FILE       schedule to actuate      (default /etc/lending/schedule.yaml)
 #   TICK_SECONDS        loop period              (default 60)
@@ -60,9 +65,10 @@ log() {
 # every state transition lands as a Kubernetes Event on the Node (or, for
 # quota changes, the ClusterQueue) so U9 evidence never scrapes logs.
 emit_event() {
-  local reason="$1" kind="$2" name="$3" message="$4" api="v1"
+  local reason="$1" kind="$2" name="$3" message="$4" api="v1" ts
   [ "$EMIT_EVENTS" = "true" ] || return 0
   [ "$kind" = "ClusterQueue" ] && api="kueue.x-k8s.io/v1beta1"
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   kc create -f - >/dev/null <<EOF || log warn action=emit_event reason="$reason" msg="event create failed (non-fatal)"
 apiVersion: v1
 kind: Event
@@ -80,8 +86,8 @@ reportingComponent: lending-controller
 reportingInstance: ${HOSTNAME:-lending-controller}
 source:
   component: lending-controller
-firstTimestamp: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-lastTimestamp: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+firstTimestamp: "$ts"
+lastTimestamp: "$ts"
 count: 1
 EOF
 }
@@ -175,6 +181,13 @@ reconcile_taints() {
   fi
 }
 
+# borrow_limit_path — read ClusterQueue JSON on stdin, print the JSON-pointer
+# path of its nvidia.com/gpu borrowingLimit ("" when absent). Exposed offline
+# as `reconcile.sh --print-borrow-path` (test.sh shares this implementation).
+borrow_limit_path() {
+  jq -r 'first(.spec.resourceGroups // [] | to_entries[] as $g | $g.value.flavors // [] | to_entries[] as $f | $f.value.resources // [] | to_entries[] as $r | select($r.value.name == "nvidia.com/gpu") | "/spec/resourceGroups/\($g.key)/flavors/\($f.key)/resources/\($r.key)/borrowingLimit") // ""'
+}
+
 # reconcile_borrow_limit TZ POOL QUEUE — patch the training ClusterQueue
 # borrowingLimit to gpuLimitPct(now) x current lendable nvidia.com/gpu
 # capacity. The active curve entry is the most recently passed `at` (daily
@@ -201,7 +214,7 @@ reconcile_borrow_limit() {
     log warn action=borrow_limit queue="$queue" msg="ClusterQueue not found, skipping"
     return 0
   fi
-  path="$(echo "$cq_json" | jq -r 'first(.spec.resourceGroups | to_entries[] as $g | $g.value.flavors | to_entries[] as $f | $f.value.resources | to_entries[] as $r | select($r.value.name == "nvidia.com/gpu") | "/spec/resourceGroups/\($g.key)/flavors/\($f.key)/resources/\($r.key)/borrowingLimit") // ""')"
+  path="$(echo "$cq_json" | borrow_limit_path)"
   if [ -z "$path" ]; then
     log warn action=borrow_limit queue="$queue" msg="no nvidia.com/gpu resource in queue, skipping"
     return 0
@@ -243,7 +256,13 @@ reconcile_waves() {
       'BEGIN { c = n * f; printf "%d", (c == int(c)) ? c : int(c) + 1 }')"
     local wave_name; wave_name="$(yq -r ".reclaimWaves[$i].name" "$SCHEDULE_FILE")"
     log info action=reclaim_wave wave="$wave_name" lent_nodes="$(echo "$lent" | wc -l | tr -d ' ')" reclaiming="$count"
-    local node ncl
+    # One cluster-wide NodeClaim fetch per wave (not per node): each node maps
+    # to a distinct claim, so looking a node's claim up from this cache stays
+    # correct even as the loop below deletes claims one by one.
+    local node ncl nodeclaims_json='{"items":[]}'
+    if [ "$karpenter" = "1" ]; then
+      nodeclaims_json="$(kc get nodeclaims -o json)"
+    fi
     while IFS= read -r node; do
       [ -n "$node" ] || continue
       if [ "$karpenter" = "1" ]; then
@@ -252,7 +271,7 @@ reconcile_waves() {
         emit_event NodeDraining Node "$node" "draining with ${grace}s grace (wave $wave_name)"
         kc drain "$node" --ignore-daemonsets --delete-emptydir-data --grace-period="$grace" --timeout="$(( grace * 3 ))s" >/dev/null \
           || log warn action=drain_incomplete node="$node" msg="drain did not finish cleanly, proceeding to nodeclaim delete"
-        ncl="$(kc get nodeclaims -o json | jq -r --arg n "$node" '.items[] | select(.status.nodeName == $n) | .metadata.name' | head -1)"
+        ncl="$(echo "$nodeclaims_json" | jq -r --arg n "$node" '.items[] | select(.status.nodeName == $n) | .metadata.name' | head -1)"
         if [ -n "$ncl" ]; then
           kc delete nodeclaim "$ncl" --wait=false >/dev/null
           log info action=nodeclaim_deleted node="$node" nodeclaim="$ncl" wave="$wave_name" reason=NodeScrubStarted
@@ -298,5 +317,13 @@ main() {
     sleep "$TICK_SECONDS"
   done
 }
+
+# --print-borrow-path: offline helper mode (see header) — no cluster access,
+# no loop, no other side effects.
+if [ "${1:-}" = "--print-borrow-path" ]; then
+  command -v jq >/dev/null 2>&1 || { log error msg="jq not installed"; exit 1; }
+  borrow_limit_path
+  exit 0
+fi
 
 main "$@"

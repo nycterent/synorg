@@ -23,6 +23,7 @@ pass() { echo "ok: $*"; }
 k() { kubectl --context "$KCTX" "$@"; }
 
 need kubectl
+need jq
 k get nodes >/dev/null 2>&1 || fail "no cluster reachable at context $KCTX — run tests/kind/up.sh first"
 
 # GPU mode: exported by up.sh; when run standalone, detect by whether the
@@ -154,13 +155,17 @@ node="$(k -n "$PROBE_NS" get pod cpu-probe -o jsonpath='{.spec.nodeName}')"
 pass "non-GPU probe Ready on web worker $node"
 
 # --- 5. kwok virtual nodes advertise no GPU (KTD1) ---------------------------
+# One node-list fetch; the kwok annotation + GPU allocatable are derived from
+# it locally instead of one k call per node.
+NODES_JSON="$(k get nodes -o json)"
 kwok_seen=0
-for n in $(k get nodes -o jsonpath='{.items[*].metadata.name}'); do
-  [ -n "$(k get node "$n" -o jsonpath='{.metadata.annotations.kwok\.x-k8s\.io/node}')" ] || continue
+while IFS=$'\t' read -r n cap; do
+  [ -n "$n" ] || continue
   kwok_seen=1
-  cap="$(gpu_allocatable "$n")"
   { [ -z "$cap" ] || [ "$cap" = "0" ]; } || fail "kwok virtual node $n advertises nvidia.com/gpu=$cap — GPU capacity belongs on real workers only (KTD1)"
-done
+done < <(echo "$NODES_JSON" | jq -r '.items[]
+  | select((.metadata.annotations["kwok.x-k8s.io/node"] // "") != "")
+  | [.metadata.name, (.status.allocatable["nvidia.com/gpu"] // "")] | @tsv')
 if [ "$kwok_seen" = "1" ]; then
   pass "kwok virtual nodes present, none advertise nvidia.com/gpu"
 else

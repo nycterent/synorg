@@ -23,11 +23,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-# --- Module roots, in runbook order ----------------------------------------
-ODCR_DIR="infra/terraform/regions/pilot/odcr"
-MGMT_DIR="infra/terraform/mgmt"
-PILOT_DIR="infra/terraform/regions/pilot"
-CKPT_DIR="infra/terraform/regions/pilot/checkpoint-store"
+# --- Module roots + shared ledger reader (scripts/lib/ledger.sh) ------------
+# The lib defines ODCR_DIR/MGMT_DIR/PILOT_DIR/CKPT_DIR (runbook order) and
+# ledger_read, shared with tests/e2e/run.sh.
+# shellcheck source=scripts/lib/ledger.sh
+source "$ROOT/scripts/lib/ledger.sh"
 
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-eu-west-1}}"
 MGMT_CONTEXT="${MGMT_CONTEXT:-synorg-mgmt}"     # kubeconfig aliases set by
@@ -78,6 +78,12 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+# -auto-approve applies only in apply mode, and never to the ODCR module
+# (step_odcr passes nothing extra by design). Computed once; expanded with the
+# same set-u-safe pattern the per-step locals used.
+AUTO_APPROVE_ARGS=()
+[ "$AUTO_APPROVE" = 1 ] && [ "$MODE" = apply ] && AUTO_APPROVE_ARGS+=(-auto-approve)
+
 # run CMD... — execute, or print without executing under --dry-run. Every
 # terraform/aws/kubectl/argocd invocation goes through this so --dry-run is a
 # faithful, offline proof of the exact sequence and order.
@@ -126,6 +132,11 @@ tf_step() {
 # reservation must show its capacity held (utilization == declared count) and
 # its total unchanged. A reservation that fails to hold is a hard stop — the
 # invariant is capacity, not progress (capacity-carve.md abort semantics).
+# The ledger itself is read by scripts/lib/ledger.sh (shared with the e2e
+# tier); these hooks keep this script's error wording.
+ledger_fail_missing_id() { fail "zero-net-release: no reservation id for '$1' — capture (§1) incomplete; STOP"; }
+ledger_fail_describe() { fail "zero-net-release: cannot describe $1"; }
+
 guard_zero_net_release() {
   step "zero-net-release guard (capacity-carve.md verify-before-terminate)"
   if [ "$DRY_RUN" = 1 ]; then
@@ -135,27 +146,27 @@ guard_zero_net_release() {
     echo "DRY-RUN: assert total == declared_instance_counts and held == declared, else STOP"
     return 0
   fi
-  local declared ids k id expected total avail held
-  declared="$(terraform -chdir="$ODCR_DIR" output -json declared_instance_counts 2>/dev/null || echo '{}')"
-  ids="$(terraform -chdir="$ODCR_DIR" output -json reservation_ids 2>/dev/null || echo '{}')"
-  if [ "$(jq 'length' <<<"$declared")" -eq 0 ]; then
+  local lines k id expected total held
+  lines="$(ledger_read)" || exit 1
+  if [ -z "$lines" ]; then
     echo "guard: no held reservations in state — nothing to verify"
     return 0
   fi
-  for k in $(jq -r 'keys[]' <<<"$declared"); do
-    id="$(jq -r --arg k "$k" '.[$k] // empty' <<<"$ids")"
-    expected="$(jq -r --arg k "$k" '.[$k]' <<<"$declared")"
-    [ -n "$id" ] || fail "zero-net-release: no reservation id for '$k' — capture (§1) incomplete; STOP"
-    read -r total avail < <(aws ec2 describe-capacity-reservations --region "$REGION" \
-      --capacity-reservation-ids "$id" \
-      --query 'CapacityReservations[0].[TotalInstanceCount,AvailableInstanceCount]' \
-      --output text) || fail "zero-net-release: cannot describe $id"
-    held=$((total - avail))
+  while read -r k id expected total held; do
     [ "$total" -eq "$expected" ] || fail "zero-net-release: $k ($id) total=$total != declared=$expected — capacity changed; STOP, do not proceed (capacity-carve.md)"
     [ "$held" -eq "$expected" ] || fail "zero-net-release: $k ($id) holds $held of $expected declared — reservation not fully held; STOP, do not proceed (capacity-carve.md)"
     echo "guard: $k ($id) total=$total held=$held == declared — capacity held"
-  done
+  done <<<"$lines"
   echo "guard: record the utilization snapshot in docs/capacity-transition.md"
+}
+
+# update_kubeconfig TFDIR ALIAS PLACEHOLDER — read cluster_name from TFDIR's
+# terraform outputs (PLACEHOLDER stands in under --dry-run) and wire the
+# kubeconfig alias via `aws eks update-kubeconfig`.
+update_kubeconfig() {
+  local tfdir="$1" alias="$2" name="$3"
+  [ "$DRY_RUN" = 1 ] || name="$(terraform -chdir="$tfdir" output -raw cluster_name)"
+  run aws eks update-kubeconfig --region "$REGION" --name "$name" --alias "$alias"
 }
 
 # --- §1 Capture held capacity (U15) — before anything else ------------------
@@ -172,13 +183,9 @@ step_odcr() {
 # --- §2 Management cluster + ArgoCD hub (U2) --------------------------------
 step_mgmt() {
   step "2/7 mgmt cluster + ArgoCD hub — deploy-platform.md §2 (U2)"
-  local extra=()
-  [ "$AUTO_APPROVE" = 1 ] && [ "$MODE" = "apply" ] && extra+=(-auto-approve)
-  tf_step "$MGMT_DIR" ${extra[0]+"${extra[@]}"}
+  tf_step "$MGMT_DIR" ${AUTO_APPROVE_ARGS[0]+"${AUTO_APPROVE_ARGS[@]}"}
   [ "$MODE" = "plan" ] && return 0
-  local name='<mgmt cluster_name output>'
-  [ "$DRY_RUN" = 1 ] || name="$(terraform -chdir="$MGMT_DIR" output -raw cluster_name)"
-  run aws eks update-kubeconfig --region "$REGION" --name "$name" --alias "$MGMT_CONTEXT"
+  update_kubeconfig "$MGMT_DIR" "$MGMT_CONTEXT" '<mgmt cluster_name output>'
   run kubectl --context "$MGMT_CONTEXT" apply -f clusters/mgmt/argocd/install.yaml
   run kubectl --context "$MGMT_CONTEXT" -n argocd wait --for=condition=Available \
     deployment --all --timeout=600s
@@ -200,16 +207,12 @@ step_pilot() {
       export TF_VAR_odcr_reservation_arns
     fi
   fi
-  local extra=()
-  [ "$AUTO_APPROVE" = 1 ] && [ "$MODE" = "apply" ] && extra+=(-auto-approve)
-  tf_step "$PILOT_DIR" ${extra[0]+"${extra[@]}"}
-  tf_step "$CKPT_DIR" ${extra[0]+"${extra[@]}"}
+  tf_step "$PILOT_DIR" ${AUTO_APPROVE_ARGS[0]+"${AUTO_APPROVE_ARGS[@]}"}
+  tf_step "$CKPT_DIR" ${AUTO_APPROVE_ARGS[0]+"${AUTO_APPROVE_ARGS[@]}"}
   [ "$MODE" = "plan" ] && return 0
   # Provisioning consumed reservation slots — re-assert nothing was released.
   guard_zero_net_release
-  local name='<pilot cluster_name output>'
-  [ "$DRY_RUN" = 1 ] || name="$(terraform -chdir="$PILOT_DIR" output -raw cluster_name)"
-  run aws eks update-kubeconfig --region "$REGION" --name "$name" --alias "$PILOT_CONTEXT"
+  update_kubeconfig "$PILOT_DIR" "$PILOT_CONTEXT" '<pilot cluster_name output>'
   # Runbook confirms: the warm floor is held and the three NodePools exist.
   run kubectl --context "$PILOT_CONTEXT" -n platform-system get deploy warm-floor-balloon
   run kubectl --context "$PILOT_CONTEXT" get nodepools

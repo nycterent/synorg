@@ -84,6 +84,7 @@ need kind
 need docker
 need kubectl
 need helm
+need jq
 docker info >/dev/null 2>&1 || fail "docker daemon is not running — start Docker Desktop (or colima) first"
 [ -n "$CLUSTER_NAME" ] || fail "could not read cluster name from $HERE/cluster.yaml"
 
@@ -145,12 +146,14 @@ gpu_capacity_ready() {
 # present, so re-runs never duplicate.
 gpu_ds_present() { [ -n "$(k -n "$GPU_OP_NS" get ds -o name 2>/dev/null)" ]; }
 patch_gpu_ds_tolerations() {
-  local ds key have
+  local ds key ds_json have
   retry 24 gpu_ds_present || fail "fake-gpu-operator DaemonSets never appeared in namespace $GPU_OP_NS"
   for ds in $(k -n "$GPU_OP_NS" get ds -o name); do
+    # One fetch per DaemonSet; all three toleration keys are checked from it.
+    ds_json="$(k -n "$GPU_OP_NS" get "$ds" -o json 2>/dev/null)"
     for key in pool.synorg.io/warm-floor pool.synorg.io/lendable lending.synorg.io/lent; do
-      have="$(k -n "$GPU_OP_NS" get "$ds" -o jsonpath="{.spec.template.spec.tolerations[?(@.key==\"$key\")].key}" 2>/dev/null)"
-      [ -n "$have" ] && continue
+      have="$(echo "$ds_json" | jq -r --arg k "$key" '.spec.template.spec.tolerations // [] | any(.key == $k)')"
+      [ "$have" = "true" ] && continue
       k -n "$GPU_OP_NS" patch "$ds" --type=json \
         -p "[{\"op\":\"add\",\"path\":\"/spec/template/spec/tolerations/-\",\"value\":{\"key\":\"$key\",\"operator\":\"Exists\",\"effect\":\"NoSchedule\"}}]" 2>/dev/null \
         || k -n "$GPU_OP_NS" patch "$ds" --type=json \
