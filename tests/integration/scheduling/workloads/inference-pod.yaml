@@ -1,0 +1,44 @@
+# inference-pod.yaml — template for the emergency-reclaim probe (U3, s4).
+# Serving is NEVER Kueue-admitted (KTD6): no queue-name label. The pod carries
+# PriorityClass inference-critical (value 1000000, PreemptLowerPriority), so
+# when the lendable node is full of training the kube-scheduler evicts a
+# training-preemptible pod to place it — the real preemption under test (R1).
+#
+# Pinned to the REAL lendable worker: nodeSelector pool.synorg.io/name=lendable
+# only matches the pool-labeled kind worker (docs/conventions.md); kwok virtual
+# nodes carry no pool label and no nvidia.com/gpu. Tolerations mirror the
+# gpu-lendable flavor's set so the pod can land while the node is pool-tainted
+# or actively lent.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: inference-probe
+  namespace: scheduling-test
+  labels:
+    synorg.io/scheduling-test: "true"
+spec:
+  priorityClassName: inference-critical
+  nodeSelector:
+    pool.synorg.io/name: lendable
+  tolerations:
+    - key: pool.synorg.io/lendable
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+    - key: lending.synorg.io/lent
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+  terminationGracePeriodSeconds: 5
+  containers:
+    - name: serve
+      image: registry.k8s.io/pause:3.9
+      resources:
+        requests:
+          cpu: 50m
+          memory: 32Mi
+          nvidia.com/gpu: "4"
+        limits:
+          cpu: 100m
+          memory: 64Mi
+          nvidia.com/gpu: "4"

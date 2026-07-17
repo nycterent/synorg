@@ -1,0 +1,49 @@
+# training-job.yaml — template for a Kueue-admitted training Job (U3).
+# scheduling_test.sh instantiates it with yq (unique name, GPU count sized to
+# the fake-GPU capacity the lendable worker really advertises).
+#
+# Deliberately minimal: no nodeSelector and no tolerations here. On admission
+# Kueue injects the gpu-lendable ResourceFlavor's nodeLabels
+# (karpenter.sh/nodepool=gpu-lendable) and tolerations
+# (pool.synorg.io/lendable, lending.synorg.io/lent) — exactly the
+# bind-to-real-workers behavior under test. kwok virtual nodes never carry the
+# gpu-lendable pool label, so training can never land there (KTD1).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: training-template
+  namespace: team-ml
+  labels:
+    # LocalQueue handle (conventions.md: team-<name> in the team namespace).
+    kueue.x-k8s.io/queue-name: team-ml
+    synorg.io/scheduling-test: "true"
+spec:
+  # Kueue gates admission by unsuspending; start suspended explicitly.
+  suspend: true
+  # A preempted pod must NOT be retried — the eviction is the assertion (s4).
+  backoffLimit: 0
+  # Safety net: a leaked test job dies on its own even if cleanup is skipped.
+  activeDeadlineSeconds: 1800
+  template:
+    metadata:
+      labels:
+        synorg.io/scheduling-test: "true"
+    spec:
+      restartPolicy: Never
+      # Preemptible, never preempts (KTD12) — the emergency-reclaim victim.
+      priorityClassName: training-preemptible
+      # Short grace so scheduler preemption completes fast in the test window.
+      terminationGracePeriodSeconds: 5
+      containers:
+        - name: train
+          # pause runs forever at ~0 cost — the pod is Running until evicted.
+          image: registry.k8s.io/pause:3.9
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+              nvidia.com/gpu: "4"
+            limits:
+              cpu: 100m
+              memory: 64Mi
+              nvidia.com/gpu: "4"

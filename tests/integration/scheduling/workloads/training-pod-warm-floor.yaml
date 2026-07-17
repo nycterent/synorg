@@ -1,0 +1,40 @@
+# training-pod-warm-floor.yaml — containment probe (U3, s5 / R12).
+# A pod with the TRAINING toleration set (lendable + lent only — exactly what
+# the gpu-lendable flavor injects) aimed at the warm-floor node. It must stay
+# Pending/Unschedulable because it does not tolerate
+# pool.synorg.io/warm-floor=true:NoSchedule — proof that training can never
+# leak onto the never-lent inference floor.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: warm-floor-probe
+  namespace: scheduling-test
+  labels:
+    synorg.io/scheduling-test: "true"
+spec:
+  priorityClassName: training-preemptible
+  nodeSelector:
+    pool.synorg.io/name: warm-floor
+  # Training's tolerations — deliberately NOT pool.synorg.io/warm-floor.
+  tolerations:
+    - key: pool.synorg.io/lendable
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+    - key: lending.synorg.io/lent
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+  terminationGracePeriodSeconds: 5
+  containers:
+    - name: train
+      image: registry.k8s.io/pause:3.9
+      resources:
+        requests:
+          cpu: 50m
+          memory: 32Mi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: 100m
+          memory: 64Mi
+          nvidia.com/gpu: "1"
