@@ -1,0 +1,27 @@
+\documentclass[tikz,border=8pt]{standalone}
+\input{_style}
+\begin{document}
+% Strangler migration behind one shared ALB (service-migration.md): traffic
+% shifts from the ECS target group to the EKS golden-chart target group by
+% weight, and rollback is a weight flip back. ECS stays warm until conversion
+% is proven, so the rollback path is always available.
+\begin{tikzpicture}
+  \node[box,align=center] (ecs) {ECS target group\\(incumbent --- stays warm)};
+  \node[box,align=center,right=54mm of ecs] (eks) {EKS target group\\(golden chart)};
+  \node[box,line width=1pt] (alb) at ($(ecs)!0.5!(eks)+(0,26mm)$)
+    {Shared ALB (one listener)};
+
+  \draw[flow] (alb) -- node[flowlbl,left,align=center,pos=0.55]{weight\\100 $\to$ 0\%} (ecs);
+  \draw[flow] (alb) -- node[flowlbl,right,align=center,pos=0.55]{weight\\0 $\to$ 100\%} (eks);
+
+  % forward weight shift (label above the straight arrow)
+  \draw[flow,line width=1pt] (ecs.east) -- node[flowlbl,above,align=center]
+    {shift EKS weight\\shadow · 5\% · 25\% · 50\% · 100\%} (eks.west);
+  % rollback = weight flip back (bows below, label below)
+  \draw[flow,draw=synamber,line width=1pt] (eks.south) to[bend left=22]
+    node[flowlbl,below,text=synamber]{rollback = weight flip back to ECS} (ecs.south);
+
+  \node[note,align=center] at ($(ecs.south)!0.5!(eks.south)+(0,-17mm)$)
+    {advance a step only on baseline parity\\(p95 + error rate, through a morning reclaim)};
+\end{tikzpicture}
+\end{document}

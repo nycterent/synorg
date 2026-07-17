@@ -1,0 +1,32 @@
+\documentclass[tikz,border=8pt]{standalone}
+\input{_style}
+\begin{document}
+% Which tier a change lands in, derived from blast radius, not self-selected
+% (capability-tiers.md). Each decision routes to one enforcement mechanism:
+% admission hard-deny (never), required review (human-by-exception), or the
+% make-validate merge gate (autonomous).
+\begin{tikzpicture}[node distance=12mm and 30mm]
+  \node[box] (pr) {Change (PR)};
+  \node[decision,below=12mm of pr] (d1) {cross-tenant ref\\/ secret material?};
+  \node[decision,below=20mm of d1] (d2) {prod topology /\\quota / NodePool?};
+  \node[decision,below=24mm of d2] (d3) {ns-scoped non-prod,\\or values-only prod\\post game-day?\\(policies pass)};
+
+  % outcomes (right column), one per enforcement mechanism
+  \node[box,deny,right=of d1] (never)
+    {\textbf{never}\\hard deny at admission};
+  \node[box,warn,right=of d2] (human)
+    {\textbf{human-by-exception}\\branch-protection review};
+  \node[box,right=of d3,line width=1pt] (auto)
+    {\textbf{autonomous}\\\texttt{make validate} $\to$ auto-merge};
+  \node[note,below=14mm of d3,align=center] (retry)
+    {not eligible ---\\policies fail: fix \& retry};
+
+  \draw[flow] (pr) -- (d1);
+  \draw[flow] (d1) -- node[flowlbl,above]{yes} (never);
+  \draw[flow] (d1) -- node[flowlbl,right]{no} (d2);
+  \draw[flow] (d2) -- node[flowlbl,above]{yes} (human);
+  \draw[flow] (d2) -- node[flowlbl,right]{no} (d3);
+  \draw[flow] (d3) -- node[flowlbl,above]{yes} (auto);
+  \draw[flow] (d3) -- node[flowlbl,right]{no} (retry);
+\end{tikzpicture}
+\end{document}

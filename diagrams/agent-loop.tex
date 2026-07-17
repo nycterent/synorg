@@ -1,0 +1,25 @@
+\documentclass[tikz,border=8pt]{standalone}
+\input{_style}
+\begin{document}
+% The agent operating loop (agent-interface.md): propose -> validate -> observe
+% -> correct, closed by the agent alone with no human translator. Each stage
+% names the repo surface it acts on.
+\begin{tikzpicture}
+  \node[box,text width=34mm] (propose) at (90:3.2)
+    {\textbf{propose}\\edit a values file,\\open a PR to the monorepo};
+  \node[box,text width=34mm] (validate) at (0:3.6)
+    {\textbf{validate}\\\texttt{make validate}:\\pass/fail + named error};
+  \node[box,text width=34mm] (observe) at (-90:3.2)
+    {\textbf{observe}\\SLO read-API\\(slo-definitions.yaml)};
+  \node[box,text width=34mm] (correct) at (180:3.6)
+    {\textbf{correct}\\error message alone\\$\to$ fix, next PR};
+
+  \draw[flow,line width=0.8pt] (propose) to[bend right=16] (validate);
+  \draw[flow,line width=0.8pt] (validate) to[bend right=16] (observe);
+  \draw[flow,line width=0.8pt] (observe) to[bend right=16] (correct);
+  \draw[flow,line width=0.8pt] (correct) to[bend right=16] (propose);
+
+  \node[align=center,font=\footnotesize\itshape,text=syngrey] at (0,0)
+    {agent loop\\(no human\\translator)};
+\end{tikzpicture}
+\end{document}

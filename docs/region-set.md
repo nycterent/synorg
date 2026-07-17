@@ -30,6 +30,8 @@ region ∈ set  ⟺  GPU availability  ∧  training-data gravity  ∧  EU resid
 All three are necessary; none alone is sufficient. A region with GPUs but wrong
 residency is out; a compliant region with no data gravity is out.
 
+![Three-set Venn of the region predicate: GPU availability, training-data gravity, and EU customer-data residency; only their triple intersection is an eligible region, since a region is admitted if and only if all three hold](assets/diagrams/region-set.svg){ .diagram }
+
 ## Overlay-only rule
 
 Every region after the pilot is expressed as an **overlay** under

@@ -12,6 +12,8 @@ out; everything else is class-agnostic.
 **Roles:** the migrating team owns the service; platform owns the ALB weight
 changes and the game-day gate.
 
+![Strangler migration behind one shared ALB: both an ECS target group (incumbent, stays warm) and an EKS target group (golden chart) sit under one listener; EKS weight is shifted shadow, 5%, 25%, 50%, 100% while ECS drops complementarily, and rollback is a weight flip back to ECS](../assets/diagrams/strangler-alb.svg){ .diagram }
+
 ## Preconditions
 
 - Target cluster is at converged state and its game-day gate has passed (U10).

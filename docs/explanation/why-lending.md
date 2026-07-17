@@ -45,6 +45,8 @@ utilization nor the safety. The way out is not to compromise on the axis but to
 
 Three separations carry the design, and each maps to a concrete mechanism.
 
+![A 24-hour timeline of one node: a lendable node serves prod by day, goes idle in the evening, is lent to training overnight, drains through staged reclaim waves before the morning ramp, scrubs, and returns to prod; below it, the warm floor serves prod all day and never lends](../assets/diagrams/why-lending-day.svg){ .diagram }
+
 **In time.** A node is not busy and free simultaneously; it is busy during a
 lending window at night and free during the day. The window opens off-peak and
 closes with staged reclaim waves that start *ahead* of the morning ramp, so

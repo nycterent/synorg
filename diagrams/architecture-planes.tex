@@ -1,0 +1,37 @@
+\documentclass[tikz,border=8pt]{standalone}
+\input{_style}
+\begin{document}
+% The four planes (architecture.md "four planes"): a change flows top-to-bottom
+% (authored in git, actuated by reconcilers, judged by policy, recorded as
+% evidence); evidence flows back up to inform the next change.
+\begin{tikzpicture}
+  \def\pw{8.4cm}
+  \node[plane,text width=\pw] (contract)
+    {\textbf{Contract plane} --- ``what is desired?''\\\footnotesize git monorepo (values + schema, overlays, policies)};
+  \node[plane,text width=\pw,below=9mm of contract] (actuation)
+    {\textbf{Actuation plane} --- ``who makes it real?''\\\footnotesize ArgoCD (hub) + Karpenter (spoke), reconcilers only};
+  \node[plane,text width=\pw,below=9mm of actuation] (policy)
+    {\textbf{Policy plane} --- ``what is allowed?''\\\footnotesize Kyverno + ValidatingAdmissionPolicy (CEL) verdicts};
+  \node[plane,text width=\pw,below=9mm of policy] (evidence)
+    {\textbf{Evidence plane} --- ``what is happening?''\\\footnotesize Prometheus + DCGM as a machine-read read-API};
+
+  % inter-plane hand-off
+  \draw[flow] (contract) -- (actuation);
+  \draw[flow] (actuation) -- (policy);
+  \draw[flow] (policy) -- (evidence);
+
+  % a change flows down (left rail)
+  \coordinate (tl) at ($(contract.north west)+(-0.9,0)$);
+  \coordinate (bl) at ($(evidence.south west)+(-0.9,0)$);
+  \draw[flow,line width=1.3pt,draw=synteal] (tl) -- (bl);
+  \node[flowlbl,text=synteal,rotate=90,anchor=south] at ($(tl)!0.5!(bl)+(-0.3,0)$)
+    {a change (PR) flows down};
+
+  % evidence flows back up (right rail)
+  \coordinate (br) at ($(evidence.south east)+(0.9,0)$);
+  \coordinate (tr) at ($(contract.north east)+(0.9,0)$);
+  \draw[flow,line width=1.3pt,draw=synamber] (br) -- (tr);
+  \node[flowlbl,text=synamber,rotate=-90,anchor=south] at ($(br)!0.5!(tr)+(0.3,0)$)
+    {evidence flows up};
+\end{tikzpicture}
+\end{document}

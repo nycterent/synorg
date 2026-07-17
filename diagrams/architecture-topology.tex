@@ -1,0 +1,37 @@
+\documentclass[tikz,border=8pt]{standalone}
+\input{_style}
+\begin{document}
+% Hub-spoke topology (architecture.md "shape in one paragraph"): one git monorepo
+% is the only write API; ArgoCD (hub) reconciles many region spokes; each spoke
+% runs the serving+training substrate. Spoke internals grouped in one fit box.
+\begin{tikzpicture}[node distance=9mm and 18mm]
+  \node[box,align=left] (git)
+    {\textbf{git monorepo}\\\footnotesize the only write API\\\footnotesize base + overlays\\\footnotesize golden + training charts\\\footnotesize policies};
+  \node[box,align=center,right=of git] (argo)
+    {\textbf{ArgoCD hub}\\+ ApplicationSets\\\footnotesize (mgmt cluster)};
+
+  % ---- spoke internals ----
+  \node[box] (kar) at ($(argo)+(52mm,8mm)$) {Karpenter\\+ ODCR held fleet};
+  \node[box,align=left,right=16mm of kar] (pools)
+    {\textbf{NodePools}\\\footnotesize · warm floor --- never lent\\\footnotesize · lendable\\\footnotesize · web / system};
+  \node[box,below=16mm of kar] (kueue) {Kueue\\quota / borrow};
+  \node[box,right=of kueue] (lend) {lending\\controller};
+  \node[box,below=9mm of kueue] (kyv) {Kyverno + VAP};
+  \node[box,right=of kyv] (prom) {Prometheus\\/ DCGM};
+
+  \begin{scope}[on background layer]
+    \node[draw=synteal,dashed,rounded corners=3pt,inner sep=6mm,
+          fit=(kar)(pools)(kueue)(lend)(kyv)(prom)] (spoke) {};
+  \end{scope}
+  \node[note,anchor=north west] at ($(spoke.north west)+(2mm,-1mm)$)
+    {region spoke (one per region)};
+
+  % ---- flows ----
+  \draw[flow,line width=0.8pt] (git) -- (argo);
+  \draw[flow,line width=0.8pt] (argo) -- node[flowlbl,above,sloped]{sync} (spoke.west);
+  \draw[flow] (kar) -- node[flowlbl,above,font=\tiny]{provisions} (pools);
+  \draw[flow,dashed] (lend) -- node[flowlbl,above,font=\tiny]{edits quota} (kueue);
+  \draw[flow,dashed] (lend) to[bend right=20]
+    node[flowlbl,right,font=\tiny]{flips lent taints} (pools);
+\end{tikzpicture}
+\end{document}

@@ -11,6 +11,8 @@ NodePool, an ApplicationSet, and an ODCR are, and why the order below matters.
     reservations is verify-before-terminate. Never let a step release capacity
     as a side effect — that is a hard stop, not a retry.
 
+![Bootstrap sequence: ODCR capture, then management cluster with ArgoCD, pilot region with Karpenter, register the scoped spoke, policy plane, scheduling and lending, evidence plane, and finally a game-day gate that must pass before the lending window is enabled; a failed gate loops back to raise the warm floor and re-run](../assets/diagrams/deploy-bootstrap.svg){ .diagram }
+
 ## Prerequisites
 
 - An AWS account with GPU instance quota (or ODCR grants) in the target EU

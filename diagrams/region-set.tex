@@ -1,0 +1,34 @@
+\documentclass[tikz,border=8pt]{standalone}
+\input{_style}
+\begin{document}
+% The R8 region predicate (region-set.md): a candidate region is admitted iff all
+% three hold (logical AND). The triple intersection is the eligible set; any one
+% circle failing disqualifies the region.
+\begin{tikzpicture}
+  \coordinate (A) at (90:1.3);   % GPU availability
+  \coordinate (B) at (210:1.3);  % training-data gravity
+  \coordinate (C) at (330:1.3);  % EU residency
+
+  \begin{scope}[fill opacity=0.32]
+    \fill[synteal]  (A) circle(2.2);
+    \fill[synamber] (B) circle(2.2);
+    \fill[synred]   (C) circle(2.2);
+  \end{scope}
+  \draw[draw=synteal,line width=0.7pt]  (A) circle(2.2);
+  \draw[draw=synamber,line width=0.7pt] (B) circle(2.2);
+  \draw[draw=synred,line width=0.7pt]   (C) circle(2.2);
+
+  % set labels, pushed outside their circles
+  \node[text=synteal,font=\small\bfseries]  at (0,3.35)   {GPU availability};
+  \node[text=synamber,font=\small\bfseries,align=center] at (-3.15,-2.35) {training-data\\gravity};
+  \node[text=synred,font=\small\bfseries,align=center]   at (3.15,-2.35)  {EU customer-data\\residency};
+
+  % the admitted set
+  \node[align=center,font=\footnotesize\bfseries,text=syngrey] at (0,0.15)
+    {eligible\\region};
+
+  \node[note,align=center] at (0,-4.15)
+    {region admitted $\iff$ GPU availability $\wedge$ data gravity $\wedge$ EU residency\\
+     --- all three necessary, none alone sufficient};
+\end{tikzpicture}
+\end{document}
