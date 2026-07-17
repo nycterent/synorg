@@ -1,0 +1,41 @@
+name: validate
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install toolchain
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          go install github.com/yannh/kubeconform/cmd/kubeconform@latest || {
+            curl -fsSL -o /tmp/kubeconform.tgz https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz
+            tar -xzf /tmp/kubeconform.tgz -C /usr/local/bin kubeconform; }
+          curl -fsSL -o /tmp/kyverno.tgz https://github.com/kyverno/kyverno/releases/latest/download/kyverno-cli_linux_x86_64.tar.gz
+          tar -xzf /tmp/kyverno.tgz -C /usr/local/bin kyverno
+      - name: Validate (same script as local)
+        run: make validate
+      - name: Rendered diff vs base
+        if: github.event_name == 'pull_request'
+        run: |
+          make render && mv build/rendered /tmp/head-rendered
+          git checkout ${{ github.event.pull_request.base.sha }}
+          make render || true
+          git checkout -
+          diff -ruN build/rendered /tmp/head-rendered > /tmp/rendered.diff || true
+          echo '## Rendered diff' >> "$GITHUB_STEP_SUMMARY"
+          echo '```diff' >> "$GITHUB_STEP_SUMMARY"
+          head -c 60000 /tmp/rendered.diff >> "$GITHUB_STEP_SUMMARY" || echo '(no rendered changes)' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'pull_request'
+        with:
+          name: rendered-diff
+          path: /tmp/rendered.diff
+          if-no-files-found: ignore

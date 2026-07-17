@@ -1,0 +1,23 @@
+name: nightly-full-validate
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  full:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          curl -fsSL -o /tmp/kubeconform.tgz https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz
+          tar -xzf /tmp/kubeconform.tgz -C /usr/local/bin kubeconform
+          curl -fsSL -o /tmp/kyverno.tgz https://github.com/kyverno/kyverno/releases/latest/download/kyverno-cli_linux_x86_64.tar.gz
+          tar -xzf /tmp/kyverno.tgz -C /usr/local/bin kyverno
+      - name: Full-repo validation (timed — seconds-budget tracking at scale)
+        run: |
+          start=$(date +%s)
+          make validate-full
+          echo "full-validate seconds: $(( $(date +%s) - start ))" | tee -a "$GITHUB_STEP_SUMMARY"
