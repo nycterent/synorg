@@ -60,18 +60,41 @@ wait_until() {
   done
 }
 
-# Prometheus read-API (same series as runbooks/game-day.md). E2E_PROM points at
-# a reachable endpoint; otherwise a port-forward to svc/prometheus is opened.
+# Prometheus read-API (same series as runbooks/game-day.md). Resolution order:
+#   1. E2E_PROM — explicit endpoint override, must answer;
+#   2. any Service in $E2E_PROM_NAMESPACE with a port 9090 (kube-prometheus-
+#      stack names its Service <release>-kube-prometheus-prometheus, never
+#      plain "prometheus" — same jq discovery as tests/smoke/smoke.sh);
+#   3. the operator's headless prometheus-operated Service;
+#   4. loud FAIL naming the namespace — no evidence plane, no verdict.
 PROM="${E2E_PROM:-}"
 PROM_PF_PID=""
+E2E_PROM_NAMESPACE="${E2E_PROM_NAMESPACE:-observability}"
 prom_ready() { curl -sfG "$PROM/api/v1/query" --data-urlencode 'query=up' >/dev/null 2>&1; }
+prom_discover_svc() {
+  k get svc -n "$E2E_PROM_NAMESPACE" -o json 2>/dev/null \
+    | jq -r '[.items[] | select(any(.spec.ports[]?; .port == 9090))][0].metadata.name // empty'
+}
 prom_start() {
   [ -n "$PROM" ] && { prom_ready || { echo "  E2E_PROM=$PROM not answering" >&2; return 1; }; return 0; }
-  k -n observability port-forward svc/prometheus "$E2E_PROM_LOCAL_PORT:9090" >/dev/null 2>&1 &
+  local svc
+  svc="$(prom_discover_svc)"
+  if [ -z "$svc" ] && k -n "$E2E_PROM_NAMESPACE" get svc prometheus-operated >/dev/null 2>&1; then
+    svc="prometheus-operated"
+  fi
+  if [ -z "$svc" ]; then
+    echo "FAIL: no Prometheus Service (port 9090, nor prometheus-operated) in namespace '$E2E_PROM_NAMESPACE' — set E2E_PROM to a reachable endpoint or fix the evidence plane" >&2
+    return 1
+  fi
+  k -n "$E2E_PROM_NAMESPACE" port-forward "svc/$svc" "$E2E_PROM_LOCAL_PORT:9090" >/dev/null 2>&1 &
   PROM_PF_PID=$!
   PROM="http://127.0.0.1:$E2E_PROM_LOCAL_PORT"
-  wait_until "prometheus read-API answering (evidence plane, U9)" 60 prom_ready
+  if ! wait_until "prometheus read-API answering (evidence plane, U9)" 60 prom_ready; then
+    prom_stop   # readiness timed out: reap the spawned port-forward, no leak
+    return 1
+  fi
 }
+# prom_stop — idempotent: unset or already-dead PID is a no-op.
 prom_stop() { [ -n "$PROM_PF_PID" ] && { kill "$PROM_PF_PID" 2>/dev/null || true; PROM_PF_PID=""; }; return 0; }
 # Q PROMQL — first sample value, or empty (empty is always a FAIL upstream).
 Q() { curl -sG "$PROM/api/v1/query" --data-urlencode "query=$1" | jq -r '.data.result[0].value[1] // empty'; }
@@ -326,23 +349,115 @@ assert_ledger_zero_net_release() {
   echo "PASS: ledger — reservation totals/held identical to the entry snapshot"
 }
 
-# --- Runner ------------------------------------------------------------------
-# e2e_assert_all — run every assertion in order, keep going after a failure so
-# one run reports the full physics picture; rc!=0 if any failed. Cleanup
-# (loadgen off, training deleted, schedule restored, port-forward closed)
-# always runs, pass or fail.
-e2e_assert_all() {
-  local failed=0 a
-  prom_start || { echo "FAIL: evidence plane unreachable — an unmeasured run has no verdict (game-day.md abort)"; return 1; }
-  for a in assert_lend assert_reclaim_ahead_of_ramp assert_scrub_new_instance \
-           assert_rejoin_under_p95_gate assert_game_day_storm assert_ledger_zero_net_release; do
-    "$a" || failed=$(( failed + 1 ))
-  done
+# --- Cleanup + trap chaining -------------------------------------------------
+# A kill (INT/TERM) or hard exit mid---test must not leave the loadgen, the
+# training workload, or a driven schedule live: ArgoCD selfHeal eventually
+# reverts the schedule ConfigMap, but loadgen and the training workload are
+# NOT ArgoCD-managed — only this cleanup removes them. The cleanup runs
+# exactly once (guard variable), whether reached normally or via a trap.
+#
+# Trap chaining: this file is SOURCED by tests/e2e/run.sh, whose full cycle
+# installs its own on_exit trap (teardown). The previous handlers are captured
+# BEFORE installing ours, chained after the cleanup, and restored when the
+# assertion run completes — run.sh's teardown trap always still fires.
+E2E_CLEANUP_DONE=0
+E2E_PREV_TRAP_EXIT=""
+E2E_PREV_TRAP_INT=""
+E2E_PREV_TRAP_TERM=""
+
+e2e_cleanup() {
+  [ "$E2E_CLEANUP_DONE" = 1 ] && return 0
+  E2E_CLEANUP_DONE=1
   step "assertions cleanup (loadgen, training workload, schedule, port-forward)"
   loadgen_stop
   training_delete
   restore_schedule || echo "  WARNING: could not restore the original schedule — restore it manually from $SCHEDULE_ORIG" >&2
   prom_stop
+  return 0
+}
+
+# e2e__store_trap '--' BODY SIGNAL — sink for re-evaluating one `trap -p` line
+# (each line is valid shell: trap -- '<body>' SIG); records BODY per signal.
+# bash prints signal names with the SIG prefix (SIGINT/SIGTERM) — match both.
+e2e__store_trap() {
+  case "$3" in
+    EXIT)         E2E_PREV_TRAP_EXIT="$2" ;;
+    INT|SIGINT)   E2E_PREV_TRAP_INT="$2" ;;
+    TERM|SIGTERM) E2E_PREV_TRAP_TERM="$2" ;;
+  esac
+}
+
+# e2e_install_cleanup_trap — capture the current EXIT/INT/TERM handlers, then
+# install combined handlers: cleanup first, previous handler after. `trap -p`
+# is written to a FILE (a redirection, not a command substitution) because a
+# subshell would report its own reset traps, not run.sh's. Single-line handler
+# bodies only — which run.sh's `on_exit` is.
+e2e_install_cleanup_trap() {
+  E2E_CLEANUP_DONE=0
+  E2E_PREV_TRAP_EXIT=""; E2E_PREV_TRAP_INT=""; E2E_PREV_TRAP_TERM=""
+  local tf="$E2E_STATE_DIR/.prev-traps" line
+  trap -p EXIT INT TERM > "$tf"
+  while IFS= read -r line; do
+    eval "e2e__store_trap ${line#trap }"
+  done < "$tf"
+  rm -f "$tf"
+  # $? is captured FIRST and re-armed with `(exit ...)` so a chained handler
+  # that reads $? (run.sh on_exit does) sees the dying rc, not the cleanup's.
+  # `set +e` before the re-arm: errexit is live inside trap handlers, and a
+  # nonzero (exit rc) would otherwise abort the handler BEFORE the chained
+  # teardown runs (proven offline). The handler only runs on a dying/signalled
+  # script, so dropping errexit there changes nothing else.
+  # Intentional early expansion of the captured bodies (shellcheck SC2064);
+  # e2e_rc is assigned inside the handler string itself (SC2154).
+  # shellcheck disable=SC2064,SC2154
+  trap "e2e_rc=\$?; e2e_cleanup; set +e; (exit \"\$e2e_rc\"); ${E2E_PREV_TRAP_EXIT}" EXIT
+  if [ -n "$E2E_PREV_TRAP_INT" ]; then
+    # shellcheck disable=SC2064
+    trap "e2e_rc=\$?; e2e_cleanup; set +e; (exit \"\$e2e_rc\"); ${E2E_PREV_TRAP_INT}" INT
+  else
+    # No previous INT handler: clean up, then re-raise so the default
+    # die-on-SIGINT semantics (and run.sh's EXIT-less phases) are preserved.
+    trap 'e2e_cleanup; trap - INT; kill -INT $$' INT
+  fi
+  if [ -n "$E2E_PREV_TRAP_TERM" ]; then
+    # shellcheck disable=SC2064
+    trap "e2e_rc=\$?; e2e_cleanup; set +e; (exit \"\$e2e_rc\"); ${E2E_PREV_TRAP_TERM}" TERM
+  else
+    trap 'e2e_cleanup; trap - TERM; kill -TERM $$' TERM
+  fi
+}
+
+# e2e_restore_traps — put back exactly what was captured (or clear). Early
+# expansion is the point: restore the ORIGINAL bodies verbatim (SC2064).
+e2e_restore_traps() {
+  # shellcheck disable=SC2064
+  if [ -n "$E2E_PREV_TRAP_EXIT" ]; then trap "$E2E_PREV_TRAP_EXIT" EXIT; else trap - EXIT; fi
+  # shellcheck disable=SC2064
+  if [ -n "$E2E_PREV_TRAP_INT" ]; then trap "$E2E_PREV_TRAP_INT" INT; else trap - INT; fi
+  # shellcheck disable=SC2064
+  if [ -n "$E2E_PREV_TRAP_TERM" ]; then trap "$E2E_PREV_TRAP_TERM" TERM; else trap - TERM; fi
+}
+
+# --- Runner ------------------------------------------------------------------
+# e2e_assert_all — run every assertion in order, keep going after a failure so
+# one run reports the full physics picture; rc!=0 if any failed. Cleanup
+# (loadgen off, training deleted, schedule restored, port-forward closed)
+# always runs — normal completion, assertion failure, or a mid-run kill.
+e2e_assert_all() {
+  local failed=0 a
+  e2e_install_cleanup_trap
+  if ! prom_start; then
+    echo "FAIL: evidence plane unreachable — an unmeasured run has no verdict (game-day.md abort)"
+    e2e_cleanup          # includes prom_stop — no leaked port-forward
+    e2e_restore_traps
+    return 1
+  fi
+  for a in assert_lend assert_reclaim_ahead_of_ramp assert_scrub_new_instance \
+           assert_rejoin_under_p95_gate assert_game_day_storm assert_ledger_zero_net_release; do
+    "$a" || failed=$(( failed + 1 ))
+  done
+  e2e_cleanup
+  e2e_restore_traps
   echo
   if [ "$failed" -gt 0 ]; then
     echo "ASSERTIONS: $failed of 6 FAILED"

@@ -134,6 +134,7 @@ tf_step() {
 # invariant is capacity, not progress (capacity-carve.md abort semantics).
 # The ledger itself is read by scripts/lib/ledger.sh (shared with the e2e
 # tier); these hooks keep this script's error wording.
+ledger_fail_output() { fail "zero-net-release: cannot read the ODCR ledger outputs from $1 — terraform output failed (backend.tf configured? terraform -chdir=$1 init run?); an unreadable ledger is never an empty one — STOP"; }
 ledger_fail_missing_id() { fail "zero-net-release: no reservation id for '$1' — capture (§1) incomplete; STOP"; }
 ledger_fail_describe() { fail "zero-net-release: cannot describe $1"; }
 

@@ -80,15 +80,46 @@ jobs:
         env:
           AWS_REGION: ${{ inputs.region }}
 
-      - name: Full e2e cycle (up -> test -> down, trap-guarded teardown)
+      # up/test/down are SEPARATE steps, not run.sh's single-process trap:
+      # a cancelled or timed-out step gets only seconds of kill grace — far
+      # less than a terraform destroy — so teardown must live in its own
+      # always() step with its own timeout, where cancellation of up/test
+      # cannot kill it mid-destroy. The zero-net-release invariant still spans
+      # the job: --up takes the ledger entry snapshot, --down asserts it
+      # unchanged (both via build/e2e/, shared across steps).
+      - name: Up (deploy the spot-GPU pilot)
+        id: up
+        timeout-minutes: 90
         run: |
           set -o pipefail
           mkdir -p build/e2e
-          make e2e 2>&1 | tee build/e2e/e2e-run.log
+          make e2e ARGS=--up 2>&1 | tee build/e2e/up.log
         env:
           AWS_REGION: ${{ inputs.region }}
           E2E_CONFIRM: "yes" # auto-confirm: the dispatch confirm input already gated this run
-          E2E_KEEP: ${{ inputs.keep-on-failure && '1' || '0' }}
+
+      - name: Test (physics + game-day assertions)
+        id: test
+        timeout-minutes: 150
+        run: |
+          set -o pipefail
+          make e2e ARGS=--test 2>&1 | tee build/e2e/test.log
+        env:
+          AWS_REGION: ${{ inputs.region }}
+
+      # always(): teardown runs whether up/test passed, failed, or were
+      # cancelled. The ONLY skip is the explicit debugging escape hatch —
+      # keep-on-failure requested AND the test step (specifically) failed.
+      # The ODCR capture is never destroyed here (run.sh --down excludes it).
+      - name: Down (teardown; ledger exit assert)
+        if: ${{ always() && !(inputs.keep-on-failure && steps.test.outcome == 'failure') }}
+        timeout-minutes: 60
+        run: |
+          set -o pipefail
+          mkdir -p build/e2e
+          make e2e ARGS=--down 2>&1 | tee build/e2e/down.log
+        env:
+          AWS_REGION: ${{ inputs.region }}
 
       - name: Upload run logs + ledger snapshots
         if: always()

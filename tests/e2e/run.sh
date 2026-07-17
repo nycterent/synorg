@@ -116,6 +116,7 @@ No cloud call was made beyond sts; nothing was deployed or mutated."
 # module's declared_instance_counts/reservation_ids outputs — the same sources
 # scripts/deploy.sh guard_zero_net_release verifies. These hooks keep this
 # script's error wording.
+ledger_fail_output() { fail "ledger: terraform output failed in $ODCR_DIR — missing backend/init? Configure backend.tf (infra/terraform/backend.tf.example) and run terraform -chdir=$ODCR_DIR init. An unreadable ledger can NEVER count as empty (no vacuous pass)"; }
 ledger_fail_missing_id() { fail "ledger: no reservation id for '$1' — ODCR capture incomplete"; }
 ledger_fail_describe() { fail "ledger: cannot describe $1"; }
 
@@ -135,6 +136,12 @@ LEDGER_ENTRY_FILE="$E2E_STATE_DIR/ledger-entry.txt"
 
 ledger_snapshot_entry() {
   step "ledger: entry snapshot (zero-net-release invariant)"
+  # A missing backend/init must fail HERE, at entry — not read as an empty
+  # ledger later. terraform output alone cannot tell "no backend" from "no
+  # reservations"; a successful init first makes the subsequent output read
+  # (and its hard-fail hook) meaningful.
+  terraform -chdir="$ODCR_DIR" init -input=false >/dev/null \
+    || fail "ledger: terraform init failed in $ODCR_DIR — configure backend.tf (infra/terraform/backend.tf.example) before any e2e phase"
   ledger_capture "$LEDGER_ENTRY_FILE"
   sed 's/^/  entry: /' "$LEDGER_ENTRY_FILE"
 }
@@ -178,6 +185,12 @@ phase_check() {
 phase_up() {
   step "up: deploy the spot-GPU pilot (scripts/deploy.sh, runbook order)"
   gate
+  # Entry snapshot BEFORE the deploy so the zero-net-release invariant spans
+  # from --up to the exit assert in --down — one bracket across the whole run,
+  # whether phases run in one process (full cycle) or as separate CI steps
+  # sharing $E2E_STATE_DIR. phase_full already snapshotted; the guard keeps
+  # this idempotent.
+  [ -f "$LEDGER_ENTRY_FILE" ] || ledger_snapshot_entry
   # ODCR is applied WITHOUT -auto-approve by design (deploy.sh); for e2e the
   # capture must be pre-existing (no changes => terraform does not prompt) —
   # runsheet Step 1. All other modules auto-approve.
@@ -210,12 +223,25 @@ phase_down() {
   # ODCR is deliberately NOT destroyed: releasing held capacity is irreversible
   # and human-gated (capacity-carve.md). Destroying the fleet returns slots to
   # the reservation — totals stay constant, which the ledger assertion proves.
-  local dir
+  #
+  # Errexit-independent by design: on_exit invokes this as `phase_down || ...`,
+  # which suspends errexit inside the function — so failures are tracked
+  # explicitly per module. A failed destroy must never reach DOWN OK, and the
+  # loop keeps going so as much as possible is destroyed regardless.
+  local dir rc=0
   for dir in "$CKPT_DIR" "$PILOT_DIR" "$MGMT_DIR"; do
-    terraform -chdir="$dir" init -input=false
-    terraform -chdir="$dir" destroy -input=false -auto-approve
+    if terraform -chdir="$dir" init -input=false \
+        && terraform -chdir="$dir" destroy -input=false -auto-approve; then
+      :
+    else
+      echo "DOWN FAIL: $dir — init/destroy failed; module may still hold billable resources" >&2
+      rc=1
+    fi
   done
-  echo "DOWN OK — pilot destroyed; held reservations untouched"
+  if [ "$rc" -eq 0 ]; then
+    echo "DOWN OK — pilot destroyed; held reservations untouched"
+  fi
+  return "$rc"
 }
 
 # --- Full cycle: confirm -> up -> test -> down, trap-guarded ------------------

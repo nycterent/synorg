@@ -21,6 +21,12 @@ export AWS_REGION=eu-west-1                # pilot region (workflow input `regio
 export PILOT_CONTEXT=synorg-pilot          # kubeconfig aliases, as scripts/deploy.sh
 export MGMT_CONTEXT=synorg-mgmt
 export E2E_STATE_DIR=build/e2e             # snapshots + logs (CI uploads this)
+# export E2E_PROM=http://...:9090          # optional: Prometheus read-API override.
+#                                          # Unset (default): the assertions discover
+#                                          # any :9090 Service in the observability
+#                                          # namespace (E2E_PROM_NAMESPACE overrides),
+#                                          # falling back to prometheus-operated;
+#                                          # none found is a loud FAIL, not a skip.
 ```
 
 ## Step 0 — Read the source runbooks first (abort-level prerequisite)
@@ -195,6 +201,14 @@ human-gated (`runbooks/capacity-carve.md`); returning fleet slots to the
 reservation is exactly what keeps the ledger totals constant. (The full-cycle
 `make e2e` runs Steps 8-11 in one go, teardown trap-guarded: a failed
 assertion still tears down unless `E2E_KEEP=1`.)
+
+CI (`.github/workflows/e2e.yaml`) runs `--check`, `--up`, `--test`, and
+`--down` as **separate steps** rather than the single-process full cycle: a
+cancelled or timed-out step gets only seconds of kill grace, so teardown lives
+in its own `always()` step with its own timeout — cancellation cannot kill a
+destroy mid-flight. The ledger entry snapshot is taken by `--up` and asserted
+by `--down`, so the zero-net-release invariant spans the whole job. The only
+teardown skip is the `keep-on-failure` input when the test step failed.
 
 ## Step 12 — Post-run checklist
 
