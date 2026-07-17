@@ -37,6 +37,18 @@ its mode, commit. Don't gate value on a full reorg.
 - [x] **L2 — HTML docs site.** `mkdocs.yml` + Material for MkDocs — DONE (2026-07-17). Nav = the 4 quadrants; `runbooks/` pulled in via the `docs/runbooks` symlink; `make docs-serve` / `make docs-build` (pinned venv from `docs/requirements.txt`); `.github/workflows/docs.yaml` builds `--strict` and deploys to GitHub Pages on push to main. Builds clean strict (18 pages).
 - [ ] **X1 — Cross-link.** From each explanation, link to the runbook that applies it and the reference that pins its names; from tutorials, link onward to the how-to for real work. Modes stay separate but connected.
 
+## Infrastructure-engineer docs (added 2026-07-17)
+
+Gap found: the runbooks were all per-operation; nothing covered deploying,
+maintaining, or understanding the system whole. Filled:
+
+- [x] **A1 — Explanation: Architecture.** `docs/explanation/architecture.md` — the four planes, component map, control + data flow, load-bearing decisions, single points. The onboarding read for a new infra engineer.
+- [x] **A2 — How-to: Deploy the platform from zero.** `runbooks/deploy-platform.md` — ordered bootstrap (ODCR capture → hub → pilot → register spoke → policy → scheduling → evidence → game-day gate), verify-before-terminate throughout.
+- [x] **A3 — How-to: Operate & maintain.** `runbooks/operations.md` — routine (warm-floor resize, quarterly held-fleet review, cred rotation, upgrades) + on-call (preemption storm, wedged node, hub outage, stop-lending) + scarcity response.
+
+Still thin: an **operations reference** (exact commands/thresholds per task) could
+be split out of A3 if A3 grows; hold until it earns it.
+
 ## Guardrails
 
 - Author for the human, not the grid — if a split would hurt the reader, look again (usually two fused things), but don't mutilate a good page to satisfy the scheme.

@@ -10,15 +10,17 @@ right now, not the topic.
   that start from zero. Begin with [Validate on your
   laptop](tutorials/first-validation.md).
 
-- **[How-to (runbooks)](runbooks/service-migration.md)** — *A task.* Executable
-  playbooks for operators who already know what they want: migrate a service,
-  scrub a node, run a game-day.
+- **[How-to (runbooks)](runbooks/deploy-platform.md)** — *A task.* Executable
+  playbooks for operators: [deploy the platform](runbooks/deploy-platform.md),
+  [operate & maintain it](runbooks/operations.md), migrate a service, scrub a
+  node, run a game-day.
 
 - **[Reference](conventions.md)** — *A fact.* The pinned names, schemas, tiers,
   and SLOs. Start with [conventions](conventions.md).
 
-- **[Explanation](explanation/why-lending.md)** — *Why.* The ideas behind the
-  design. Start with [why the platform lends GPUs](explanation/why-lending.md).
+- **[Explanation](explanation/architecture.md)** — *Why.* The ideas behind the
+  design: the [architecture](explanation/architecture.md) map, and [why the
+  platform lends GPUs](explanation/why-lending.md).
 
 </div>
 

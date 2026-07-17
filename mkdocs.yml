@@ -40,6 +40,8 @@ nav:
   - Tutorials:
       - Validate on your laptop: tutorials/first-validation.md
   - How-to (runbooks):
+      - Deploy the platform from zero: runbooks/deploy-platform.md
+      - Operate & maintain: runbooks/operations.md
       - Migrate a service: runbooks/service-migration.md
       - Onboard a training job: runbooks/training-onboarding.md
       - Scrub a node: runbooks/node-scrub.md
@@ -56,4 +58,5 @@ nav:
       - env-spec retirement: env-spec-retirement.md
       - ECS retirement: ecs-retirement.md
   - Explanation:
+      - Architecture: explanation/architecture.md
       - Why the platform lends GPUs: explanation/why-lending.md
