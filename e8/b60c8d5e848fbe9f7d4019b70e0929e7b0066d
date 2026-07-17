@@ -1,0 +1,62 @@
+clusters/pilot/kueue/clusterqueue-platform-lendable.yaml
+  s_592792c0856826::t_4d681b8c89520c 1-32
+clusters/pilot/kueue/README.md
+  s_592792c0856826::t_78c3920499d604 1-13
+clusters/pilot/kueue/priorityclasses.yaml
+  s_592792c0856826::t_54ee56d662bb86 1-28
+charts/training-job/templates/_helpers.tpl
+  s_592792c0856826::t_bb8c58090552ad 1-41
+infra/terraform/regions/pilot/checkpoint-store/versions.tf
+  s_592792c0856826::t_c03fda4cf5813d 1-10
+infra/terraform/regions/pilot/checkpoint-store/outputs.tf
+  s_592792c0856826::t_ec4845945b8b5e 1-21
+clusters/pilot/kueue/resourceflavors.yaml
+  s_592792c0856826::t_127c7982be11bf 1-41
+infra/terraform/regions/pilot/checkpoint-store/variables.tf
+  s_592792c0856826::t_80a9f60c0eb685 1-45
+infra/terraform/regions/pilot/checkpoint-store/.terraform.lock.hcl
+  s_592792c0856826::t_8ff72f0843c5cc 1-25
+clusters/pilot/kueue/localqueue-team-example.yaml
+  s_592792c0856826::t_5297d8c79193a2 1-13
+charts/training-job/Chart.yaml
+  s_592792c0856826::t_302855dac25488 1-12
+clusters/pilot/kueue/clusterqueue-training-borrow.yaml
+  s_592792c0856826::t_aae9005df33d02 1-43
+runbooks/training-onboarding.md
+  s_592792c0856826::t_6bf120eba86a8f 142,147
+  s_592792c0856826::t_1d4b795b27678f 67-94
+  s_592792c0856826::t_458810e276940c 1-66,95-106,108-141,143-146,148-162
+  s_592792c0856826::t_62ed2dedd7738e 107
+charts/training-job/values.yaml
+  s_592792c0856826::t_8e090f66de8da9 1-46
+infra/terraform/regions/pilot/checkpoint-store/main.tf
+  s_592792c0856826::t_eaa35e4695a95c 1-55,59-76
+  s_592792c0856826::t_e3b8f3ddf8bb8a 56-58
+charts/training-job/README.md
+  s_592792c0856826::t_f86f43d0558133 1-74
+charts/training-job/templates/job.yaml
+  s_592792c0856826::t_b2a024494404e9 85-89
+  s_592792c0856826::t_55cd0c7e5ef3ac 48-49
+  s_592792c0856826::t_412e9a1c471574 1-46,58-84,90-108
+  s_592792c0856826::t_1304fb20196e56 47,50-57
+charts/training-job/ci/basic-training.yaml
+  s_592792c0856826::t_dd18a79803e726 1-20
+charts/training-job/values.schema.json
+  s_592792c0856826::t_792d46d40f19b6 1-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e8b60c8d5e848fbe9f7d4019b70e0929e7b0066d",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
