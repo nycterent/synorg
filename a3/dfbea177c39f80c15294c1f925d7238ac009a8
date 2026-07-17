@@ -1,0 +1,19 @@
+docs/residual-review-findings/feat-eks-gpu-platform.md
+  s_592792c0856826::t_7d6bfa3537fd81 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "a3dfbea177c39f80c15294c1f925d7238ac009a8",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
