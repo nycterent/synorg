@@ -1,0 +1,46 @@
+tests/kind/up.sh
+  s_93f8bad0fe0b70::t_cad19ad09b2de0 87
+  s_93f8bad0fe0b70::t_30506de29dc996 149,152-153,155-156
+tests/e2e/run.sh
+  s_93f8bad0fe0b70::t_ce012395833eef 213-217
+  s_93f8bad0fe0b70::t_91696d72dad21b 114-130,138,146
+  s_93f8bad0fe0b70::t_359d4f29008bf1 36-39
+controllers/lending/reconcile.sh
+  s_93f8bad0fe0b70::t_7ed3c0fb1abe9c 89-90
+  s_93f8bad0fe0b70::t_b0d33f54e8c744 217
+  s_93f8bad0fe0b70::t_910e737f25c95b 68,71
+  s_93f8bad0fe0b70::t_ce721fbf681b8d 184-190
+  s_93f8bad0fe0b70::t_cff10a2aad95cc 29-33
+  s_93f8bad0fe0b70::t_c81182e1696814 259-265,274
+  s_93f8bad0fe0b70::t_4e5254f33befec 321-328
+scripts/deploy.sh
+  s_93f8bad0fe0b70::t_3f3462ca7e87cb 186,188
+  s_93f8bad0fe0b70::t_fbb5a048d09dd0 135-139,149-151,155,159,163-169
+  s_93f8bad0fe0b70::t_352dd75acb4fac 81-86
+  s_93f8bad0fe0b70::t_95dc55f61aa597 26-30
+  s_93f8bad0fe0b70::t_67d47e5ac9ca56 210-211,215
+  s_93f8bad0fe0b70::t_9d4d65ff14f945 170-171
+tests/kind/verify.sh
+  s_93f8bad0fe0b70::t_02215178936e77 158-160,162-163,166-168
+  s_93f8bad0fe0b70::t_7547190ae85b6d 26
+tests/smoke/smoke.sh
+  s_93f8bad0fe0b70::t_3ce63eccbb8d31 134-136
+scripts/lib/ledger.sh
+  s_93f8bad0fe0b70::t_5d4a9434ab8ca4 1-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "25e336291f8ee1abf23d023d10d21e8b60954744",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
