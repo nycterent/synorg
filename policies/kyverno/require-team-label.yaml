@@ -1,0 +1,40 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-team-label
+  annotations:
+    policies.kyverno.io/title: Require team attribution label on GPU pods
+    policies.kyverno.io/category: attribution
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Every pod that requests nvidia.com/gpu must carry team.synorg.io/name so
+      GPU-hours are attributable to an owning team (R6, per-team GPU-hour
+      attribution). GPU pods without the label are denied at admission.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: gpu-pod-needs-team-label
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      # Only pods that actually request a GPU are in scope — CPU/web pods are
+      # unaffected. GPU is requested on regular containers (not init containers).
+      preconditions:
+        any:
+          - key: "{{ request.object.spec.containers[?resources.requests.\"nvidia.com/gpu\" || resources.limits.\"nvidia.com/gpu\"] | length(@) }}"
+            operator: GreaterThan
+            value: 0
+      validate:
+        message: >-
+          GPU pods must set label team.synorg.io/name for attribution.
+          Pod {{ request.object.metadata.name }} requests nvidia.com/gpu but has
+          no owning team — add label team.synorg.io/name (R6 attribution).
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.metadata.labels.\"team.synorg.io/name\" || '' }}"
+                operator: Equals
+                value: ""

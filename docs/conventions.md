@@ -34,6 +34,11 @@ Shared names every manifest, chart, and policy in this repo must use. The schema
 
 - Config: `clusters/pilot/lending/schedule.yaml` — windows + borrowingLimit curve; the only write path is a PR to this file.
 
+## Namespaces
+
+- Team namespaces: `team-<name>` prefix — where workloads live; policies scope secrets and cross-ns refs to this boundary.
+- Platform namespaces: `platform-*`, `external-secrets`, `argocd`, `kube-system`, `platform-system` — ClusterSecretStore and platform controllers only.
+
 ## Validation
 
 - `make validate` — diff-scoped: helm template → kubeconform → kyverno test → rendered diff

@@ -1,0 +1,66 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: tenancy-guard
+  annotations:
+    policies.kyverno.io/title: Tenancy isolation guard
+    policies.kyverno.io/category: tenancy
+    policies.kyverno.io/severity: critical
+    policies.kyverno.io/description: >-
+      Enforces R9 node co-tenancy rules through toleration guards. Customer-data
+      workloads may never tolerate (and therefore land on) lendable/shared nodes,
+      and training workloads may never tolerate the never-lent warm floor. Node
+      isolation is enforced by taints; this policy blocks the tolerations that
+      would defeat it.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: customer-data-never-on-lendable
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.labels.\"data.synorg.io/customer-data\" || '' }}"
+            operator: Equals
+            value: "true"
+      validate:
+        message: >-
+          Customer-data pod {{ request.object.metadata.name }} may not tolerate
+          the lendable pool. data.synorg.io/customer-data=true workloads are
+          barred from pool.synorg.io/lendable nodes — a lent node can be reclaimed
+          and scrubbed for R&D (R9 co-tenancy isolation). Remove the
+          pool.synorg.io/lendable toleration.
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.spec.tolerations[?key=='pool.synorg.io/lendable'] | length(@) }}"
+                operator: GreaterThan
+                value: 0
+    - name: training-never-on-warm-floor
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.labels.\"workload.synorg.io/class\" || '' }}"
+            operator: Equals
+            value: training
+      validate:
+        message: >-
+          Training pod {{ request.object.metadata.name }} may not tolerate the
+          warm floor. workload.synorg.io/class=training workloads are barred from
+          pool.synorg.io/warm-floor nodes — the warm floor is the never-lent
+          inference reserve (R9, R2). Remove the pool.synorg.io/warm-floor
+          toleration.
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.spec.tolerations[?key=='pool.synorg.io/warm-floor'] | length(@) }}"
+                operator: GreaterThan
+                value: 0

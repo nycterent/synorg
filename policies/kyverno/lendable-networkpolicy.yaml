@@ -1,0 +1,61 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: lendable-networkpolicy
+  annotations:
+    policies.kyverno.io/title: Default-deny egress for training namespaces
+    policies.kyverno.io/category: network-isolation
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Lendable-pool (training) workloads must have no network route to
+      customer-data services or the secrets endpoint — node isolation is not
+      network isolation (R9). Every namespace labeled
+      workload.synorg.io/class=training gets a generated default-deny-egress
+      NetworkPolicy that permits only cluster DNS and the checkpoint store.
+spec:
+  # Generate rules only create the target; no admission verdict on the trigger.
+  rules:
+    - name: generate-default-deny-egress
+      match:
+        any:
+          - resources:
+              kinds:
+                - Namespace
+              selector:
+                matchLabels:
+                  workload.synorg.io/class: training
+      generate:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        name: default-deny-egress
+        namespace: "{{ request.object.metadata.name }}"
+        synchronize: true
+        generateExisting: true
+        data:
+          metadata:
+            labels:
+              app.kubernetes.io/managed-by: kyverno
+              policy.synorg.io/name: lendable-networkpolicy
+          spec:
+            podSelector: {}
+            policyTypes:
+              - Egress
+            egress:
+              # Cluster DNS only — resolve names, reach nothing else by default.
+              - to:
+                  - namespaceSelector:
+                      matchLabels:
+                        kubernetes.io/metadata.name: kube-system
+                ports:
+                  - protocol: UDP
+                    port: 53
+                  - protocol: TCP
+                    port: 53
+              # Checkpoint store egress — CIDR is a placeholder, pinned per region
+              # in the cluster overlay before rollout.
+              - to:
+                  - ipBlock:
+                      cidr: 10.0.0.0/8
+                ports:
+                  - protocol: TCP
+                    port: 443

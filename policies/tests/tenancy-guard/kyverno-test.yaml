@@ -1,0 +1,47 @@
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: tenancy-guard
+policies:
+  - ../../kyverno/tenancy-guard.yaml
+resources:
+  - resources.yaml
+results:
+  - policy: tenancy-guard
+    rule: customer-data-never-on-lendable
+    kind: Pod
+    resources:
+      - team-alpha/cd-pod-tolerates-lendable
+    result: fail
+  - policy: tenancy-guard
+    rule: customer-data-never-on-lendable
+    kind: Pod
+    resources:
+      - team-alpha/cd-pod-warm-floor-only
+    result: pass
+  - policy: tenancy-guard
+    rule: customer-data-never-on-lendable
+    kind: Pod
+    resources:
+      - team-beta/training-pod-tolerates-warm-floor
+      - team-beta/training-pod-on-lendable
+    result: skip
+  - policy: tenancy-guard
+    rule: training-never-on-warm-floor
+    kind: Pod
+    resources:
+      - team-beta/training-pod-tolerates-warm-floor
+    result: fail
+  - policy: tenancy-guard
+    rule: training-never-on-warm-floor
+    kind: Pod
+    resources:
+      - team-beta/training-pod-on-lendable
+    result: pass
+  - policy: tenancy-guard
+    rule: training-never-on-warm-floor
+    kind: Pod
+    resources:
+      - team-alpha/cd-pod-tolerates-lendable
+      - team-alpha/cd-pod-warm-floor-only
+    result: skip

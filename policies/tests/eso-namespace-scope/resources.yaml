@@ -1,0 +1,67 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: es-clusterstore-team
+  namespace: team-alpha
+spec:
+  refreshInterval: "1h"
+  secretStoreRef:
+    name: shared-vault
+    kind: ClusterSecretStore
+  target:
+    name: alpha-app-secret
+  data:
+    - secretKey: api-key
+      remoteRef:
+        key: prod/payments/api-key
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: es-clusterstore-platform
+  namespace: platform-system
+spec:
+  refreshInterval: "1h"
+  secretStoreRef:
+    name: shared-vault
+    kind: ClusterSecretStore
+  target:
+    name: platform-bootstrap
+  data:
+    - secretKey: token
+      remoteRef:
+        key: platform/bootstrap/token
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: es-samens-store
+  namespace: team-alpha
+spec:
+  refreshInterval: "1h"
+  secretStoreRef:
+    name: team-alpha
+    kind: SecretStore
+  target:
+    name: alpha-app-secret
+  data:
+    - secretKey: api-key
+      remoteRef:
+        key: alpha/app/api-key
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: es-crossns-store
+  namespace: team-alpha
+spec:
+  refreshInterval: "1h"
+  secretStoreRef:
+    name: team-beta
+    kind: SecretStore
+  target:
+    name: alpha-app-secret
+  data:
+    - secretKey: api-key
+      remoteRef:
+        key: beta/app/api-key

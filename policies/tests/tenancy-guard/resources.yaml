@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cd-pod-tolerates-lendable
+  namespace: team-alpha
+  labels:
+    data.synorg.io/customer-data: "true"
+    team.synorg.io/name: alpha
+spec:
+  tolerations:
+    - key: pool.synorg.io/lendable
+      operator: Exists
+      effect: NoSchedule
+  containers:
+    - name: app
+      image: nginx:1.27
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cd-pod-warm-floor-only
+  namespace: team-alpha
+  labels:
+    data.synorg.io/customer-data: "true"
+    team.synorg.io/name: alpha
+spec:
+  tolerations:
+    - key: pool.synorg.io/warm-floor
+      operator: Exists
+      effect: NoSchedule
+  containers:
+    - name: app
+      image: nginx:1.27
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: training-pod-tolerates-warm-floor
+  namespace: team-beta
+  labels:
+    workload.synorg.io/class: training
+    team.synorg.io/name: beta
+spec:
+  tolerations:
+    - key: pool.synorg.io/warm-floor
+      operator: Exists
+      effect: NoSchedule
+  containers:
+    - name: trainer
+      image: nvcr.io/example/trainer:1.0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: training-pod-on-lendable
+  namespace: team-beta
+  labels:
+    workload.synorg.io/class: training
+    team.synorg.io/name: beta
+spec:
+  tolerations:
+    - key: pool.synorg.io/lendable
+      operator: Exists
+      effect: NoSchedule
+  containers:
+    - name: trainer
+      image: nvcr.io/example/trainer:1.0

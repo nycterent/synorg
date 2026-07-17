@@ -1,0 +1,66 @@
+# Stateless field rule (KTD8): no cross-resource lookup, so it runs as a
+# built-in ValidatingAdmissionPolicy (CEL) with no webhook latency. Team-scoped
+# Secret/ConfigMap names encode their owning namespace (team-<name>); a pod that
+# mounts a team-prefixed name other than its own namespace is a cross-tenant
+# reference and is denied ("never" tier).
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: deny-cross-namespace-refs
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  variables:
+    - name: ns
+      expression: request.namespace
+    - name: secretNames
+      expression: >-
+        has(object.spec.volumes)
+          ? object.spec.volumes.filter(v, has(v.secret) && has(v.secret.secretName)).map(v, v.secret.secretName)
+          : []
+    - name: configMapNames
+      expression: >-
+        has(object.spec.volumes)
+          ? object.spec.volumes.filter(v, has(v.configMap) && has(v.configMap.name)).map(v, v.configMap.name)
+          : []
+    - name: projectedSecretNames
+      expression: >-
+        has(object.spec.volumes)
+          ? object.spec.volumes.filter(v, has(v.projected)).map(v,
+              v.projected.sources.filter(s, has(s.secret) && has(s.secret.name)).map(s, s.secret.name)
+            ).flatten()
+          : []
+  validations:
+    - expression: >-
+        variables.secretNames.all(n, !n.startsWith('team-') || n == variables.ns)
+      messageExpression: >-
+        'Pod in namespace ' + variables.ns + ' mounts a Secret volume that names another team namespace; cross-namespace secret references are denied (never tier).'
+      reason: Forbidden
+    - expression: >-
+        variables.projectedSecretNames.all(n, !n.startsWith('team-') || n == variables.ns)
+      messageExpression: >-
+        'Pod in namespace ' + variables.ns + ' projects a Secret from another team namespace; cross-namespace secret references are denied (never tier).'
+      reason: Forbidden
+    - expression: >-
+        variables.configMapNames.all(n, !n.startsWith('team-') || n == variables.ns)
+      messageExpression: >-
+        'Pod in namespace ' + variables.ns + ' mounts a ConfigMap volume that names another team namespace; cross-namespace references are denied (never tier).'
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: deny-cross-namespace-refs-binding
+spec:
+  policyName: deny-cross-namespace-refs
+  validationActions:
+    - Deny
+  # Cluster-wide; the CEL is a no-op for non-team-prefixed names, so binding to
+  # all namespaces costs nothing and catches leaks into system namespaces too.
+  matchResources:
+    namespaceSelector: {}

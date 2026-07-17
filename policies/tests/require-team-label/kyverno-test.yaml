@@ -1,0 +1,27 @@
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: require-team-label
+policies:
+  - ../../kyverno/require-team-label.yaml
+resources:
+  - resources.yaml
+results:
+  - policy: require-team-label
+    rule: gpu-pod-needs-team-label
+    kind: Pod
+    resources:
+      - team-alpha/gpu-pod-no-team
+    result: fail
+  - policy: require-team-label
+    rule: gpu-pod-needs-team-label
+    kind: Pod
+    resources:
+      - team-alpha/gpu-pod-with-team
+    result: pass
+  - policy: require-team-label
+    rule: gpu-pod-needs-team-label
+    kind: Pod
+    resources:
+      - team-alpha/cpu-pod-no-team
+    result: skip

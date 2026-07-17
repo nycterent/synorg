@@ -1,0 +1,27 @@
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: deny-inline-secrets
+policies:
+  - ../../kyverno/deny-inline-secrets.yaml
+resources:
+  - resources.yaml
+results:
+  - policy: deny-inline-secrets
+    rule: no-inline-secret-data
+    kind: Secret
+    resources:
+      - team-alpha/inline-secret-team
+    result: fail
+  - policy: deny-inline-secrets
+    rule: no-inline-secret-data
+    kind: Secret
+    resources:
+      - team-alpha/eso-managed-secret-team
+    result: pass
+  - policy: deny-inline-secrets
+    rule: no-inline-secret-data
+    kind: Secret
+    resources:
+      - external-secrets/operator-secret-platform
+    result: skip

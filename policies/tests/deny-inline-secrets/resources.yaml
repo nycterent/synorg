@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: inline-secret-team
+  namespace: team-alpha
+type: Opaque
+stringData:
+  api-key: "super-secret-value"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: eso-managed-secret-team
+  namespace: team-alpha
+  labels:
+    external-secrets.io/managed: "true"
+type: Opaque
+data:
+  api-key: c3VwZXItc2VjcmV0LXZhbHVl
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: operator-secret-platform
+  namespace: external-secrets
+type: Opaque
+stringData:
+  token: "operator-owned"

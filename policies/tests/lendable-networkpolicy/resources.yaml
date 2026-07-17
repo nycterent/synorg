@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-beta
+  labels:
+    workload.synorg.io/class: training
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-alpha
+  labels:
+    workload.synorg.io/class: inference

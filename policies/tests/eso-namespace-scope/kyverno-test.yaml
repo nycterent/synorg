@@ -1,0 +1,42 @@
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: eso-namespace-scope
+policies:
+  - ../../kyverno/eso-namespace-scope.yaml
+resources:
+  - resources.yaml
+results:
+  - policy: eso-namespace-scope
+    rule: clustersecretstore-platform-only
+    kind: ExternalSecret
+    resources:
+      - team-alpha/es-clusterstore-team
+    result: fail
+  - policy: eso-namespace-scope
+    rule: clustersecretstore-platform-only
+    kind: ExternalSecret
+    resources:
+      - platform-system/es-clusterstore-platform
+      - team-alpha/es-samens-store
+      - team-alpha/es-crossns-store
+    result: skip
+  - policy: eso-namespace-scope
+    rule: secretstore-ref-namespace-local
+    kind: ExternalSecret
+    resources:
+      - team-alpha/es-samens-store
+    result: pass
+  - policy: eso-namespace-scope
+    rule: secretstore-ref-namespace-local
+    kind: ExternalSecret
+    resources:
+      - team-alpha/es-crossns-store
+    result: fail
+  - policy: eso-namespace-scope
+    rule: secretstore-ref-namespace-local
+    kind: ExternalSecret
+    resources:
+      - team-alpha/es-clusterstore-team
+      - platform-system/es-clusterstore-platform
+    result: skip

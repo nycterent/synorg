@@ -1,0 +1,81 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: eso-namespace-scope
+  annotations:
+    policies.kyverno.io/title: Namespace-scope External Secrets references
+    policies.kyverno.io/category: secrets
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Secret paths are namespace-scoped (R13, backend IAM limits which paths a
+      team may reach). ClusterSecretStore is cluster-wide and may be referenced
+      only from platform namespaces; team namespaces must use a namespace-scoped
+      SecretStore. A namespaced SecretStore reference may not name another team's
+      namespace store.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: clustersecretstore-platform-only
+      match:
+        any:
+          - resources:
+              kinds:
+                - external-secrets.io/v1/ExternalSecret
+      # ClusterSecretStore reference from a non-platform namespace is the escape
+      # a team could use to read another tenant's (e.g. prod) secret path.
+      preconditions:
+        all:
+          - key: "{{ request.object.spec.secretStoreRef.kind || '' }}"
+            operator: Equals
+            value: ClusterSecretStore
+          - key: "{{ request.namespace }}"
+            operator: AnyNotIn
+            value:
+              - "platform-*"
+              - external-secrets
+              - argocd
+              - kube-system
+              - platform-system
+      validate:
+        message: >-
+          ExternalSecret {{ request.object.metadata.name }} in
+          {{ request.namespace }} references a ClusterSecretStore. Cluster-wide
+          stores are platform-only; team namespaces must reference a
+          namespace-scoped SecretStore so backend IAM confines the reachable
+          secret paths (R13). Use kind: SecretStore in this namespace.
+        deny: {}
+    - name: secretstore-ref-namespace-local
+      match:
+        any:
+          - resources:
+              kinds:
+                - external-secrets.io/v1/ExternalSecret
+      # A namespaced SecretStore is local by construction; a name that encodes a
+      # *different* team namespace is a cross-tenant reference and is refused.
+      preconditions:
+        all:
+          - key: "{{ request.object.spec.secretStoreRef.kind || 'SecretStore' }}"
+            operator: Equals
+            value: SecretStore
+          - key: "{{ request.namespace }}"
+            operator: AnyIn
+            value:
+              - "team-*"
+          - key: "{{ request.object.spec.secretStoreRef.name || '' }}"
+            operator: AnyIn
+            value:
+              - "team-*"
+      validate:
+        message: >-
+          ExternalSecret {{ request.object.metadata.name }} in
+          {{ request.namespace }} references SecretStore
+          {{ request.object.spec.secretStoreRef.name }}, which belongs to another
+          team namespace. A namespace-scoped SecretStore reference may not cross
+          tenants (R13). Reference a SecretStore in {{ request.namespace }}.
+        deny:
+          conditions:
+            all:
+              - key: "{{ request.object.spec.secretStoreRef.name }}"
+                operator: NotEquals
+                value: "{{ request.namespace }}"
