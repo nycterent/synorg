@@ -1,0 +1,34 @@
+tests/kind/cluster.yaml
+  s_93f8bad0fe0b70::t_e591436d084ca8 23-30
+clusters/pilot/kueue/clusterqueue-training-borrow.yaml
+  s_93f8bad0fe0b70::t_02634852258f80 39-41
+  s_93f8bad0fe0b70::t_450c40977ef1cb 34-38,45-48
+controllers/lending/test.sh
+  s_93f8bad0fe0b70::t_f78b5e0ddb592a 315-318
+policies/vap/deny-cross-namespace-refs.yaml
+  s_93f8bad0fe0b70::t_c95e788d9ccf09 48
+  s_93f8bad0fe0b70::t_f9bd948d2dbd6c 31-34,39
+tests/integration/scheduling/scheduling_test.sh
+  s_93f8bad0fe0b70::t_78e21fb29c390c 222
+  s_93f8bad0fe0b70::t_bc94dda57747d7 151-167,169-170,172
+tests/kind/up.sh
+  s_93f8bad0fe0b70::t_782a912a557319 173,175-177
+docs/residual-review-findings/feat-eks-gpu-platform.md
+  s_93f8bad0fe0b70::t_fd5de36ec063e5 81-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "4f724a456ce8c23f8214487215efe330ff6a8bd3",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
