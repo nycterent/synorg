@@ -27,10 +27,12 @@ changed_paths() {
     base="$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || echo "")"
     if [ -n "$base" ]; then
       git diff --name-only "$base"...HEAD
-      git diff --name-only            # unstaged
-      git diff --name-only --cached   # staged
+      git diff --name-only                          # unstaged
+      git diff --name-only --cached                 # staged
+      git ls-files --others --exclude-standard      # untracked
     else
-      git ls-files                    # fresh repo: everything
+      git ls-files
+      git ls-files --others --exclude-standard
     fi
   fi | sort -u
 }
@@ -72,7 +74,7 @@ done
 # --- 2. Kubeconform on raw cluster manifests -------------------------------
 manifests_in_scope() {
   local f
-  for f in $(git ls-files 'clusters/**/*.yaml' 'policies/**/*.yaml' 2>/dev/null); do
+  for f in $( (git ls-files 'clusters/**/*.yaml' 'policies/**/*.yaml'; git ls-files --others --exclude-standard 'clusters/**/*.yaml' 'policies/**/*.yaml') 2>/dev/null | sort -u); do
     if [ "$FULL" = "1" ] || echo "$CHANGED" | grep -qx "$f"; then echo "$f"; fi
   done
 }

@@ -1,0 +1,155 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "golden-service values",
+  "description": "The complete deploy interface for a platform serving workload (R4). Strict by design: additionalProperties is false everywhere, so an unknown key fails validation with a named field (R10). This schema is the documentation (R11).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["team", "workloadClass", "image"],
+  "properties": {
+    "team": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Owning team; becomes the team.synorg.io/name label. GPU pods without it are denied by policy."
+    },
+    "workloadClass": {
+      "type": "string",
+      "enum": ["inference", "web"],
+      "description": "Serving class; becomes workload.synorg.io/class. Training uses its own chart, not this enum."
+    },
+    "customerData": {
+      "type": "boolean",
+      "description": "When true, stamps data.synorg.io/customer-data=\"true\" for the node-tenancy guard."
+    },
+    "replicas": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Deployment replica count."
+    },
+    "gpu": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "GPUs per pod. >0 adds nvidia.com/gpu to limits; combined with workloadClass=inference it adds warm-floor/lendable tolerations and warm-floor node affinity."
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "Container port the workload listens on."
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Image repository, e.g. registry.synorg.io/team/service."
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Immutable image tag; also published as app.kubernetes.io/version."
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": ["Always", "IfNotPresent", "Never"],
+          "description": "Image pull policy."
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cpu": { "type": "string", "description": "CPU request quantity, e.g. \"100m\"." },
+            "memory": { "type": "string", "description": "Memory request quantity, e.g. \"128Mi\"." }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cpu": { "type": "string", "description": "CPU limit quantity, e.g. \"1\"." },
+            "memory": { "type": "string", "description": "Memory limit quantity, e.g. \"512Mi\"." }
+          }
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
+          "description": "Service type."
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Service port."
+        },
+        "targetPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Container target port the Service forwards to."
+        }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "liveness": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1, "description": "HTTP liveness path." },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "HTTP liveness port." }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1, "description": "HTTP readiness path." },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "HTTP readiness port." }
+          }
+        }
+      }
+    },
+    "hpa": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Render a HorizontalPodAutoscaler." },
+        "minReplicas": { "type": "integer", "minimum": 1, "description": "HPA minimum replicas." },
+        "maxReplicas": { "type": "integer", "minimum": 1, "description": "HPA maximum replicas." },
+        "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100, "description": "Target average CPU utilization." }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Render a PodDisruptionBudget." },
+        "minAvailable": { "type": "integer", "minimum": 0, "description": "Minimum available pods during voluntary disruption." }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": { "type": "boolean", "description": "Create a ServiceAccount for the workload." },
+        "name": { "type": "string", "description": "ServiceAccount name; defaults to the release fullname when created, else \"default\"." }
+      }
+    }
+  }
+}

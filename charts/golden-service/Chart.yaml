@@ -1,0 +1,11 @@
+apiVersion: v2
+name: golden-service
+description: >-
+  The golden service chart — the entire deploy interface for the platform's
+  serving workloads (R4). values.yaml + values.schema.json is the whole
+  contract, and the schema is the documentation (R11). No ingress: ALB
+  weighting is handled outside the chart during the strangler migration.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.33.0-0"

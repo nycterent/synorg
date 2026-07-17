@@ -1,0 +1,53 @@
+# Golden service values — minimal defaults. The four required keys (team,
+# workloadClass, image.repository, image.tag) have no default: values.schema.json
+# rejects any release that omits them, naming the missing field. See README.md
+# (generated from the schema) for the full key reference.
+
+# team: ""                 # required — team.synorg.io/name label
+# workloadClass: ""        # required — inference | web
+# image:
+#   repository: ""         # required
+#   tag: ""                # required
+
+customerData: false        # true stamps data.synorg.io/customer-data on the pod
+replicas: 1
+gpu: 0                     # GPU count; >0 adds nvidia.com/gpu + pool scheduling
+port: 8080                 # container port
+
+image:
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+probes:
+  liveness:
+    path: /healthz
+    port: 8080
+  readiness:
+    path: /readyz
+    port: 8080
+
+hpa:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+
+pdb:
+  enabled: false
+  minAvailable: 1
+
+serviceAccount:
+  create: true
+  name: ""

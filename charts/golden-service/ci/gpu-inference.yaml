@@ -1,0 +1,32 @@
+# CI fixture: customer-data GPU inference — inference-critical priority,
+# warm-floor/lendable tolerations, warm-floor affinity, nvidia.com/gpu.
+team: vision
+workloadClass: inference
+customerData: true
+replicas: 2
+gpu: 1
+port: 8000
+image:
+  repository: registry.synorg.io/vision/inference
+  tag: "2026-07-17-abc123"
+resources:
+  requests:
+    cpu: "2"
+    memory: 8Gi
+  limits:
+    cpu: "4"
+    memory: 16Gi
+probes:
+  liveness:
+    path: /healthz
+    port: 8000
+  readiness:
+    path: /readyz
+    port: 8000
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+pdb:
+  enabled: true
+  minAvailable: 1
