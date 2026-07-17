@@ -35,6 +35,7 @@ its mode, commit. Don't gate value on a full reorg.
 - [ ] **R1 — Reference tidy.** Gather loose `docs/*.md` reference under `docs/reference/`; leave a landing page (below) pointing at them. Mechanical move, no rewrite.
 - [x] **L1 — Docs landing page.** `docs/index.md` — DONE (2026-07-17). Diátaxis card grid routing readers by need (learning/task/fact/why). (Named `index.md` not `README.md` — MkDocs home convention.)
 - [x] **L2 — HTML docs site.** `mkdocs.yml` + Material for MkDocs — DONE (2026-07-17). Nav = the 4 quadrants; `runbooks/` pulled in via the `docs/runbooks` symlink; `make docs-serve` / `make docs-build` (pinned venv from `docs/requirements.txt`); `.github/workflows/docs.yaml` builds `--strict` and deploys to GitHub Pages on push to main. Builds clean strict (18 pages).
+- [x] **E4 — Explanation: the test ladder.** `docs/explanation/testing.md` — DONE (2026-07-17, plan 002 U8). Why validate → integration → smoke → e2e is shaped this way; per-tier proves/cannot-see table; the kind/Karpenter (kwok) boundary; two-substrate design; no-vacuous-pass; why e2e is manual.
 - [ ] **X1 — Cross-link.** From each explanation, link to the runbook that applies it and the reference that pins its names; from tutorials, link onward to the how-to for real work. Modes stay separate but connected.
 
 ## Infrastructure-engineer docs (added 2026-07-17)

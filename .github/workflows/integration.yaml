@@ -1,0 +1,77 @@
+name: integration
+# The integration tier (plan 002 U8): kind + fake-GPU harness running the
+# same `make integration` an engineer runs locally. Docker, jq and yq are
+# preinstalled on ubuntu runners; kind/kubectl/helm are pinned below.
+on:
+  pull_request:
+    paths:
+      - charts/**
+      - policies/**
+      - clusters/**
+      - tests/**
+      - controllers/**
+      - Makefile
+      - .github/workflows/integration.yaml
+  push:
+    branches: [main]
+    paths:
+      - charts/**
+      - policies/**
+      - clusters/**
+      - tests/**
+      - controllers/**
+      - Makefile
+      - .github/workflows/integration.yaml
+
+env:
+  # kind v0.30.x is the release line for the kindest/node v1.33.7 image
+  # pinned in tests/kind/cluster.yaml (see tests/kind/README.md pin table).
+  KIND_VERSION: v0.30.0
+  # kubectl matches the harness k8s version (kindest/node v1.33.7).
+  KUBECTL_VERSION: v1.33.7
+  # Same Helm pin as .github/workflows/validate.yaml.
+  HELM_VERSION: v4.1.1
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache toolchain
+        id: toolcache
+        uses: actions/cache@v4
+        with:
+          path: ~/bin
+          key: integration-tools-${{ env.KIND_VERSION }}-${{ env.KUBECTL_VERSION }}-${{ env.HELM_VERSION }}
+      - name: Install toolchain (cache miss)
+        if: steps.toolcache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/bin
+          curl -fsSL -o ~/bin/kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+          curl -fsSL -o ~/bin/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" | tar -xz --strip-components=1 -C ~/bin linux-amd64/helm
+          chmod +x ~/bin/kind ~/bin/kubectl
+      - name: Add toolchain to PATH
+        run: echo "$HOME/bin" >> "$GITHUB_PATH"
+      - name: Integration (same target as local)
+        # SKIP_KWOK=1: the Karpenter kwok provider has no published image and
+        # is built from a pinned source checkout with go+ko (minutes of module
+        # download + build). It backs exactly one scenario — scheduling s6
+        # (Karpenter-core provision/consolidation/drift) — which SKIPs loudly
+        # when the kwok NodePool is absent, so nothing passes vacuously (R6).
+        # CI buys the admission + Kueue quota/preemption signal at kind speed;
+        # s6 stays a local (full `make integration`) and e2e concern. The
+        # trade-off is documented in docs/explanation/testing.md.
+        run: SKIP_KWOK=1 make integration
+      - name: Export kind logs (failure)
+        # make integration leaves the cluster up on failure by design, so the
+        # control-plane and node logs are still there to collect.
+        if: failure()
+        run: kind export logs /tmp/kind-logs --name synorg || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: kind-logs
+          path: /tmp/kind-logs
+          if-no-files-found: ignore

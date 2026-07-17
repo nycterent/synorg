@@ -48,6 +48,7 @@ nav:
       - Quarantine a GPU node: runbooks/gpu-node-quarantine.md
       - Capture & carve held capacity: runbooks/capacity-carve.md
       - Run a game-day: runbooks/game-day.md
+      - Run the real-GPU e2e: runbooks/e2e-gpu-run.md
   - Reference:
       - Conventions: conventions.md
       - Capability tiers: capability-tiers.md
@@ -60,6 +61,7 @@ nav:
   - Explanation:
       - Architecture: explanation/architecture.md
       - Why the platform lends GPUs: explanation/why-lending.md
+      - The test ladder: explanation/testing.md
       - "Learning: kernel-idle vs allocation-idle": solutions/2026-07-17-kernel-idle-vs-allocation-idle.md
 
 extra_css:
