@@ -8,8 +8,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 FULL="${FULL:-0}"
+RENDER_ONLY="${RENDER_ONLY:-0}"          # 1 = helm template only (CI rendered-diff job)
 K8S_VERSION="${K8S_VERSION:-1.33.0}"
 BUILD_DIR="$ROOT/build/rendered"
+KUBECONFORM_CACHE="$ROOT/build/kubeconform-cache"
+CRD_SCHEMAS='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
 fail() { echo "VALIDATE FAIL: $*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || fail "'$1' not installed — install it (brew install $1) so local validation matches CI"; }
@@ -37,21 +40,28 @@ changed_paths() {
   fi | sort -u
 }
 
-CHANGED="$(changed_paths)"
+CHANGED_FILE="$(mktemp)"
+trap 'rm -f "$CHANGED_FILE"' EXIT
+changed_paths >"$CHANGED_FILE"
+CHANGED="$(cat "$CHANGED_FILE")"
+
+# in_scope FILE — membership test against the changed set (single grep, no echo fork)
+in_scope() { [ "$FULL" = "1" ] || grep -qxF "$1" "$CHANGED_FILE"; }
 
 # Charts to render: any chart whose dir is touched, or all under FULL=1.
 charts_in_scope() {
   local chart
   for chart in charts/*/; do
     [ -f "$chart/Chart.yaml" ] || continue
-    if [ "$FULL" = "1" ] || echo "$CHANGED" | grep -q "^${chart}"; then
+    if [ "$FULL" = "1" ] || grep -q "^${chart}" "$CHANGED_FILE"; then
       echo "$chart"
     fi
   done
 }
 
 # --- 1. Render + schema-check charts ---------------------------------------
-mkdir -p "$BUILD_DIR"
+rm -rf "$BUILD_DIR"                       # stale renders pollute the diff surface
+mkdir -p "$BUILD_DIR" "$KUBECONFORM_CACHE"
 rendered_any=0
 for chart in $(charts_in_scope); do
   name="$(basename "$chart")"
@@ -63,43 +73,51 @@ for chart in $(charts_in_scope); do
     echo "render: $name ($vname)"
     helm template "$name" "$chart" -f "$values" >"$out" \
       || fail "$name/$vname: helm template failed (see error above — schema violations name the field)"
-    kubeconform -strict -summary -kubernetes-version "$K8S_VERSION" \
-      -schema-location default \
-      -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
-      "$out" || fail "$name/$vname: kubeconform schema violations"
+    if [ "$RENDER_ONLY" != "1" ]; then
+      kubeconform -strict -summary -kubernetes-version "$K8S_VERSION" \
+        -cache "$KUBECONFORM_CACHE" \
+        -schema-location default -schema-location "$CRD_SCHEMAS" \
+        "$out" || fail "$name/$vname: kubeconform schema violations"
+    fi
     rendered_any=1
   done
 done
 
+# tracked + untracked files matching the given globs (single pass per call)
+repo_files() {
+  (git ls-files "$@"; git ls-files --others --exclude-standard "$@") 2>/dev/null | sort -u
+}
+
 # --- 2. Kubeconform on raw cluster manifests -------------------------------
+if [ "$RENDER_ONLY" != "1" ]; then
 manifests_in_scope() {
   local f
-  local f
-  for f in $( (git ls-files 'clusters/**/*.yaml' 'policies/**/*.yaml'; git ls-files --others --exclude-standard 'clusters/**/*.yaml' 'policies/**/*.yaml') 2>/dev/null | sort -u); do
+  for f in $(repo_files 'clusters/**/*.yaml' 'policies/**/*.yaml'); do
     case "$f" in clusters/*/services/*) continue ;; esac   # chart values, rendered below
-    if [ "$FULL" = "1" ] || echo "$CHANGED" | grep -qx "$f"; then echo "$f"; fi
+    if in_scope "$f"; then echo "$f"; fi
   done
 }
 mapfile -t MANIFESTS < <(manifests_in_scope)
 if [ "${#MANIFESTS[@]}" -gt 0 ]; then
   echo "kubeconform: ${#MANIFESTS[@]} manifest file(s)"
   kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version "$K8S_VERSION" \
-    -schema-location default \
-    -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+    -cache "$KUBECONFORM_CACHE" \
+    -schema-location default -schema-location "$CRD_SCHEMAS" \
     "${MANIFESTS[@]}" || fail "cluster/policy manifest schema violations"
 fi
 
 # --- 2b. Service values render through the golden chart ---------------------
-for f in $( (git ls-files 'clusters/*/services/*.yaml'; git ls-files --others --exclude-standard 'clusters/*/services/*.yaml') 2>/dev/null | sort -u); do
-  if [ "$FULL" = "1" ] || echo "$CHANGED" | grep -qx "$f"; then
+for f in $(repo_files 'clusters/*/services/*.yaml'); do
+  if in_scope "$f"; then
     echo "render service values: $f"
     helm template svc charts/golden-service -f "$f" >/dev/null \
       || fail "$f: does not satisfy the golden chart schema"
   fi
 done
+fi  # RENDER_ONLY
 
 # --- 3. Policy tests --------------------------------------------------------
-if [ "$FULL" = "1" ] || echo "$CHANGED" | grep -q '^policies/\|^charts/'; then
+if [ "$RENDER_ONLY" != "1" ] && { [ "$FULL" = "1" ] || echo "$CHANGED" | grep -q '^policies/\|^charts/'; }; then
   if ls policies/tests/*/kyverno-test.yaml >/dev/null 2>&1; then
     echo "kyverno test: policies/tests"
     kyverno test policies/tests --detailed-results || fail "kyverno policy tests failed"

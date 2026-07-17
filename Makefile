@@ -9,8 +9,8 @@ validate: ## Diff-scoped validation: helm template + kubeconform + kyverno test
 validate-full: ## Full-repo validation (nightly CI job)
 	FULL=1 bash scripts/validate.sh
 
-render: ## Render all charts with their CI values into build/rendered/
-	FULL=1 RENDER_DIFF=0 bash scripts/validate.sh
+render: ## Render all charts with their CI values into build/rendered/ (no schema/policy checks)
+	FULL=1 RENDER_ONLY=1 RENDER_DIFF=0 bash scripts/validate.sh
 
 clean:
 	rm -rf build/

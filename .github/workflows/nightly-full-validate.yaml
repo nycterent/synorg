@@ -4,18 +4,31 @@ on:
     - cron: "17 2 * * *"
   workflow_dispatch: {}
 
+env:
+  HELM_VERSION: v4.1.1
+  KUBECONFORM_VERSION: v0.7.0
+  KYVERNO_VERSION: v1.18.2
+
 jobs:
   full:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install toolchain
+      - name: Cache toolchain
+        id: toolcache
+        uses: actions/cache@v4
+        with:
+          path: ~/bin
+          key: tools-${{ env.HELM_VERSION }}-${{ env.KUBECONFORM_VERSION }}-${{ env.KYVERNO_VERSION }}
+      - name: Install toolchain (cache miss)
+        if: steps.toolcache.outputs.cache-hit != 'true'
         run: |
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-          curl -fsSL -o /tmp/kubeconform.tgz https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz
-          tar -xzf /tmp/kubeconform.tgz -C /usr/local/bin kubeconform
-          curl -fsSL -o /tmp/kyverno.tgz https://github.com/kyverno/kyverno/releases/latest/download/kyverno-cli_linux_x86_64.tar.gz
-          tar -xzf /tmp/kyverno.tgz -C /usr/local/bin kyverno
+          mkdir -p ~/bin
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" | tar -xz --strip-components=1 -C ~/bin linux-amd64/helm
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar -xz -C ~/bin kubeconform
+          curl -fsSL "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_VERSION}/kyverno-cli_${KYVERNO_VERSION}_linux_x86_64.tar.gz" | tar -xz -C ~/bin kyverno
+      - name: Add toolchain to PATH
+        run: echo "$HOME/bin" >> "$GITHUB_PATH"
       - name: Full-repo validation (timed — seconds-budget tracking at scale)
         run: |
           start=$(date +%s)
