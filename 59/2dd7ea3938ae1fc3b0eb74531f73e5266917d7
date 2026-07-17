@@ -1,0 +1,22 @@
+tests/kind/up.sh
+  s_93f8bad0fe0b70::t_3f4220f5a37fe8 235-238,240
+  s_93f8bad0fe0b70::t_18591d011c57a2 247-249,255
+  s_93f8bad0fe0b70::t_f2e3f16031dc4b 256-257,259-261
+  s_93f8bad0fe0b70::t_39fb3bfd83e336 168-170,177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "592dd7ea3938ae1fc3b0eb74531f73e5266917d7",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
