@@ -1,0 +1,37 @@
+clusters/pilot/lending/lending-controller.yaml
+  s_93f8bad0fe0b70::t_8c977b18b0b5e2 202-218
+  s_93f8bad0fe0b70::t_65c734b6e872e8 176-181
+controllers/lending/reconcile.sh
+  s_93f8bad0fe0b70::t_aaa3170da52145 438-442,447-449
+  s_93f8bad0fe0b70::t_4b80ba92aa3cd5 66-71
+controllers/lending/README.md
+  s_93f8bad0fe0b70::t_b7e0bca451079c 135-136
+  s_93f8bad0fe0b70::t_22483f2deeace9 140-147,151-162
+  s_93f8bad0fe0b70::t_262209919d1529 163
+.github/workflows/e2e.yaml
+  s_93f8bad0fe0b70::t_dc92b0f449b286 42-43
+controllers/lending/test.sh
+  s_93f8bad0fe0b70::t_162e92dda5cdd8 257-263,266-271
+  s_93f8bad0fe0b70::t_dd6e0bfe7cc79b 329-333
+  s_93f8bad0fe0b70::t_aa03d0ce0789fe 341
+controllers/lending/Dockerfile
+  s_93f8bad0fe0b70::t_b7e0bca451079c 8-9
+docs/residual-review-findings/feat-eks-gpu-platform.md
+  s_93f8bad0fe0b70::t_64b13df13c26f1 66-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "1857676e3616842340e564ac4ee28552cd184d7e",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
