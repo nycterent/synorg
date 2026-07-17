@@ -1,0 +1,33 @@
+tests/integration/scheduling/workloads/inference-pod.yaml
+  s_93f8bad0fe0b70::t_2628ccad6656fb 19-20
+tests/integration/scheduling/workloads/training-pod-warm-floor.yaml
+  s_93f8bad0fe0b70::t_daec441308c896 14-15
+tests/integration/scheduling/workloads/training-job.yaml
+  s_93f8bad0fe0b70::t_fd43069994e956 31-33
+Makefile
+  s_93f8bad0fe0b70::t_21c98759b3bcde 18,21-28
+controllers/lending/test.sh
+  s_93f8bad0fe0b70::t_8948e0c3ce5cec 183-188,195,198-205,207-217,220
+  s_93f8bad0fe0b70::t_6b2e186ef05ed1 251
+  s_93f8bad0fe0b70::t_639737d43df273 263-264,266-269,272
+  s_93f8bad0fe0b70::t_d3b23cd1863098 15-16
+  s_93f8bad0fe0b70::t_cede3e6791bcc2 265
+  s_93f8bad0fe0b70::t_909a5faa334c94 258
+  s_93f8bad0fe0b70::t_851538c42cd9ae 286
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "3ad520aff073115ef27c2cc37f90c27e426701d3",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
