@@ -1,0 +1,34 @@
+tests/kind/cluster.yaml
+  s_93f8bad0fe0b70::t_3bc4a01fca1213 1-70
+tests/kind/README.md
+  s_93f8bad0fe0b70::t_38a6fbc5e5aa52 1-97
+tests/kind/karpenter-kwok.yaml
+  s_93f8bad0fe0b70::t_05fc903eb3e622 1-46
+tests/kind/up.sh
+  s_93f8bad0fe0b70::t_693e303a9909b1 1-65,68-270
+  s_93f8bad0fe0b70::t_c3312c5e65c4d6 66-67
+tests/kind/down.sh
+  s_93f8bad0fe0b70::t_a5dc4b63f1a86e 1-19
+Makefile
+  s_93f8bad0fe0b70::t_62557b2345f119 4
+  s_93f8bad0fe0b70::t_5a7cb7457189a8 18-33
+tests/kind/verify.sh
+  s_93f8bad0fe0b70::t_86003b782e2304 157-164
+  s_93f8bad0fe0b70::t_c3ac6f553e7135 1-156,165-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "9b452d5c1e02fe9c0d3d00c562bcf18c005ae030",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
