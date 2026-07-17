@@ -40,5 +40,6 @@ names — teams, workload classes, node pools, priority classes — are in
 [`example-inference.yaml`](./example-inference.yaml) — a customer-data GPU
 inference service (`workloadClass: inference`, `gpu: 1`, `customerData: true`),
 owned as values after a one-time bridge translation. It renders under the golden
-chart with `inference-critical` priority, warm-floor/lendable tolerations,
-warm-floor node affinity, and `nvidia.com/gpu` limits.
+chart with `inference-critical` priority, a warm-floor toleration only (as
+customer-data, it may not tolerate lendable — `tenancy-guard`, R9), warm-floor
+node affinity, and `nvidia.com/gpu` limits.

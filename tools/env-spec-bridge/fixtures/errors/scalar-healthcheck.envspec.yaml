@@ -1,0 +1,10 @@
+# Error fixture (F4) — healthcheck given as a scalar instead of a mapping. The
+# bridge must hard-error saying the block must be a mapping, not crash with a
+# raw AttributeError when it treats the string as a dict.
+service: web-scalar-healthcheck
+team: platform
+class: web
+image: registry.synorg.io/platform/web:1.0.0
+cpu: 100m
+memory: 128Mi
+healthcheck: /healthz

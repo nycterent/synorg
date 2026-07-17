@@ -25,4 +25,12 @@ resource "aws_ec2_capacity_reservation" "held" {
     "synorg.io/held-capacity" = "true"
     "synorg.io/ledger-id"     = each.key
   })
+
+  # Never-release stop condition (KTD9/U15): removing a key from
+  # var.held_reservations must not silently destroy a held reservation —
+  # unreserved GPU capacity may not be reclaimable. Destroying one is a
+  # deliberate, reviewed act, not a side effect of a map edit.
+  lifecycle {
+    prevent_destroy = true
+  }
 }

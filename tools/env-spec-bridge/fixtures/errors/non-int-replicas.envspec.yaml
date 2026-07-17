@@ -1,0 +1,9 @@
+# Error fixture (F4) — a fractional replicas count. The bridge must hard-error
+# naming 'replicas' and reject the float outright (never truncate 2.5 to 2).
+service: web-non-int-replicas
+team: platform
+class: web
+image: registry.synorg.io/platform/web:1.0.0
+cpu: 100m
+memory: 128Mi
+replicas: 2.5

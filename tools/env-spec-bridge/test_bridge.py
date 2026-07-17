@@ -142,3 +142,62 @@ def test_unknown_subkey_errors_with_dotted_name():
             }
         )
     assert "healthcheck.grace_period" in str(exc.value)
+
+
+def test_generic_unknown_key_errors_by_name():
+    # A key that is neither known nor a tailored ECS-ism falls to the generic
+    # "not part of the env-spec contract" branch and must name the key (R10).
+    spec = bridge.load(FIX / "errors" / "generic-unknown-key.envspec.yaml")
+    with pytest.raises(bridge.BridgeError) as exc:
+        bridge.translate(spec)
+    msg = str(exc.value)
+    assert "frobnicate" in msg and "contract" in msg
+
+
+def test_partial_autoscale_errors_naming_missing_subkey():
+    spec = bridge.load(FIX / "errors" / "partial-autoscale.envspec.yaml")
+    with pytest.raises(bridge.BridgeError) as exc:
+        bridge.translate(spec)
+    msg = str(exc.value)
+    assert "autoscale" in msg and ("min" in msg or "max" in msg)
+
+
+def test_scalar_healthcheck_errors_as_not_a_mapping():
+    spec = bridge.load(FIX / "errors" / "scalar-healthcheck.envspec.yaml")
+    with pytest.raises(bridge.BridgeError) as exc:
+        bridge.translate(spec)
+    msg = str(exc.value)
+    assert "healthcheck" in msg and "mapping" in msg
+
+
+def test_non_int_port_errors_by_name():
+    spec = bridge.load(FIX / "errors" / "non-int-port.envspec.yaml")
+    with pytest.raises(bridge.BridgeError) as exc:
+        bridge.translate(spec)
+    assert "port" in str(exc.value)
+
+
+def test_non_int_replicas_rejected_not_truncated():
+    spec = bridge.load(FIX / "errors" / "non-int-replicas.envspec.yaml")
+    with pytest.raises(bridge.BridgeError) as exc:
+        bridge.translate(spec)
+    assert "replicas" in str(exc.value)
+
+
+def test_bare_numeric_cpu_errors_naming_key():
+    spec = bridge.load(FIX / "errors" / "bare-numeric-cpu.envspec.yaml")
+    with pytest.raises(bridge.BridgeError) as exc:
+        bridge.translate(spec)
+    assert "cpu" in str(exc.value)
+
+
+def test_malformed_yaml_errors_as_bridge_error(tmp_path):
+    bad = tmp_path / "bad.envspec.yaml"
+    bad.write_text("service: x\n  bad: : indentation\n:::\n")
+    with pytest.raises(bridge.BridgeError):
+        bridge.load(bad)
+
+
+def test_missing_file_errors_as_bridge_error(tmp_path):
+    with pytest.raises(bridge.BridgeError):
+        bridge.load(tmp_path / "does-not-exist.yaml")

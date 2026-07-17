@@ -1,0 +1,9 @@
+# Error fixture (F5) — a bare numeric cpu. An ECS cpu number does not map 1:1 to
+# a k8s quantity (1024 would become 1024 cores, not 1 vCPU), so the bridge must
+# hard-error naming 'cpu' and require the explicit quantity string form.
+service: web-bare-cpu
+team: platform
+class: web
+image: registry.synorg.io/platform/web:1.0.0
+cpu: 1024
+memory: 128Mi

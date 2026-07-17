@@ -34,7 +34,7 @@ release that omits one is rejected by name.
 | `image.pullPolicy` | enum `Always` \| `IfNotPresent` \| `Never` | no | `IfNotPresent` | image pull policy |
 | `workers` | integer ≥ 1 | no | `1` | worker pods = torchrun-elastic nodes (Indexed Job) |
 | `command` | array of string | no | torchrun scaffold | container command override |
-| `checkpoint.dir` | string (non-empty) | **yes** | `/mnt/checkpoints` | mount path for checkpoints; published as `CHECKPOINT_DIR` |
+| `checkpoint.dir` | string (non-empty) | no | `/mnt/checkpoints` | mount path for checkpoints; published as `CHECKPOINT_DIR` |
 | `checkpoint.intervalSeconds` | integer 1–**300** | no | `300` | cadence; published as `CHECKPOINT_INTERVAL_SECONDS`; cap enforces the ≤5 min budget (KTD12) |
 | `resources.requests.cpu` | string | no | `"8"` | CPU request quantity |
 | `resources.requests.memory` | string | no | `64Gi` | memory request quantity |

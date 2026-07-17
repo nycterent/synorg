@@ -5,7 +5,11 @@ metadata:
   labels:
     {{- include "golden-service.labels" . | nindent 4 }}
 spec:
+  {{- if not .Values.hpa.enabled }}
+  # HPA owns the replica count when enabled; emitting replicas here would fight
+  # the autoscaler (it would reset desired replicas on every sync).
   replicas: {{ .Values.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "golden-service.selectorLabels" . | nindent 6 }}
@@ -21,18 +25,24 @@ spec:
       priorityClassName: inference-critical
       {{- end }}
       {{- if and (eq .Values.workloadClass "inference") (gt (int .Values.gpu) 0) }}
-      # GPU inference may land on either GPU pool, but prefers the never-lent
-      # warm floor so the render path holds its latency floor (R2). Tolerating
-      # both taints lets pods spill onto lendable capacity under pressure.
+      # GPU inference always tolerates the never-lent warm floor and prefers it
+      # so the render path holds its latency floor (R2). Non-customer-data
+      # inference may ALSO tolerate the lendable pool to spill under pressure;
+      # customer-data inference may NOT — a lent node can be reclaimed and
+      # scrubbed for R&D, so tenancy-guard denies customer-data pods that
+      # tolerate lendable (R9 co-tenancy isolation). Gate the lendable toleration
+      # on NOT customerData to stay on the allowed side of that policy.
       tolerations:
         - key: pool.synorg.io/warm-floor
           operator: Equal
           value: "true"
           effect: NoSchedule
+        {{- if not .Values.customerData }}
         - key: pool.synorg.io/lendable
           operator: Equal
           value: "true"
           effect: NoSchedule
+        {{- end }}
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

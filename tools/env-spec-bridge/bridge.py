@@ -24,6 +24,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -99,15 +100,37 @@ SUBKEYS = {
     "disruption_budget": {"min_available"},
 }
 
+# Sub-keys a structured block cannot omit: translate() dereferences them
+# directly, so a partial block (e.g. autoscale without min/max) must fail with a
+# named BridgeError rather than a raw KeyError.
+REQUIRED_SUBKEYS = {
+    "autoscale": frozenset({"min", "max", "cpu_target"}),
+    "disruption_budget": frozenset({"min_available"}),
+}
+
 DEFAULT_LIVENESS_PATH = "/healthz"
 DEFAULT_READINESS_PATH = "/readyz"
+
+# Kubernetes resource.Quantity grammar: a signed number with an optional binary
+# (Ki..Ei), decimal (m,k,M..E), or exponent suffix. Used to reject malformed
+# cpu/memory strings; bare YAML numbers are rejected before this even runs.
+_QUANTITY_RE = re.compile(
+    r"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+|m|k|M|G|T|P|E|Ki|Mi|Gi|Ti|Pi|Ei)?$"
+)
 
 
 def load(path: str | Path) -> dict[str, Any]:
     """Parse an env-spec YAML file into a dict. Raises BridgeError if the file
-    is not a YAML mapping."""
-    text = Path(path).read_text()
-    data = yaml.safe_load(text)
+    cannot be read, is not valid YAML, or is not a YAML mapping — a broken input
+    file is a named translation failure (R10), never a raw traceback."""
+    try:
+        text = Path(path).read_text()
+    except OSError as err:
+        raise BridgeError(f"cannot read env-spec file {str(path)!r}: {err}") from err
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as err:
+        raise BridgeError(f"env-spec {str(path)!r} is not valid YAML: {err}") from err
     if not isinstance(data, dict):
         raise BridgeError(f"env-spec must be a YAML mapping, got {type(data).__name__}")
     return data
@@ -127,15 +150,34 @@ def _reject_unknown(spec: dict[str, Any]) -> None:
             raise BridgeError(
                 f"unknown env-spec key '{key}' (not part of the env-spec contract)"
             )
+
+
+def _validate_blocks(spec: dict[str, Any]) -> None:
+    """Every structured block that is present must be a mapping carrying only
+    known sub-keys and all required ones. Without this a scalar block
+    (`healthcheck: /healthz`) or a partial one (`autoscale` without min/max)
+    would surface as a raw AttributeError/KeyError instead of a BridgeError
+    naming the dotted field (R10)."""
     for block, allowed in SUBKEYS.items():
-        value = spec.get(block)
-        if isinstance(value, dict):
-            for sub in value:
-                if sub not in allowed:
-                    raise BridgeError(
-                        f"unknown env-spec key '{block}.{sub}' "
-                        f"(allowed: {', '.join(sorted(allowed))})"
-                    )
+        if block not in spec:
+            continue
+        value = spec[block]
+        if not isinstance(value, dict):
+            raise BridgeError(
+                f"env-spec '{block}' must be a mapping of "
+                f"{{{', '.join(sorted(allowed))}}}, got {type(value).__name__}"
+            )
+        for sub in value:
+            if sub not in allowed:
+                raise BridgeError(
+                    f"unknown env-spec key '{block}.{sub}' "
+                    f"(allowed: {', '.join(sorted(allowed))})"
+                )
+        for sub in sorted(REQUIRED_SUBKEYS.get(block, frozenset())):
+            if sub not in value:
+                raise BridgeError(
+                    f"env-spec '{block}' missing required sub-key '{block}.{sub}'"
+                )
 
 
 def _require(spec: dict[str, Any]) -> None:
@@ -143,6 +185,37 @@ def _require(spec: dict[str, Any]) -> None:
         value = spec.get(key)
         if value is None or (isinstance(value, str) and value == ""):
             raise BridgeError(f"missing required env-spec key '{key}'")
+
+
+def _int(value: Any, key: str) -> int:
+    """Coerce an env-spec numeric field to int, rejecting anything that is not
+    already an integer. Floats are rejected outright (never truncated) and bools
+    — int subclasses in Python — are rejected too, so `replicas: 2.5` or
+    `port: "eighty"` is a BridgeError naming the key, not a silent 2 or a raw
+    ValueError (R10)."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise BridgeError(f"env-spec '{key}' must be an integer, got {value!r}")
+    return value
+
+
+def _quantity(value: Any, key: str) -> str:
+    """Validate a Kubernetes resource quantity, requiring the explicit string
+    form. A bare YAML number (`cpu: 1024`) is rejected: ECS cpu/memory numbers do
+    not map 1:1 to k8s quantities (1024 would become 1024 cores, not 1 vCPU), so
+    silently stringifying it ships the wrong request. The migrator must write the
+    quantity explicitly, e.g. "1" or "8Gi" (R10)."""
+    if isinstance(value, bool) or not isinstance(value, str):
+        raise BridgeError(
+            f"env-spec '{key}' must be a quoted Kubernetes quantity string "
+            f'(e.g. "2", "500m", "8Gi"), not a bare number — a bare ECS '
+            f"cpu/memory value maps to the wrong k8s quantity. Got {value!r}"
+        )
+    if not _QUANTITY_RE.match(value):
+        raise BridgeError(
+            f"env-spec '{key}'={value!r} is not a valid Kubernetes quantity "
+            f'(expected e.g. "2", "500m", "8Gi")'
+        )
+    return value
 
 
 def _split_image(image: str) -> dict[str, str]:
@@ -154,11 +227,13 @@ def _split_image(image: str) -> dict[str, str]:
     return {"repository": repository, "tag": tag}
 
 
-def _probe(block: dict[str, Any] | None, default_path: str, port: int) -> dict[str, Any]:
+def _probe(
+    block: dict[str, Any] | None, default_path: str, port: int, name: str
+) -> dict[str, Any]:
     block = block or {}
     return {
         "path": block.get("path", default_path),
-        "port": int(block.get("port", port)),
+        "port": _int(block.get("port", port), f"{name}.port"),
     }
 
 
@@ -169,6 +244,7 @@ def translate(spec: dict[str, Any]) -> dict[str, Any]:
     schema's own ordering so golden files stay stable."""
     _reject_unknown(spec)
     _require(spec)
+    _validate_blocks(spec)
 
     workload_class = spec["class"]
     if workload_class not in VALID_CLASSES:
@@ -176,7 +252,7 @@ def translate(spec: dict[str, Any]) -> dict[str, Any]:
             f"env-spec 'class' must be one of {VALID_CLASSES}, got {workload_class!r}"
         )
 
-    port = int(spec.get("port", DEFAULT_PORT))
+    port = _int(spec.get("port", DEFAULT_PORT), "port")
 
     values: dict[str, Any] = {
         "team": spec["team"],
@@ -188,10 +264,10 @@ def translate(spec: dict[str, Any]) -> dict[str, Any]:
         values["customerData"] = True
 
     if "replicas" in spec:
-        values["replicas"] = int(spec["replicas"])
+        values["replicas"] = _int(spec["replicas"], "replicas")
 
     # gpu: emit only when >0; the schema default is 0 (no GPU scheduling).
-    gpu = int(spec.get("gpu", 0))
+    gpu = _int(spec.get("gpu", 0), "gpu")
     if gpu > 0:
         values["gpu"] = gpu
 
@@ -200,13 +276,17 @@ def translate(spec: dict[str, Any]) -> dict[str, Any]:
 
     # Resources: requests are always required; limits emitted only for the
     # fields the env-spec pins, so the chart's limit defaults fill the rest.
-    requests = {"cpu": str(spec["cpu"]), "memory": str(spec["memory"])}
+    # cpu/memory must be explicit quantity strings — a bare number is rejected.
+    requests = {
+        "cpu": _quantity(spec["cpu"], "cpu"),
+        "memory": _quantity(spec["memory"], "memory"),
+    }
     resources: dict[str, Any] = {"requests": requests}
     limits: dict[str, Any] = {}
     if "cpu_limit" in spec:
-        limits["cpu"] = str(spec["cpu_limit"])
+        limits["cpu"] = _quantity(spec["cpu_limit"], "cpu_limit")
     if "memory_limit" in spec:
-        limits["memory"] = str(spec["memory_limit"])
+        limits["memory"] = _quantity(spec["memory_limit"], "memory_limit")
     if limits:
         resources["limits"] = limits
     values["resources"] = resources
@@ -218,23 +298,32 @@ def translate(spec: dict[str, Any]) -> dict[str, Any]:
     # Probes: always fully specified so they hit the container port, never the
     # chart's 8080 default when the workload listens elsewhere.
     values["probes"] = {
-        "liveness": _probe(spec.get("healthcheck"), DEFAULT_LIVENESS_PATH, port),
-        "readiness": _probe(spec.get("readiness"), DEFAULT_READINESS_PATH, port),
+        "liveness": _probe(
+            spec.get("healthcheck"), DEFAULT_LIVENESS_PATH, port, "healthcheck"
+        ),
+        "readiness": _probe(
+            spec.get("readiness"), DEFAULT_READINESS_PATH, port, "readiness"
+        ),
     }
 
     if "autoscale" in spec:
         auto = spec["autoscale"]
         values["hpa"] = {
             "enabled": True,
-            "minReplicas": int(auto["min"]),
-            "maxReplicas": int(auto["max"]),
-            "targetCPUUtilizationPercentage": int(auto["cpu_target"]),
+            "minReplicas": _int(auto["min"], "autoscale.min"),
+            "maxReplicas": _int(auto["max"], "autoscale.max"),
+            "targetCPUUtilizationPercentage": _int(
+                auto["cpu_target"], "autoscale.cpu_target"
+            ),
         }
 
     if "disruption_budget" in spec:
         values["pdb"] = {
             "enabled": True,
-            "minAvailable": int(spec["disruption_budget"]["min_available"]),
+            "minAvailable": _int(
+                spec["disruption_budget"]["min_available"],
+                "disruption_budget.min_available",
+            ),
         }
 
     return values

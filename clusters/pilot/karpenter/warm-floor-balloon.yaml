@@ -36,6 +36,12 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: warm-floor-balloon
+        # The balloon requests nvidia.com/gpu, so require-team-label (Enforce)
+        # denies it without a team; attribute the floor hold to platform. Class
+        # inference (not training) keeps tenancy-guard from barring the warm-floor
+        # toleration below (training may never tolerate warm-floor, R9/R2).
+        team.synorg.io/name: platform
+        workload.synorg.io/class: inference
     spec:
       priorityClassName: warm-floor-balloon
       # Only floor nodes; tolerate the warm-floor taint.

@@ -171,7 +171,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: controller
-          image: synorg/lending-controller:0.1.0
+          image: synorg/lending-controller:0.1.0  # placeholder — pin once the U8 controller image is built
           args:
             - --schedule=/etc/lending/schedule.yaml
             - --leader-elect                       # singleton guard across rollovers

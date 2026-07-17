@@ -38,7 +38,15 @@ jobs:
           key: kubeconform-schemas-${{ github.run_id }}
           restore-keys: kubeconform-schemas-
       - name: Validate (same script as local)
-        run: make validate
+        # On push to main the diff scope is empty (merge-base == HEAD), so a
+        # diff-scoped run would check nothing and pass vacuously; run the full
+        # validation there. PRs stay diff-scoped for speed.
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            make validate-full
+          else
+            make validate
+          fi
       - name: Rendered diff vs base
         if: github.event_name == 'pull_request'
         run: |

@@ -1,0 +1,11 @@
+# Error fixture (F4) — an autoscale block missing its required min/max. The
+# bridge must hard-error naming the missing sub-key, not crash with a raw
+# KeyError when translate() dereferences autoscale["min"].
+service: web-partial-autoscale
+team: platform
+class: web
+image: registry.synorg.io/platform/web:1.0.0
+cpu: 100m
+memory: 128Mi
+autoscale:
+  cpu_target: 70

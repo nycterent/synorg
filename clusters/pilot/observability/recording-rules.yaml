@@ -78,10 +78,13 @@ spec:
         - record: capacity_got:rate5m
           expr: sum by (nodepool) (rate(karpenter_nodeclaims_registered_total[5m]))
         - record: capacity_unmet:ratio
+          # Divide only where asked>0: `> 0` filters the denominator so nodepools
+          # that asked for nothing drop out entirely, rather than clamp_min
+          # fabricating a 1-ask floor that reads as "asked 1, got 0 → 100% unmet".
           expr: |
             1 - (
               capacity_got:rate5m
-              / clamp_min(capacity_asked:rate5m, 1)
+              / (capacity_asked:rate5m > 0)
             )
 
     # -- Success Criterion 3: $/GPU-hour and reclaimed-hours-served ---------
@@ -106,6 +109,9 @@ spec:
         - record: pr_to_converged_seconds:p95
           expr: histogram_quantile(0.95, sum by (le) (rate(pr_to_converged_seconds_bucket[1d])))
         - record: auto_approved:ratio
+          # `> 0` filters the denominator: with no merges in the window the ratio
+          # is absent (honestly "no data"), not clamp_min's 0/1 = 0% that looks
+          # like a real auto-approval collapse.
           expr: |
             sum(rate(ci_pr_merged_total{lane="auto"}[1d]))
-            / clamp_min(sum(rate(ci_pr_merged_total[1d])), 1)
+            / (sum(rate(ci_pr_merged_total[1d])) > 0)

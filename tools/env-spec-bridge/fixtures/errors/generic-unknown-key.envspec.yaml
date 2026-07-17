@@ -1,0 +1,10 @@
+# Error fixture (F8) — a top-level key that is neither a known contract key nor a
+# tailored ECS-ism (RETIRED_KEYS). The bridge must hard-error naming the key via
+# the generic "not part of the env-spec contract" branch, never silently drop it.
+service: web-unknown
+team: platform
+class: web
+image: registry.synorg.io/platform/web:1.0.0
+cpu: 100m
+memory: 128Mi
+frobnicate: true

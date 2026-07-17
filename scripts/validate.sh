@@ -48,12 +48,24 @@ CHANGED="$(cat "$CHANGED_FILE")"
 # in_scope FILE — membership test against the changed set (single grep, no echo fork)
 in_scope() { [ "$FULL" = "1" ] || grep -qxF "$1" "$CHANGED_FILE"; }
 
+# Policy composition (R9/R6 admission rules) is armed whenever charts or policies
+# changed, or under FULL — never in RENDER_ONLY. When armed it renders the whole
+# chart+service surface and applies the REAL policies to that rendered output
+# (section 3b), closing the gap where a chart could emit a pod the policies would
+# reject at admission but offline validation never exercised.
+POLICY_SCOPE=0
+if [ "$RENDER_ONLY" != "1" ] && { [ "$FULL" = "1" ] || echo "$CHANGED" | grep -q '^charts/\|^policies/'; }; then
+  POLICY_SCOPE=1
+fi
+
 # Charts to render: any chart whose dir is touched, or all under FULL=1.
 charts_in_scope() {
   local chart
   for chart in charts/*/; do
     [ -f "$chart/Chart.yaml" ] || continue
-    if [ "$FULL" = "1" ] || grep -q "^${chart}" "$CHANGED_FILE"; then
+    # Under FULL, or a policy-composition run, render every chart so the policy
+    # check (3b) sees the whole rendered surface; otherwise only touched charts.
+    if [ "$FULL" = "1" ] || [ "$POLICY_SCOPE" = "1" ] || grep -q "^${chart}" "$CHANGED_FILE"; then
       echo "$chart"
     fi
   done
@@ -106,12 +118,17 @@ if [ "${#MANIFESTS[@]}" -gt 0 ]; then
     "${MANIFESTS[@]}" || fail "cluster/policy manifest schema violations"
 fi
 
-# --- 2b. Service values render through the golden chart ---------------------
+# --- 2b. Service values render through the golden chart (real files) --------
+# Rendered into $BUILD_DIR (not /dev/null) so the policy-composition check (3b)
+# can apply the real policies to the actual rendered pods. Rendered when the file
+# changed, or for the whole set on a policy-composition run.
 for f in $(repo_files 'clusters/*/services/*.yaml'); do
-  if in_scope "$f"; then
+  if in_scope "$f" || [ "$POLICY_SCOPE" = "1" ]; then
+    out="$BUILD_DIR/service-$(basename "$f" .yaml).yaml"
     echo "render service values: $f"
-    helm template svc charts/golden-service -f "$f" >/dev/null \
+    helm template svc charts/golden-service -f "$f" >"$out" \
       || fail "$f: does not satisfy the golden chart schema"
+    rendered_any=1
   fi
 done
 fi  # RENDER_ONLY
@@ -121,6 +138,29 @@ if [ "$RENDER_ONLY" != "1" ] && { [ "$FULL" = "1" ] || echo "$CHANGED" | grep -q
   if ls policies/tests/*/kyverno-test.yaml >/dev/null 2>&1; then
     echo "kyverno test: policies/tests"
     kyverno test policies/tests --detailed-results || fail "kyverno policy tests failed"
+  fi
+fi
+
+# --- 3b. Policy composition: real policies over rendered output (R9/R6) ------
+# Section 3 tests policies against hand-written fixtures; section 1/2b render the
+# charts and services. Neither applies the policies to that rendered output — the
+# gap that lets a chart emit a pod the policies reject at admission. Close it:
+# apply policies/kyverno to every rendered file. Kyverno auto-generates the
+# pod-controller rules, so applying over rendered Deployments/Jobs reproduces the
+# admission verdict a cluster would give. `kyverno apply` exits non-zero on any
+# violation.
+if [ "$POLICY_SCOPE" = "1" ]; then
+  shopt -s nullglob
+  RENDERED_FILES=("$BUILD_DIR"/*.yaml)
+  shopt -u nullglob
+  if [ "${#RENDERED_FILES[@]}" -gt 0 ]; then
+    echo "kyverno apply: policies/kyverno over ${#RENDERED_FILES[@]} rendered file(s)"
+    RESOURCE_ARGS=()
+    for rf in "${RENDERED_FILES[@]}"; do
+      RESOURCE_ARGS+=(--resource "$rf")
+    done
+    kyverno apply policies/kyverno "${RESOURCE_ARGS[@]}" \
+      || fail "rendered output violates a Kyverno policy — a rendered pod would be rejected at admission. Fix the chart/values that emits it, never the policy."
   fi
 fi
 

@@ -1,0 +1,9 @@
+# Error fixture (F4) — a non-integer port. The bridge must hard-error naming
+# 'port', not crash with a raw ValueError from int("eighty").
+service: web-non-int-port
+team: platform
+class: web
+image: registry.synorg.io/platform/web:1.0.0
+cpu: 100m
+memory: 128Mi
+port: "eighty"

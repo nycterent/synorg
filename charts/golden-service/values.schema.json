@@ -5,6 +5,18 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["team", "workloadClass", "image"],
+  "allOf": [
+    {
+      "$comment": "A GPU on a web workload is unschedulable: only inference gets GPU-pool tolerations and warm-floor affinity (deployment.yaml). Fail at the schema with a named field rather than rendering a pod that can never land.",
+      "if": {
+        "properties": { "gpu": { "type": "integer", "minimum": 1 } },
+        "required": ["gpu"]
+      },
+      "then": {
+        "properties": { "workloadClass": { "const": "inference" } }
+      }
+    }
+  ],
   "properties": {
     "team": {
       "type": "string",

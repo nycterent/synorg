@@ -56,10 +56,13 @@ a release that omits one is rejected by name.
 - **`workloadClass: web`** — cluster-default priority, no GPU scheduling.
 - **`workloadClass: inference`** — `priorityClassName: inference-critical` (render
   path preempts training node-level).
-- **`inference` + `gpu > 0`** — tolerations for both `pool.synorg.io/warm-floor`
-  and `pool.synorg.io/lendable`, plus `preferred` node affinity for the
-  `gpu-warm-floor` Karpenter NodePool (holds the latency floor, R2), and
-  `nvidia.com/gpu` in resource limits.
+- **`inference` + `gpu > 0`** — toleration for `pool.synorg.io/warm-floor`, plus
+  `preferred` node affinity for the `gpu-warm-floor` Karpenter NodePool (holds
+  the latency floor, R2), and `nvidia.com/gpu` in resource limits. Non-customer-
+  data inference **also** tolerates `pool.synorg.io/lendable` to spill under
+  pressure; **`customerData: true` inference tolerates warm-floor only** — a lent
+  node can be reclaimed and scrubbed for R&D, so `tenancy-guard` denies any
+  customer-data pod that tolerates lendable (R9).
 
 Serving is **never** Kueue-admitted — this chart emits no queue label under any
 values (KTD6).

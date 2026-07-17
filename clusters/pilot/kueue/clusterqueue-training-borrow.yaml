@@ -6,10 +6,14 @@
 #
 # CRITICAL design (KTD6): serving is NEVER Kueue-admitted. Inference demand does
 # not enter this queue as pods; it enters as the borrowingLimit number below.
-# Two reclaim layers protect the render path:
-#   1. Planned  — U8 shrinks borrowingLimit ahead of the morning ramp; Kueue then
-#      preempts training to fit, giving the checkpoint contract (KTD12) time to
-#      flush. No inference pod is involved.
+# Two reclaim mechanisms protect the render path — note that neither is Kueue
+# preempting running training:
+#   1. Planned  — U8 shrinks borrowingLimit ahead of the morning ramp. A smaller
+#      limit only stops Kueue admitting *new* borrow; it does not evict training
+#      already running. The already-lent nodes are returned by U8's staged
+#      node-drain reclaim waves (schedule.yaml reclaimWaves), each honoring the
+#      120 s checkpoint grace (KTD12) so worst-case lost work is one interval. No
+#      inference pod is involved.
 #   2. Emergency — if demand outruns the curve, pending inference pods
 #      (PriorityClass inference-critical) preempt training node-level via
 #      kube-scheduler. Also no Kueue involvement.
@@ -38,6 +42,8 @@ spec:
               # clusters/pilot/lending/schedule.yaml by the U8 controller: it is
               # the current lendable headroom inference is willing to release.
               # Placeholder 64 (full pool) — the controller drives it down to 0
-              # across staged waves ahead of the ramp. Kueue admits training only
-              # while the curve has headroom, and preempts when it shrinks.
+              # across staged steps ahead of the ramp. Kueue admits training only
+              # while the curve has headroom; shrinking it stops *new* admission,
+              # while U8's staged reclaim waves drain the training already running
+              # on lent nodes (running work is not Kueue-preempted here).
               borrowingLimit: 64
