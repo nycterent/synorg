@@ -1,0 +1,73 @@
+infra/terraform/regions/pilot/odcr/README.md
+  s_592792c0856826::t_6a8573fd4d5798 1-52
+clusters/pilot/karpenter/warm-floor-balloon.yaml
+  s_592792c0856826::t_48930da514348e 1-70
+clusters/pilot/karpenter/nodepool-gpu-lendable.yaml
+  s_592792c0856826::t_4d6c315a5247d2 1-40
+clusters/pilot/karpenter/nodepool-gpu-warm-floor.yaml
+  s_592792c0856826::t_2bb9ca9ed687f4 1-54
+infra/terraform/mgmt/versions.tf
+  s_592792c0856826::t_9b1cb93bb81d8c 1-10
+infra/terraform/mgmt/.terraform.lock.hcl
+  s_592792c0856826::t_52cc849881a961 1-109
+runbooks/capacity-carve.md
+  s_592792c0856826::t_a72f1075fc3eb3 1-110
+scripts/validate.sh
+  s_592792c0856826::t_2aaad24a6a57e1 68,86
+infra/terraform/mgmt/outputs.tf
+  s_592792c0856826::t_c2b3452fc40b12 1-24
+infra/terraform/regions/pilot/versions.tf
+  s_592792c0856826::t_ee90b6153ee127 1-10
+infra/terraform/mgmt/variables.tf
+  s_592792c0856826::t_3c1fe7326980f9 1-73
+infra/terraform/regions/pilot/odcr/outputs.tf
+  s_592792c0856826::t_4348b27157cb69 1-29
+infra/terraform/regions/pilot/main.tf
+  s_592792c0856826::t_a09516ea713fc9 1-92
+clusters/pilot/karpenter/nodepool-web.yaml
+  s_592792c0856826::t_7c63121bee0f9f 1-36
+infra/terraform/regions/pilot/odcr/versions.tf
+  s_592792c0856826::t_c8dd27e187f5db 1-10
+infra/terraform/regions/pilot/odcr/main.tf
+  s_592792c0856826::t_3309100ef8bda0 1-28
+infra/terraform/regions/pilot/odcr/variables.tf
+  s_592792c0856826::t_d1e68f52b59338 1-47
+docs/capacity-transition.md
+  s_592792c0856826::t_196607527233ce 1-50
+infra/terraform/mgmt/main.tf
+  s_592792c0856826::t_2804e9493c9747 1-40
+clusters/mgmt/argocd/install.yaml
+  s_592792c0856826::t_77c055631a9b3e 1-61
+clusters/pilot/karpenter/ec2nodeclass-gpu-held.yaml
+  s_592792c0856826::t_f4ecfefbd24091 1-32
+clusters/pilot/karpenter/ec2nodeclass-web.yaml
+  s_592792c0856826::t_5c1f4e3b4ae069 1-16
+infra/terraform/regions/pilot/variables.tf
+  s_592792c0856826::t_96fef0e924c3d9 1-73
+infra/terraform/regions/pilot/outputs.tf
+  s_592792c0856826::t_1f004d1220a365 1-37
+infra/terraform/regions/pilot/odcr/.terraform.lock.hcl
+  s_592792c0856826::t_242788b26d2fe6 1-25
+infra/terraform/regions/pilot/.terraform.lock.hcl
+  s_592792c0856826::t_7cb466d0c847e3 1-109
+clusters/mgmt/argocd/appproject-example.yaml
+  s_592792c0856826::t_e6260cc06bf9d3 1-34
+clusters/mgmt/appsets/regions.yaml
+  s_592792c0856826::t_b7b2e4613013ce 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "7869667c4d6f59b7c8690f0a9e4bb9fed47c042b",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
