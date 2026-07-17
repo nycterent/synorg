@@ -1,0 +1,45 @@
+# backend.tf.example — remote state skeleton for every terraform root (U6).
+#
+# Each module under infra/terraform/ is its own state root:
+#   infra/terraform/mgmt                              (hub cluster)
+#   infra/terraform/regions/pilot                     (pilot cluster + Karpenter)
+#   infra/terraform/regions/pilot/odcr                (held-capacity ODCRs)
+#   infra/terraform/regions/pilot/checkpoint-store    (training checkpoint store)
+#
+# To wire remote state, either:
+#   a) copy this file into a module dir as `backend.tf` and set a UNIQUE `key`
+#      per module (suggested keys below), or
+#   b) keep module dirs backend-free and pass the same values at init time:
+#      terraform -chdir=<module> init \
+#        -backend-config="bucket=..." -backend-config="key=<module-key>" \
+#        -backend-config="region=..." -backend-config="dynamodb_table=..."
+#
+# One-time account setup (outside terraform, or in a tiny bootstrap root):
+#   - S3 bucket (versioning ON — state history is the rollback path)
+#   - DynamoDB table with partition key `LockID` (type String) for state locking
+#
+# scripts/deploy.sh runs `terraform init` per module and picks this up
+# automatically once backend.tf exists in the module dir.
+
+terraform {
+  backend "s3" {
+    # State bucket — one per account, versioned, SSE enabled.
+    bucket = "synorg-terraform-state"
+
+    # UNIQUE per module. Suggested keys (mirror the repo layout):
+    #   mgmt/terraform.tfstate
+    #   regions/pilot/terraform.tfstate
+    #   regions/pilot/odcr/terraform.tfstate
+    #   regions/pilot/checkpoint-store/terraform.tfstate
+    key = "mgmt/terraform.tfstate"
+
+    # Bucket region (not necessarily the deploy region).
+    region = "eu-west-1"
+
+    # Lock table (partition key: LockID, String). Prevents concurrent applies —
+    # the ODCR module especially must never race (capacity is irreversible).
+    dynamodb_table = "synorg-terraform-locks"
+
+    encrypt = true
+  }
+}

@@ -1,0 +1,278 @@
+#!/usr/bin/env bash
+# deploy.sh — credential-gated platform bootstrap (U6, R5).
+#
+# One entrypoint reproducing runbooks/deploy-platform.md in its exact order:
+#   §1 ODCR capture (U15)  → §2 mgmt cluster + ArgoCD (U2)
+#   §3 pilot + Karpenter (U3, + checkpoint-store)  → §4 register spoke
+#   §5 policy plane (U5)   → §6 scheduling/lending  → §7 evidence plane
+#
+# The runbook stays the authoritative narrative; this script only automates it
+# and references the sections it executes. Capacity is irreversible: the
+# zero-net-release guard (runbooks/capacity-carve.md verify-before-terminate)
+# runs after every capacity-touching step, and the ODCR apply is always
+# human-gated (never -auto-approve).
+#
+# Each step is idempotent and re-runnable: terraform reconciles, kubectl apply
+# converges, and spoke registration pre-checks before adding — so a re-run
+# after a partial apply resumes without duplicating reservations.
+#
+# Remote state: copy infra/terraform/backend.tf.example into each module dir
+# (unique key per module) before a live apply. See that file for details.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+# --- Module roots, in runbook order ----------------------------------------
+ODCR_DIR="infra/terraform/regions/pilot/odcr"
+MGMT_DIR="infra/terraform/mgmt"
+PILOT_DIR="infra/terraform/regions/pilot"
+CKPT_DIR="infra/terraform/regions/pilot/checkpoint-store"
+
+REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-eu-west-1}}"
+MGMT_CONTEXT="${MGMT_CONTEXT:-synorg-mgmt}"     # kubeconfig aliases set by
+PILOT_CONTEXT="${PILOT_CONTEXT:-synorg-pilot}"  # `aws eks update-kubeconfig`
+
+MODE="apply"          # apply | plan
+DRY_RUN=0             # 1 = print the command sequence, execute nothing
+AUTO_APPROVE=0        # -auto-approve for non-ODCR modules only
+
+usage() {
+  cat <<'EOF'
+usage: scripts/deploy.sh [--plan] [--dry-run] [--auto-approve] [--help]
+
+Bootstrap the platform per runbooks/deploy-platform.md (§1-§7, in order).
+
+  --plan          terraform plan for every module in runbook order; no apply,
+                  no cluster mutation. Works with read-only AWS credentials.
+  --dry-run       print the full command sequence without executing anything
+                  (offline; proves the step order). Combine with --plan to see
+                  the plan-mode sequence.
+  --auto-approve  pass -auto-approve to terraform apply for every module
+                  EXCEPT the ODCR capture — held capacity is irreversible, so
+                  the ODCR apply always prompts (deploy-platform.md warning).
+  --help          this text.
+
+Environment:
+  AWS_REGION      region for capacity/EKS calls (default eu-west-1)
+  MGMT_CONTEXT    kubeconfig context alias for the hub (default synorg-mgmt)
+  PILOT_CONTEXT   kubeconfig context alias for the spoke (default synorg-pilot)
+
+Refuses to run without AWS credentials (aws sts get-caller-identity) before
+any terraform invocation. Every step is idempotent: re-run after a partial
+apply and terraform/kubectl converge without duplicating reservations.
+EOF
+}
+
+fail() { echo "DEPLOY FAIL: $*" >&2; exit 1; }
+need() { command -v "$1" >/dev/null 2>&1 || fail "'$1' not installed — required for this mode"; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --plan) MODE="plan" ;;
+    --dry-run) DRY_RUN=1 ;;
+    --auto-approve) AUTO_APPROVE=1 ;;
+    --help|-h) usage; exit 0 ;;
+    *) usage >&2; fail "unknown argument: $1" ;;
+  esac
+  shift
+done
+
+# run CMD... — execute, or print without executing under --dry-run. Every
+# terraform/aws/kubectl/argocd invocation goes through this so --dry-run is a
+# faithful, offline proof of the exact sequence and order.
+run() {
+  if [ "$DRY_RUN" = 1 ]; then
+    echo "DRY-RUN: $*"
+  else
+    "$@"
+  fi
+}
+
+step() { echo; echo "== $* =="; }
+
+# --- Credential gate: before ANY terraform invocation -----------------------
+# --plan needs read credentials; apply needs write. --dry-run is offline and
+# skips the gate (it executes nothing).
+if [ "$DRY_RUN" != 1 ]; then
+  need aws
+  need terraform
+  need jq
+  if ! aws sts get-caller-identity >/dev/null 2>&1; then
+    fail "no AWS credentials (aws sts get-caller-identity failed) — \
+authenticate first (aws sso login / export AWS_PROFILE=...), then re-run. \
+Nothing was planned or applied."
+  fi
+  if [ "$MODE" = "apply" ]; then
+    need kubectl; need argocd; need kyverno   # fail fast, not mid-bootstrap
+  fi
+fi
+
+# tf_step DIR [EXTRA_APPLY_ARGS...] — init + plan/apply one module. In plan
+# mode this never applies; in apply mode -auto-approve is the caller's choice
+# (never passed for the ODCR module).
+tf_step() {
+  local dir="$1"; shift
+  run terraform -chdir="$dir" init -input=false
+  if [ "$MODE" = "plan" ]; then
+    run terraform -chdir="$dir" plan -input=false "$@"
+  else
+    run terraform -chdir="$dir" apply -input=false "$@"
+  fi
+}
+
+# --- Zero-net-release guard (runbooks/capacity-carve.md) --------------------
+# Verify-before-terminate: after any capacity-touching step, every declared
+# reservation must show its capacity held (utilization == declared count) and
+# its total unchanged. A reservation that fails to hold is a hard stop — the
+# invariant is capacity, not progress (capacity-carve.md abort semantics).
+guard_zero_net_release() {
+  step "zero-net-release guard (capacity-carve.md verify-before-terminate)"
+  if [ "$DRY_RUN" = 1 ]; then
+    run aws ec2 describe-capacity-reservations --region "$REGION" \
+      --capacity-reservation-ids '<each reservation_ids output>' \
+      --query 'CapacityReservations[0].[TotalInstanceCount,AvailableInstanceCount]'
+    echo "DRY-RUN: assert total == declared_instance_counts and held == declared, else STOP"
+    return 0
+  fi
+  local declared ids k id expected total avail held
+  declared="$(terraform -chdir="$ODCR_DIR" output -json declared_instance_counts 2>/dev/null || echo '{}')"
+  ids="$(terraform -chdir="$ODCR_DIR" output -json reservation_ids 2>/dev/null || echo '{}')"
+  if [ "$(jq 'length' <<<"$declared")" -eq 0 ]; then
+    echo "guard: no held reservations in state — nothing to verify"
+    return 0
+  fi
+  for k in $(jq -r 'keys[]' <<<"$declared"); do
+    id="$(jq -r --arg k "$k" '.[$k] // empty' <<<"$ids")"
+    expected="$(jq -r --arg k "$k" '.[$k]' <<<"$declared")"
+    [ -n "$id" ] || fail "zero-net-release: no reservation id for '$k' — capture (§1) incomplete; STOP"
+    read -r total avail < <(aws ec2 describe-capacity-reservations --region "$REGION" \
+      --capacity-reservation-ids "$id" \
+      --query 'CapacityReservations[0].[TotalInstanceCount,AvailableInstanceCount]' \
+      --output text) || fail "zero-net-release: cannot describe $id"
+    held=$((total - avail))
+    [ "$total" -eq "$expected" ] || fail "zero-net-release: $k ($id) total=$total != declared=$expected — capacity changed; STOP, do not proceed (capacity-carve.md)"
+    [ "$held" -eq "$expected" ] || fail "zero-net-release: $k ($id) holds $held of $expected declared — reservation not fully held; STOP, do not proceed (capacity-carve.md)"
+    echo "guard: $k ($id) total=$total held=$held == declared — capacity held"
+  done
+  echo "guard: record the utilization snapshot in docs/capacity-transition.md"
+}
+
+# --- §1 Capture held capacity (U15) — before anything else ------------------
+step_odcr() {
+  step "1/7 ODCR capture — deploy-platform.md §1 (U15)"
+  local extra=()
+  [ -f "$ODCR_DIR/held.tfvars" ] && extra+=(-var-file=held.tfvars)
+  # Never -auto-approve here: touching live held capacity is human-gated.
+  tf_step "$ODCR_DIR" ${extra[0]+"${extra[@]}"}
+  [ "$MODE" = "apply" ] && guard_zero_net_release
+  return 0
+}
+
+# --- §2 Management cluster + ArgoCD hub (U2) --------------------------------
+step_mgmt() {
+  step "2/7 mgmt cluster + ArgoCD hub — deploy-platform.md §2 (U2)"
+  local extra=()
+  [ "$AUTO_APPROVE" = 1 ] && [ "$MODE" = "apply" ] && extra+=(-auto-approve)
+  tf_step "$MGMT_DIR" ${extra[0]+"${extra[@]}"}
+  [ "$MODE" = "plan" ] && return 0
+  local name='<mgmt cluster_name output>'
+  [ "$DRY_RUN" = 1 ] || name="$(terraform -chdir="$MGMT_DIR" output -raw cluster_name)"
+  run aws eks update-kubeconfig --region "$REGION" --name "$name" --alias "$MGMT_CONTEXT"
+  run kubectl --context "$MGMT_CONTEXT" apply -f clusters/mgmt/argocd/install.yaml
+  run kubectl --context "$MGMT_CONTEXT" -n argocd wait --for=condition=Available \
+    deployment --all --timeout=600s
+}
+
+# --- §3 Pilot region cluster + Karpenter held fleet (U3) --------------------
+step_pilot() {
+  step "3/7 pilot cluster + Karpenter + checkpoint-store — deploy-platform.md §3 (U3)"
+  # Wire the held ODCR ARNs from the §1 outputs into the pilot fleet (the
+  # odcr_reservation_arns variable) so Karpenter's IAM is scoped to exactly
+  # the held reservations.
+  if [ "$DRY_RUN" = 1 ]; then
+    echo "DRY-RUN: export TF_VAR_odcr_reservation_arns=<odcr reservation_arns output>"
+  else
+    local arns
+    if arns="$(terraform -chdir="$ODCR_DIR" output -json reservation_arns 2>/dev/null)" \
+       && [ "$(jq 'length' <<<"$arns")" -gt 0 ]; then
+      TF_VAR_odcr_reservation_arns="$(jq -c '[.[]]' <<<"$arns")"
+      export TF_VAR_odcr_reservation_arns
+    fi
+  fi
+  local extra=()
+  [ "$AUTO_APPROVE" = 1 ] && [ "$MODE" = "apply" ] && extra+=(-auto-approve)
+  tf_step "$PILOT_DIR" ${extra[0]+"${extra[@]}"}
+  tf_step "$CKPT_DIR" ${extra[0]+"${extra[@]}"}
+  [ "$MODE" = "plan" ] && return 0
+  # Provisioning consumed reservation slots — re-assert nothing was released.
+  guard_zero_net_release
+  local name='<pilot cluster_name output>'
+  [ "$DRY_RUN" = 1 ] || name="$(terraform -chdir="$PILOT_DIR" output -raw cluster_name)"
+  run aws eks update-kubeconfig --region "$REGION" --name "$name" --alias "$PILOT_CONTEXT"
+  # Runbook confirms: the warm floor is held and the three NodePools exist.
+  run kubectl --context "$PILOT_CONTEXT" -n platform-system get deploy warm-floor-balloon
+  run kubectl --context "$PILOT_CONTEXT" get nodepools
+}
+
+# --- §4 Register the spoke with the hub -------------------------------------
+step_register_spoke() {
+  step "4/7 register spoke with hub — deploy-platform.md §4"
+  [ "$MODE" = "plan" ] && { echo "plan mode: skipping cluster registration"; return 0; }
+  # Idempotency pre-check: a re-run must not re-add (or error on) the spoke.
+  if [ "$DRY_RUN" != 1 ] && argocd cluster list -o name 2>/dev/null | grep -qx pilot; then
+    echo "spoke 'pilot' already registered — skipping"
+    return 0
+  fi
+  # Scoped spoke secret (assume-role limited to this spoke, never fleet-wide
+  # admin — KTD7). Requires `argocd login` against the hub first.
+  run argocd cluster add "$PILOT_CONTEXT" --name pilot --label synorg.io/role=spoke
+}
+
+# --- §5 Policy plane (U5) ---------------------------------------------------
+step_policy() {
+  step "5/7 policy plane — deploy-platform.md §5 (U5)"
+  [ "$MODE" = "plan" ] && { echo "plan mode: skipping policy apply"; return 0; }
+  # Direct apply is first-bootstrap only; afterwards these converge via ArgoCD.
+  run kubectl --context "$PILOT_CONTEXT" apply -f policies/kyverno/
+  run kubectl --context "$PILOT_CONTEXT" apply -f policies/vap/
+  run kyverno test policies/tests --detailed-results
+}
+
+# --- §6 Scheduling and lending ----------------------------------------------
+step_scheduling() {
+  step "6/7 scheduling + lending (converges via ArgoCD) — deploy-platform.md §6"
+  [ "$MODE" = "plan" ] && { echo "plan mode: skipping convergence checks"; return 0; }
+  run kubectl --context "$PILOT_CONTEXT" get clusterqueues
+  run kubectl --context "$PILOT_CONTEXT" -n lending get deploy lending-controller
+  run kubectl --context "$PILOT_CONTEXT" -n lending get cm lending-schedule
+  echo "NOTE: do NOT enable a real lending window until the game-day gate passes"
+  echo "      (deploy-platform.md §8, runbooks/game-day.md). Schedule changes go by PR only."
+}
+
+# --- §7 Evidence plane (U9) -------------------------------------------------
+step_evidence() {
+  step "7/7 evidence plane — deploy-platform.md §7 (U9)"
+  [ "$MODE" = "plan" ] && { echo "plan mode: skipping evidence checks"; return 0; }
+  run kubectl --context "$MGMT_CONTEXT" -n argocd get applications
+  echo "verify: observability apps Synced/Healthy; render-start p95, DCGM utilization,"
+  echo "        and per-team GPU-hour attribution series populating (deploy-platform.md §7)"
+}
+
+echo "deploy.sh: mode=$MODE dry-run=$DRY_RUN region=$REGION (runbooks/deploy-platform.md order)"
+step_odcr
+step_mgmt
+step_pilot
+step_register_spoke
+step_policy
+step_scheduling
+step_evidence
+
+echo
+if [ "$DRY_RUN" = 1 ]; then
+  echo "DRY-RUN complete — sequence above is the exact runbook order; nothing was executed"
+elif [ "$MODE" = "plan" ]; then
+  echo "DEPLOY PLAN OK — every module planned in runbook order; nothing applied"
+else
+  echo "DEPLOY OK — next: gate on a game-day before enabling lending (deploy-platform.md §8)"
+fi

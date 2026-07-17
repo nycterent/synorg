@@ -24,6 +24,26 @@ NodePool, an ApplicationSet, and an ODCR are, and why the order below matters.
 - The incumbent central secret manager reachable, with a maintained External
   Secrets Operator provider (verify this before U5 — it is an unowned upstream
   dependency).
+- Remote state wired per module: copy `infra/terraform/backend.tf.example` into
+  each module dir as `backend.tf` (unique key per module) or pass the same
+  values via `-backend-config`.
+
+## Scripted path: `make deploy`
+
+`scripts/deploy.sh` automates sections 1–7 below in this exact order, with the
+same credential gate, human-gated ODCR apply, and the
+[zero-net-release guard](capacity-carve.md) between capacity steps. This
+runbook stays the authoritative narrative — the script references these
+sections and adds nothing the runbook does not describe.
+
+```bash
+make deploy ARGS=--dry-run   # print the full command sequence (offline)
+make deploy ARGS=--plan      # terraform plan per module, read creds, no apply
+make deploy                  # full bootstrap (prompts per module apply)
+```
+
+It refuses to run without AWS credentials, and every step is idempotent — a
+re-run after a partial apply resumes without duplicating reservations.
 
 ## 1. Capture held capacity (U15) — before anything else
 

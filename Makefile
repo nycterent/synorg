@@ -1,7 +1,7 @@
 # Platform monorepo entrypoints. `make validate` is the contract (R10):
 # byte-for-byte the same script locally and in CI.
 
-.PHONY: validate validate-full render clean help integration integration-down
+.PHONY: validate validate-full render clean help integration integration-down deploy
 
 validate: ## Diff-scoped validation: helm template + kubeconform + kyverno test
 	bash scripts/validate.sh
@@ -30,6 +30,9 @@ integration: ## Integration ladder: kind up -> tests/integration/*/ -> kind down
 
 integration-down: ## Delete the kind integration cluster (idempotent)
 	bash tests/kind/down.sh
+
+deploy: ## Credential-gated platform bootstrap (runbooks/deploy-platform.md); ARGS=--plan|--dry-run|--auto-approve
+	bash scripts/deploy.sh $(ARGS)
 
 # --- Docs site (Material for MkDocs, Diátaxis nav) --------------------------
 DOCS_VENV := .venv-docs
