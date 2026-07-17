@@ -1,0 +1,61 @@
+# ArgoCD hub install, expressed as a self-managed Application (git = only write
+# API, KTD1). Bootstrap is one-time and out of band: install this chart once with
+# `helm install`, then ArgoCD adopts this Application and manages itself from git
+# thereafter. HA-lite: replicated stateless components, single Redis (not the
+# full redis-ha topology) — enough to survive a node loss without the cost of a
+# 3-node Redis.
+#
+# No imperative access (KTD7): pod exec is disabled and the API server runs
+# behind TLS. The hub has fleet-wide write reach, so human/agent kubectl into it
+# is break-glass only; routine change flows through git → ApplicationSet.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+  # Keep ArgoCD from pruning/deleting its own core resources on a bad sync.
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  project: default
+  source:
+    repoURL: https://argoproj.github.io/argo-helm
+    chart: argo-cd
+    targetRevision: 7.7.0
+    helm:
+      valuesObject:
+        global:
+          domain: argocd.synorg.internal
+        configs:
+          params:
+            # TLS on; no insecure server. No imperative access surface.
+            server.insecure: false
+          cm:
+            # Disable web/API pod exec — no imperative access into workloads.
+            exec.enabled: "false"
+            # Only this monorepo is a permitted source (single source of truth).
+            resource.compareoptions: |
+              ignoreAggregatedRoles: true
+        # HA-lite: replicate stateless components, single Redis.
+        redis-ha:
+          enabled: false
+        controller:
+          replicas: 1
+        repoServer:
+          replicas: 2
+        server:
+          replicas: 2
+        applicationSet:
+          replicas: 2
+        dex:
+          # SSO handled at the ingress/IdP layer; no in-cluster Dex connectors.
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true

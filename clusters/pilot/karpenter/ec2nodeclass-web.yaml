@@ -1,0 +1,16 @@
+# Web/system node class — non-GPU, on-demand only, no capacity reservations.
+# Web workloads must never consume the scarce held GPU fleet.
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: web
+spec:
+  amiSelectorTerms:
+    - alias: al2023@latest
+  role: synorg-pilot-karpenter-node
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: synorg-pilot
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: synorg-pilot

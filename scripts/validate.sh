@@ -65,7 +65,7 @@ for chart in $(charts_in_scope); do
       || fail "$name/$vname: helm template failed (see error above — schema violations name the field)"
     kubeconform -strict -summary -kubernetes-version "$K8S_VERSION" \
       -schema-location default \
-      -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceVersion}}.json' \
+      -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
       "$out" || fail "$name/$vname: kubeconform schema violations"
     rendered_any=1
   done
@@ -83,7 +83,7 @@ if [ "${#MANIFESTS[@]}" -gt 0 ]; then
   echo "kubeconform: ${#MANIFESTS[@]} manifest file(s)"
   kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version "$K8S_VERSION" \
     -schema-location default \
-    -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceVersion}}.json' \
+    -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
     "${MANIFESTS[@]}" || fail "cluster/policy manifest schema violations"
 fi
 

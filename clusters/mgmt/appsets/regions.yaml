@@ -1,0 +1,59 @@
+# Fleet ApplicationSet (KTD7). Matrix generator = Cluster generator × Git
+# directory generator: for each registered spoke cluster, enumerate that
+# cluster's overlay directories under clusters/<name>/ and emit one Application
+# per (cluster × overlay path). Adding a cluster (registering its secret) or an
+# overlay dir produces its Applications automatically; deregistering a cluster
+# prunes only its Applications.
+#
+# Nested substitution: the Git generator's directory glob uses {{.name}} from the
+# Cluster generator, so each spoke only ever generates its own overlays — no
+# cross-product across clusters.
+#
+# Per-spoke scoped credentials (KTD7 compromise hardening): each spoke is
+# registered as an ArgoCD cluster secret holding a *scoped, rotated* credential
+# (an assume-role limited to that spoke), never a shared fleet-wide admin. The
+# hub's write reach is fleet-wide, so anomalous hub-originated syncs are alerted
+# on and human/agent access to the hub itself is restricted.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: regions
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          # Spoke clusters only — the hub (in-cluster) is excluded by requiring
+          # the region label that only registered spokes carry.
+          - clusters:
+              selector:
+                matchLabels:
+                  synorg.io/role: spoke
+          # Each spoke's own overlay directories: clusters/<name>/<component>.
+          - git:
+              repoURL: https://github.com/synorg/synorg.git
+              revision: HEAD
+              directories:
+                - path: "clusters/{{.name}}/*"
+  template:
+    metadata:
+      # One Application per (cluster, overlay component).
+      name: "{{.name}}-{{.path.basename}}"
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/synorg/synorg.git
+        targetRevision: HEAD
+        path: "{{.path.path}}"
+      destination:
+        # Reconcile into the spoke the credential is scoped to.
+        server: "{{.server}}"
+        namespace: "{{.path.basename}}"
+      syncPolicy:
+        automated:
+          selfHeal: true
+          prune: true
+        syncOptions:
+          - CreateNamespace=true

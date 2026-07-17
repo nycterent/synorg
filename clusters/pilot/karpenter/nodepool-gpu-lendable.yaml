@@ -1,0 +1,40 @@
+# Lendable GPU pool — the lending window pool. Base taint pool.synorg.io/lendable
+# keeps arbitrary workloads off; the U8 lifecycle controller flips an additional
+# lending.synorg.io/lent=true:NoSchedule taint on the Node objects (never on this
+# NodePool spec.template — editing template taints makes Karpenter drift-replace
+# the whole pool at every window transition, KTD5). Consolidation is allowed here
+# (unlike warm-floor): idle lendable nodes should collapse off-peak.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: gpu-lendable
+spec:
+  weight: 50
+  template:
+    metadata:
+      labels:
+        pool.synorg.io/name: lendable
+    spec:
+      taints:
+        - key: pool.synorg.io/lendable
+          value: "true"
+          effect: NoSchedule
+      requirements:
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["reserved", "on-demand"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values: ["p5.48xlarge", "g6e.12xlarge"]
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: gpu-held
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 5m
+  limits:
+    nvidia.com/gpu: "64"

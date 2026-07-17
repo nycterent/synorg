@@ -1,0 +1,34 @@
+# Example per-team AppProject. One project per team partitions blast radius on
+# the hub (KTD7): a team's Applications may only deploy the team's own sources
+# into the team's own namespaces, and may not touch cluster-scoped or
+# cross-tenant resources. Copy this per team (name = team-<name>) — the team
+# name matches the `team.synorg.io/name` attribution label (docs/conventions.md).
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: team-example
+  namespace: argocd
+spec:
+  description: "Example team project — deploys only its own overlays to its own namespaces."
+  # Only this monorepo is a permitted source (single write API).
+  sourceRepos:
+    - https://github.com/synorg/synorg.git
+  # Destinations are scoped to the team namespace across all spoke clusters.
+  # `*` server = any registered spoke; the namespace lock is the tenancy guard.
+  destinations:
+    - server: "*"
+      namespace: team-example
+  # Deny cluster-scoped resources outright — those are platform-team territory
+  # (human-by-exception tier). Teams get namespaced resources only.
+  clusterResourceWhitelist: []
+  namespaceResourceBlacklist:
+    - group: ""
+      kind: ResourceQuota
+    - group: ""
+      kind: LimitRange
+  # Roles here are read-oriented; the write path is git, not an ArgoCD token.
+  roles:
+    - name: read-only
+      description: "Team read access to its own project (observation, not imperative change)."
+      policies:
+        - p, proj:team-example:read-only, applications, get, team-example/*, allow

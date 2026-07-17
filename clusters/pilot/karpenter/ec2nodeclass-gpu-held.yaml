@@ -1,0 +1,32 @@
+# GPU node class bound to the held ODCRs captured by U15 (KTD9). Karpenter
+# discovers the reservations by the `synorg.io/held-capacity=true` tag that
+# U15's Terraform sets, so new reservations join the fleet with no manifest edit.
+# Reserved capacity is treated as pre-paid and preferred over on-demand — the
+# NodePools request capacity-type `reserved` first (see nodepool-*.yaml).
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: gpu-held
+spec:
+  # GPU nodes need the accelerated AMI + NVIDIA device plugin (installed as a
+  # daemonset). AMI alias pinned to a digest in a follow-up; latest here for the
+  # scaffold.
+  amiSelectorTerms:
+    - alias: al2023@latest
+  # Node IAM role from infra/terraform/regions/pilot (karpenter_node_iam_role_name).
+  role: synorg-pilot-karpenter-node
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: synorg-pilot
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: synorg-pilot
+  # Consume the held reservations. Tag-based selection is the active binding to
+  # U15's `reservation_selector_tag` output.
+  capacityReservationSelectorTerms:
+    - tags:
+        synorg.io/held-capacity: "true"
+    # Alternatively, pin explicit reservation ids wired from U15's
+    # `reservation_ids` output (templated placeholder, substituted per overlay):
+    #   - id: ${ODCR_P5_48XLARGE_A}
+    #   - id: ${ODCR_G6E_12XLARGE_A}

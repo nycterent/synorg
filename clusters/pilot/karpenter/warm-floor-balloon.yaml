@@ -1,0 +1,70 @@
+# Warm-floor hold mechanism (KTD9). The balloon is a low-priority placeholder
+# that keeps the never-lent floor nodes provisioned and warm. Its PriorityClass
+# is warm-floor-balloon (value -10, Never-preempt): when real inference pods
+# (inference-critical, value 1000000) need a floor node, the scheduler preempts
+# the balloon *instantly* and the pause pod yields the GPU — the floor node is
+# already warm, so inference starts without waiting for a cold provision. This is
+# "eviction-by-inference": the balloon exists only to occupy the headroom until
+# inference claims it.
+#
+# One balloon per floor node (podAntiAffinity on hostname) so `replicas` == floor
+# node count. replicas is the floor size (placeholder 4); it also matches the
+# gpu-warm-floor NodePool GPU limit.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: warm-floor-balloon
+value: -10
+preemptionPolicy: Never
+globalDefault: false
+description: "Warm-floor hold Deployment — preempted instantly by inference (KTD9)."
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: warm-floor-balloon
+  namespace: karpenter
+  labels:
+    app.kubernetes.io/name: warm-floor-balloon
+spec:
+  # Floor size (placeholder 4). One replica holds one GPU node warm.
+  replicas: 4
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: warm-floor-balloon
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: warm-floor-balloon
+    spec:
+      priorityClassName: warm-floor-balloon
+      # Only floor nodes; tolerate the warm-floor taint.
+      nodeSelector:
+        pool.synorg.io/name: warm-floor
+      tolerations:
+        - key: pool.synorg.io/warm-floor
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      # One balloon per node so each holds a distinct floor node.
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: warm-floor-balloon
+      # Yield immediately — no graceful drain needed for a pause container.
+      terminationGracePeriodSeconds: 0
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.10
+          resources:
+            # Hold one GPU node's worth of accelerator so nothing else occupies
+            # the floor and inference preemption frees a whole node.
+            requests:
+              cpu: "100m"
+              memory: 64Mi
+              nvidia.com/gpu: "1"
+            limits:
+              nvidia.com/gpu: "1"

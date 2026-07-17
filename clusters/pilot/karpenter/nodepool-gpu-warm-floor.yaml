@@ -1,0 +1,54 @@
+# Warm-floor pool — the never-lent inference floor (R2, KTD9). Held explicitly so
+# consolidation can never delete the empty headroom the floor exists to keep.
+#
+# Hold mechanism: the warm-floor-balloon Deployment (warm-floor-balloon.yaml)
+# keeps one low-priority pause pod per floor node, so the nodes are never "empty"
+# and are held until inference evicts the balloon. Belt-and-braces, the
+# disruption budget forbids ALL voluntary disruption (nodes: "0"): Karpenter may
+# never consolidate a warm-floor node, so the floor cannot shrink below size.
+# (Static-capacity NodePools would replace the balloon once GA in the pinned
+# Karpenter version — KTD9.)
+#
+# Taint: only inference (and the balloon) tolerate warm-floor. No training, no
+# web. Reserved (held ODCR) capacity is preferred; on-demand is the fallback.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: gpu-warm-floor
+spec:
+  # Higher weight than lendable so the held reserved capacity forms the floor
+  # first.
+  weight: 100
+  template:
+    metadata:
+      labels:
+        pool.synorg.io/name: warm-floor
+    spec:
+      taints:
+        - key: pool.synorg.io/warm-floor
+          value: "true"
+          effect: NoSchedule
+      requirements:
+        - key: karpenter.sh/capacity-type
+          operator: In
+          # reserved first (held ODCR), on-demand fallback.
+          values: ["reserved", "on-demand"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values: ["p5.48xlarge", "g6e.12xlarge"]
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: gpu-held
+  disruption:
+    # Never voluntarily disrupt a floor node.
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: Never
+    budgets:
+      - nodes: "0"
+  # Floor size cap (placeholder: 4 GPU nodes). Matches the balloon replica count.
+  limits:
+    nvidia.com/gpu: "32"
