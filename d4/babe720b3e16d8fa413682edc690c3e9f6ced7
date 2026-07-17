@@ -1,0 +1,31 @@
+docs/TODO-docs.md
+  s_592792c0856826::t_84fb70f466de3f 40-51
+mkdocs.yml
+  s_592792c0856826::t_9db522232de9c5 43-44
+  s_592792c0856826::t_1ba0a69ea62312 61
+runbooks/operations.md
+  s_592792c0856826::t_06da9a18d09f2e 1-103
+runbooks/deploy-platform.md
+  s_592792c0856826::t_c8ccdda142a507 1-145
+docs/explanation/architecture.md
+  s_592792c0856826::t_8f1a524f1d4b1b 1-148
+docs/index.md
+  s_592792c0856826::t_56b725777e1d02 21-23
+  s_592792c0856826::t_f5b96f8f0c0c4f 13-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "d4babe720b3e16d8fa413682edc690c3e9f6ced7",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
