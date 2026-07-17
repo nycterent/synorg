@@ -12,6 +12,9 @@ validate-full: ## Full-repo validation (nightly CI job)
 render: ## Render all charts with their CI values into build/rendered/ (no schema/policy checks)
 	FULL=1 RENDER_ONLY=1 RENDER_DIFF=0 bash scripts/validate.sh
 
+demo: ## Narrated read-only walkthrough (render + policy accept/deny + bridge)
+	bash scripts/demo.sh
+
 clean:
 	rm -rf build/
 
