@@ -1,0 +1,19 @@
+mkdocs.yml
+  s_592792c0856826::t_20634ca0ea6455 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "1d76a6a0375de619e976c1ba2ce7489dedab6c21",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
