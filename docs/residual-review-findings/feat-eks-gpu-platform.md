@@ -45,12 +45,12 @@ tracker) — this file is the durable record. Full artifacts:
 
 ## Validated, unapplied — controller reclaim lifecycle (decision-gate, do first)
 
-- **#3 P1 `controllers/lending/reconcile.sh:301` — close-time untaint starves the final reclaim wave; nodes return unscrubbed.** tick() runs reconcile_taints before reconcile_waves; schedule.yaml wave-3 startsAt 06:30 == closesAt 06:30 and `window_open` treats that instant as closed, so the final wave's taint-keyed selection is always empty (~37.5% of lent nodes skip scrub). Fix: waves before taints; treat open->closed as a reclaim event, never a bare untaint. (adversarial; validated)
-- **#7 P1 `controllers/lending/reconcile.sh:247` — waves re-fire every tick within the 300s window, compounding ceil(fraction x currently-lent) toward 1-(1-f)^5 (~97% for f=0.5).** Fix: fired-wave memory (state file/annotation) or compute target from lend-open count. (adversarial; validated)
-- **#12 P2 `controllers/lending/reconcile.sh:99` — malformed schedule time reads as window-closed: mass untaint without drain.** validate_schedule is presence-only; "6:3x" errors inside window_open's if-context and reads as closed. Fix: regex-validate all time fields; malformed-time fixture asserting zero taint mutation. (adversarial; validated)
+- ~~**#3 P1 `controllers/lending/reconcile.sh:301` — close-time untaint starves the final reclaim wave; nodes return unscrubbed.**~~ RESOLVED (2026-07-17): tick() reordered to waves-before-taints, and the close transition now routes every still-lent node through the shared `reclaim_node` path (EKS cordon+drain+NodeClaim delete; loud-warn + untaint when no NodeClaim; kind `reclaim_intent reason=window_close` + untaint) — never a bare untaint.
+- ~~**#7 P1 `controllers/lending/reconcile.sh:247` — waves re-fire every tick within the 300s window, compounding ceil(fraction x currently-lent) toward 1-(1-f)^5 (~97% for f=0.5).**~~ RESOLVED (2026-07-17): fired-wave marker files under `KUBECTL_CACHE_DIR/fired-waves/` (once per wave per local day, pruned after 2 days; emptyDir restart caveat documented) plus a structural backstop — wave and close-path selection excludes already-cordoned nodes.
+- ~~**#12 P2 `controllers/lending/reconcile.sh:99` — malformed schedule time reads as window-closed: mass untaint without drain.**~~ RESOLVED (2026-07-17): validate_schedule now regex-gates every clock field (window opensAt/closesAt, reclaimWaves[].startsAt, borrowingLimitCurve[].at against strict HH:MM) and every days[] name; any failure logs schedule_invalid and skips the whole tick before any kubectl call, with offline malformed-time/day fixtures asserting zero actuation.
 
-These three share one root cause (wave lifecycle has no once-semantics, wrong
-ordering, weak validation) — redesign once, close together. Blocks a real e2e run.
+These three shared one root cause (wave lifecycle had no once-semantics, wrong
+ordering, weak validation) — redesigned once, closed together (2026-07-17).
 
 ## Validated, unapplied — e2e teardown and evidence integrity
 

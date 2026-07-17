@@ -2,14 +2,21 @@
 # reconcile.sh — U4 thin lending controller (v0). A kubectl-driven loop that
 # actuates the git-controlled lending schedule (clusters/pilot/lending/
 # schedule.yaml, mounted as a ConfigMap): per tick it
-#   1. reconciles the lent taint on lendable-pool Node objects to the current
-#      window state,
-#   2. patches the training ClusterQueue borrowingLimit to the curve value for
-#      the current time (gpuLimitPct x current lendable GPU capacity),
-#   3. on a due reclaim wave: cordon+drain the selected lent nodes and delete
-#      their NodeClaims (EKS); on a cluster without Karpenter (kind) it LOGS
-#      the intended action only — the ClusterRole has no nodes:delete and kind
-#      has no NodeClaims, by design.
+#   1. fires any due reclaim wave (waves run BEFORE taint reconcile so a
+#      window closing at a wave's startsAt — wave-3 06:30 == closesAt 06:30 —
+#      still sees the lent taints the selection keys on): cordon+drain the
+#      selected lent nodes and delete their NodeClaims (EKS); on a cluster
+#      without Karpenter (kind) it LOGS the intended action only — the
+#      ClusterRole has no nodes:delete and kind has no NodeClaims, by design.
+#      A wave fires at most once per local day (fired-waves marker under
+#      KUBECTL_CACHE_DIR) and selection excludes already-cordoned nodes, so a
+#      re-fire can never re-count in-flight reclaims,
+#   2. reconciles the lent taint on lendable-pool Node objects to the current
+#      window state. A window CLOSE never bare-untaints a lent node: each one
+#      routes through the same reclaim path the waves use (reclaim_node) and
+#      is untainted only on the explicitly logged degraded paths,
+#   3. patches the training ClusterQueue borrowingLimit to the curve value for
+#      the current time (gpuLimitPct x current lendable GPU capacity).
 #
 # WRITE SURFACE (drift trap, plan-001 U8): Node objects and the training
 # ClusterQueue only. NEVER NodePool templates — Karpenter drift-detects a
@@ -36,7 +43,11 @@
 #   TICK_SECONDS        loop period              (default 60)
 #   KUBECTL_CACHE_DIR   writable kubectl cache — the container runs
 #                       readOnlyRootFilesystem, so this points into the
-#                       emptyDir mounted at /tmp (default /tmp/kubectl-cache)
+#                       emptyDir mounted at /tmp (default /tmp/kubectl-cache).
+#                       Also holds the fired-waves/ once-per-day markers: they
+#                       survive container restarts (same pod) but a pod
+#                       replacement clears the emptyDir and can allow one
+#                       re-fire — accepted v0 caveat
 #   EVENT_NAMESPACE     namespace for emitted Events (default lending)
 #   EMIT_EVENTS         emit Kubernetes Events per action (default true)
 #   WAVE_FIRE_WINDOW_SECONDS  how long after startsAt a wave stays due (default 300)
@@ -102,6 +113,12 @@ hm_to_min() {
 # minutes_since NOW_MIN AT_MIN -> minutes since AT last occurred (daily wrap).
 minutes_since() { echo $(( ($1 - $2 + 1440) % 1440 )); }
 
+# valid_hm "HH:MM" — strict 24h clock time. Validation gate: a malformed time
+# like "6:3x" must never reach hm_to_min — its arithmetic error inside an
+# if-context (errexit suspended) reads as window-closed and would actuate the
+# close path off garbage.
+valid_hm() { [[ "$1" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]]; }
+
 # validate_schedule — parse + schema-gate the schedule. Any failure logs
 # schedule_invalid with the reason and returns 1 (tick is skipped, no crash).
 validate_schedule() {
@@ -118,6 +135,46 @@ validate_schedule() {
   for field in timezone targets.lendablePool targets.lentTaint targets.trainingQueue windows borrowingLimitCurve; do
     if [ "$(yq -r ".$field // \"\"" "$SCHEDULE_FILE")" = "" ]; then
       log error action=schedule_invalid file="$SCHEDULE_FILE" msg="missing required field $field"
+      return 1
+    fi
+  done
+  # Strict time/day validation: every clock field must be a valid HH:MM and
+  # every day a real day name BEFORE any of them reaches window/wave/curve
+  # arithmetic. Any failure skips the whole tick — malformed intent must never
+  # reach either the waves or the taints.
+  local n i t d
+  n="$(yq -r '.windows | length' "$SCHEDULE_FILE")"
+  for (( i=0; i<n; i++ )); do
+    for field in opensAt closesAt; do
+      t="$(yq -r ".windows[$i].$field // \"\"" "$SCHEDULE_FILE")"
+      if ! valid_hm "$t"; then
+        log error action=schedule_invalid file="$SCHEDULE_FILE" msg="windows[$i].$field '$t' is not a valid HH:MM time"
+        return 1
+      fi
+    done
+    while IFS= read -r d; do
+      [ -n "$d" ] || continue
+      case "$d" in
+        Sun|Mon|Tue|Wed|Thu|Fri|Sat) ;;
+        *)
+          log error action=schedule_invalid file="$SCHEDULE_FILE" msg="windows[$i].days entry '$d' is not a valid day name"
+          return 1 ;;
+      esac
+    done < <(yq -r ".windows[$i].days // [] | .[]" "$SCHEDULE_FILE")
+  done
+  n="$(yq -r '.reclaimWaves // [] | length' "$SCHEDULE_FILE")"
+  for (( i=0; i<n; i++ )); do
+    t="$(yq -r ".reclaimWaves[$i].startsAt // \"\"" "$SCHEDULE_FILE")"
+    if ! valid_hm "$t"; then
+      log error action=schedule_invalid file="$SCHEDULE_FILE" msg="reclaimWaves[$i].startsAt '$t' is not a valid HH:MM time"
+      return 1
+    fi
+  done
+  n="$(yq -r '.borrowingLimitCurve | length' "$SCHEDULE_FILE")"
+  for (( i=0; i<n; i++ )); do
+    t="$(yq -r ".borrowingLimitCurve[$i].at // \"\"" "$SCHEDULE_FILE")"
+    if ! valid_hm "$t"; then
+      log error action=schedule_invalid file="$SCHEDULE_FILE" msg="borrowingLimitCurve[$i].at '$t' is not a valid HH:MM time"
       return 1
     fi
   done
@@ -153,14 +210,61 @@ window_open() {
   return 1
 }
 
+# reclaim_node NODE GRACE ORIGIN KARPENTER NODECLAIMS_JSON — the single
+# reclaim path, shared by the waves and the window-close transition. ORIGIN is
+# a preformatted log token ("wave=<name>" or "reason=window_close").
+# Returns 0 when the node was handed to Karpenter for termination (the scrub
+# boundary — the Node object disappears with the instance, so no untaint must
+# follow). Returns 1 on the degraded paths where the node is NOT terminated:
+#   - EKS with no NodeClaim found: cordon+drain done, loud warning logged —
+#     scrub-by-termination is unavailable; the node stays cordoned for
+#     operator action and a close-path caller untaints it.
+#   - kind (no Karpenter): reclaim_intent log only, by construction — the
+#     ClusterRole grants no nodes:delete and kind has no NodeClaims.
+reclaim_node() {
+  local node="$1" grace="$2" origin="$3" karpenter="$4" nodeclaims_json="$5" ncl
+  if [ "$karpenter" = "1" ]; then
+    emit_event ReclaimWaveStarted Node "$node" "reclaim ($origin): cordon+drain+nodeclaim delete"
+    kc cordon "$node" >/dev/null
+    emit_event NodeDraining Node "$node" "draining with ${grace}s grace ($origin)"
+    kc drain "$node" --ignore-daemonsets --delete-emptydir-data --grace-period="$grace" --timeout="$(( grace * 3 ))s" >/dev/null \
+      || log warn action=drain_incomplete node="$node" msg="drain did not finish cleanly, proceeding to nodeclaim delete"
+    ncl="$(echo "$nodeclaims_json" | jq -r --arg n "$node" '.items[] | select(.status.nodeName == $n) | .metadata.name' | head -1)"
+    if [ -n "$ncl" ]; then
+      kc delete nodeclaim "$ncl" --wait=false >/dev/null
+      log info action=nodeclaim_deleted node="$node" nodeclaim="$ncl" "$origin" reason=NodeScrubStarted
+      emit_event NodeScrubStarted Node "$node" "nodeclaim $ncl deleted; Karpenter terminates the instance (scrub boundary)"
+      return 0
+    fi
+    log warn action=reclaim node="$node" "$origin" msg="NO NodeClaim found — scrub-by-termination UNAVAILABLE; node cordoned+drained but returns unscrubbed, left cordoned for operator action"
+    return 1
+  fi
+  # kind path: no Karpenter and the ClusterRole grants no nodes:delete —
+  # a real deletion is impossible by construction, so log the intent.
+  log info action=reclaim_intent node="$node" "$origin" msg="would cordon+drain node and delete its nodeclaim (no Karpenter on this cluster; log-only)"
+  return 1
+}
+
 # reconcile_taints OPEN POOL TAINT — converge lent taint on lendable Nodes to
 # the window state; emit NodeLent / NodeReturnedToProd / LendWindowOpened only
-# on actual transitions (idempotent per tick).
+# on actual transitions (idempotent per tick). A window CLOSE never
+# bare-untaints a lent node: each still-lent node routes through reclaim_node
+# (the same path the waves use) and is untainted only on the explicitly
+# degraded paths. Nodes already cordoned by a wave are in-flight reclaims and
+# are left alone.
 reconcile_taints() {
   local open="$1" pool="$2" taint="$3"
-  local tkey tval teff nodes_json node has any_lent=0
+  local tkey tval teff nodes_json node has cordoned any_lent=0
+  local karpenter=0 nodeclaims_json='{"items":[]}'
   tkey="${taint%%=*}"; tval="${taint#*=}"; tval="${tval%%:*}"; teff="${taint##*:}"
   nodes_json="$(kc get nodes -l "karpenter.sh/nodepool=$pool" -o json)"
+  if [ "$open" = "0" ] && echo "$nodes_json" | jq -e --arg k "$tkey" \
+      'any(.items[]; (.spec.taints // [] | any(.key == $k)) and .spec.unschedulable != true)' >/dev/null; then
+    # Close transition with still-lent, un-cordoned nodes: the reclaim path
+    # needs to know whether Karpenter (the scrub boundary) is available.
+    if kc api-versions | grep -q '^karpenter.sh/'; then karpenter=1; fi
+    if [ "$karpenter" = "1" ]; then nodeclaims_json="$(kc get nodeclaims -o json)"; fi
+  fi
   while IFS= read -r node; do
     [ -n "$node" ] || continue
     has="$(echo "$nodes_json" | jq -r --arg n "$node" --arg k "$tkey" \
@@ -171,9 +275,21 @@ reconcile_taints() {
       emit_event NodeLent Node "$node" "lending window open: taint $taint applied"
       any_lent=1
     elif [ "$open" = "0" ] && [ "$has" = "true" ]; then
-      kc taint node "$node" "$tkey:$teff-" >/dev/null
-      log info action=taint_removed node="$node" taint="$taint" reason=NodeReturnedToProd
-      emit_event NodeReturnedToProd Node "$node" "lending window closed: taint $taint removed"
+      cordoned="$(echo "$nodes_json" | jq -r --arg n "$node" \
+        '.items[] | select(.metadata.name == $n) | .spec.unschedulable // false')"
+      # Already cordoned = a wave's reclaim is in flight — do not double-act.
+      [ "$cordoned" != "true" ] || continue
+      # Grace matches the schedule's drainGraceSeconds default (waves carry
+      # their own value; the close transition uses the same default).
+      if reclaim_node "$node" 120 "reason=window_close" "$karpenter" "$nodeclaims_json"; then
+        : # handed to Karpenter — the Node object disappears with the instance
+      else
+        # Degraded return (reclaim_node logged why): untaint so the node can
+        # rejoin prod rather than sit lent past the window.
+        kc taint node "$node" "$tkey:$teff-" >/dev/null
+        log info action=taint_removed node="$node" taint="$taint" reason=NodeReturnedToProd
+        emit_event NodeReturnedToProd Node "$node" "lending window closed: taint $taint removed"
+      fi
     fi
   done < <(echo "$nodes_json" | jq -r '.items[].metadata.name')
   if [ "$any_lent" = "1" ]; then
@@ -227,15 +343,27 @@ reconcile_borrow_limit() {
   fi
 }
 
-# reconcile_waves TZ POOL TAINT — fire any due reclaim wave. EKS: cordon,
-# drain (eviction API, drainGraceSeconds), delete the NodeClaim so Karpenter
-# terminates the instance (scrub boundary). kind: no Karpenter API — log the
-# intended action only (reclaim_intent) and do not error.
+# reconcile_waves TZ POOL TAINT — fire any due reclaim wave, at most ONCE per
+# wave per local day: a marker file under $KUBECTL_CACHE_DIR/fired-waves/
+# (<YYYY-MM-DD>-w<index>, schedule-local date) records each firing, so a wave
+# that stays due for WAVE_FIRE_WINDOW_SECONDS cannot re-fire every tick and
+# compound ceil(fraction x currently-lent) toward 1-(1-f)^n. Markers live on
+# the emptyDir: they survive container restarts but not pod replacement
+# (accepted v0 caveat, see KUBECTL_CACHE_DIR note above). As a structural
+# backstop, selection also excludes already-cordoned nodes, so even a re-fire
+# cannot re-count in-flight reclaims. Per-node handling is reclaim_node
+# (shared with the window-close path): EKS cordon+drain+NodeClaim delete;
+# kind logs reclaim_intent only.
 reconcile_waves() {
   local tz="$1" pool="$2" taint="$3"
   local tkey="${taint%%=*}"
   local now_min n i starts fraction grace delta lent count karpenter=0
+  local fired_dir="$KUBECTL_CACHE_DIR/fired-waves" today marker
+  mkdir -p "$fired_dir"
+  # Cheap per-tick prune: markers older than 2 days can never match again.
+  find "$fired_dir" -type f -mtime +1 -delete 2>/dev/null || true
   now_min="$(hm_to_min "$(TZ="$tz" date +%H:%M)")"
+  today="$(TZ="$tz" date +%F)"
   n="$(yq -r '.reclaimWaves // [] | length' "$SCHEDULE_FILE")"
   [ "$n" -gt 0 ] || return 0
   if kc api-versions | grep -q '^karpenter.sh/'; then karpenter=1; fi
@@ -245,9 +373,14 @@ reconcile_waves() {
     grace="$(yq -r ".reclaimWaves[$i].drainGraceSeconds // 120" "$SCHEDULE_FILE")"
     delta="$(minutes_since "$now_min" "$(hm_to_min "$starts")")"
     [ $(( delta * 60 )) -lt "$WAVE_FIRE_WINDOW_SECONDS" ] || continue
-    # currently-lent nodes = lendable-pool nodes carrying the lent taint
+    # Once-semantics: skip a wave that already fired today.
+    marker="$fired_dir/$today-w$i"
+    [ ! -e "$marker" ] || continue
+    touch "$marker"
+    # currently-lent nodes = lendable-pool nodes carrying the lent taint,
+    # minus already-cordoned nodes (in-flight reclaims are never re-counted).
     lent="$(kc get nodes -l "karpenter.sh/nodepool=$pool" -o json \
-      | jq -r --arg k "$tkey" '.items[] | select(.spec.taints // [] | any(.key == $k)) | .metadata.name')"
+      | jq -r --arg k "$tkey" '.items[] | select(.spec.taints // [] | any(.key == $k)) | select(.spec.unschedulable != true) | .metadata.name')"
     if [ -z "$lent" ]; then
       log info action=reclaim_wave wave="$(yq -r ".reclaimWaves[$i].name" "$SCHEDULE_FILE")" msg="due but no lent nodes"
       continue
@@ -258,32 +391,16 @@ reconcile_waves() {
     log info action=reclaim_wave wave="$wave_name" lent_nodes="$(echo "$lent" | wc -l | tr -d ' ')" reclaiming="$count"
     # One cluster-wide NodeClaim fetch per wave (not per node): each node maps
     # to a distinct claim, so looking a node's claim up from this cache stays
-    # correct even as the loop below deletes claims one by one.
-    local node ncl nodeclaims_json='{"items":[]}'
+    # correct even as reclaim_node deletes claims one by one.
+    local node nodeclaims_json='{"items":[]}'
     if [ "$karpenter" = "1" ]; then
       nodeclaims_json="$(kc get nodeclaims -o json)"
     fi
     while IFS= read -r node; do
       [ -n "$node" ] || continue
-      if [ "$karpenter" = "1" ]; then
-        emit_event ReclaimWaveStarted Node "$node" "reclaim wave $wave_name: cordon+drain+nodeclaim delete"
-        kc cordon "$node" >/dev/null
-        emit_event NodeDraining Node "$node" "draining with ${grace}s grace (wave $wave_name)"
-        kc drain "$node" --ignore-daemonsets --delete-emptydir-data --grace-period="$grace" --timeout="$(( grace * 3 ))s" >/dev/null \
-          || log warn action=drain_incomplete node="$node" msg="drain did not finish cleanly, proceeding to nodeclaim delete"
-        ncl="$(echo "$nodeclaims_json" | jq -r --arg n "$node" '.items[] | select(.status.nodeName == $n) | .metadata.name' | head -1)"
-        if [ -n "$ncl" ]; then
-          kc delete nodeclaim "$ncl" --wait=false >/dev/null
-          log info action=nodeclaim_deleted node="$node" nodeclaim="$ncl" wave="$wave_name" reason=NodeScrubStarted
-          emit_event NodeScrubStarted Node "$node" "nodeclaim $ncl deleted; Karpenter terminates the instance (scrub boundary)"
-        else
-          log warn action=reclaim node="$node" msg="no NodeClaim found for node, skipping delete"
-        fi
-      else
-        # kind path: no Karpenter and the ClusterRole grants no nodes:delete —
-        # a real deletion is impossible by construction, so log the intent.
-        log info action=reclaim_intent node="$node" wave="$wave_name" msg="would cordon+drain node and delete its nodeclaim (no Karpenter on this cluster; log-only)"
-      fi
+      # Degraded return (rc 1) is handled at window close by reconcile_taints;
+      # mid-window the node simply stays lent.
+      reclaim_node "$node" "$grace" "wave=$wave_name" "$karpenter" "$nodeclaims_json" || true
     done < <(echo "$lent" | head -n "$count")
   done
 }
@@ -298,9 +415,14 @@ tick() {
   queue="$(yq -r '.targets.trainingQueue' "$SCHEDULE_FILE")"
   if window_open "$tz"; then open=1; fi
   log info action=tick window_open="$open" pool="$pool" queue="$queue"
+  # Order matters: waves fire BEFORE taint reconcile so a window closing at a
+  # wave's startsAt (wave-3 06:30 == closesAt 06:30, and window_open reads
+  # that instant as closed) still sees the lent taints its selection keys on;
+  # reconcile_taints then routes any remaining lent node through the same
+  # reclaim path instead of bare-untainting it.
+  reconcile_waves "$tz" "$pool" "$taint" || log warn action=tick msg="wave reconcile failed, continuing"
   reconcile_taints "$open" "$pool" "$taint" || log warn action=tick msg="taint reconcile failed, continuing"
   reconcile_borrow_limit "$tz" "$pool" "$queue" || log warn action=tick msg="borrow-limit reconcile failed, continuing"
-  reconcile_waves "$tz" "$pool" "$taint" || log warn action=tick msg="wave reconcile failed, continuing"
 }
 
 main() {

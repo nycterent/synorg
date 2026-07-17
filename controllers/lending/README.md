@@ -9,19 +9,20 @@ only the image contents are v0.
 
 ## What it does each tick
 
-Reads `SCHEDULE_FILE` (the mounted `lending-schedule` ConfigMap) fresh, then:
+Reads `SCHEDULE_FILE` (the mounted `lending-schedule` ConfigMap) fresh, then —
+in this order; waves run **before** taint reconcile so a window closing at a
+wave's `startsAt` (wave-3 `06:30` == `closesAt 06:30`, which `window_open`
+reads as closed) still sees the lent taints the wave selection keys on:
 
-1. **Window taints** — if a lending window is open (region-local time, DST via
-   the schedule `timezone`), adds `targets.lentTaint` to every Node labeled
-   `karpenter.sh/nodepool=<targets.lendablePool>`; removes it when closed.
-   Idempotent: only actual transitions act and emit.
-2. **Borrow curve** — resolves the active `borrowingLimitCurve` entry (the most
-   recently passed `at`, daily recurrence), converts `gpuLimitPct` to an
-   absolute quantity against the *current* summed `nvidia.com/gpu` capacity of
-   lendable Nodes, and patches the `targets.trainingQueue` ClusterQueue
-   `borrowingLimit`. Patches only on change.
-3. **Reclaim waves** — a wave is due for `WAVE_FIRE_WINDOW_SECONDS` after its
-   `startsAt`. For `ceil(reclaimFraction x currently-lent)` nodes:
+1. **Reclaim waves** — a wave is due for `WAVE_FIRE_WINDOW_SECONDS` after its
+   `startsAt`, and fires **at most once per wave per local day**: a marker
+   file (`KUBECTL_CACHE_DIR/fired-waves/<YYYY-MM-DD>-w<index>`) records each
+   firing and is pruned after 2 days. Markers live on the `/tmp` emptyDir, so
+   they survive container restarts but not pod replacement — a replaced pod
+   can allow one re-fire (accepted v0 caveat). Selection is
+   `ceil(reclaimFraction x currently-lent)` where currently-lent **excludes
+   already-cordoned nodes**, so even a re-fire can never re-count an
+   in-flight reclaim. Per node (the shared `reclaim_node` path):
    - **EKS** (Karpenter API present): cordon, drain via the eviction API with
      `drainGraceSeconds`, then delete the node's NodeClaim — Karpenter
      terminates the instance, which *is* the scrub boundary (fresh instance,
@@ -30,10 +31,33 @@ Reads `SCHEDULE_FILE` (the mounted `lending-schedule` ConfigMap) fresh, then:
      intended cordon+drain+nodeclaim-delete and does nothing. This is by
      construction: kind has no NodeClaims and the ClusterRole grants no
      `nodes: delete`.
+2. **Window taints** — if a lending window is open (region-local time, DST via
+   the schedule `timezone`), adds `targets.lentTaint` to every Node labeled
+   `karpenter.sh/nodepool=<targets.lendablePool>`. On close, a still-lent
+   node is **never bare-untainted** — the close transition is itself a
+   reclaim, routed through the same `reclaim_node` path as the waves:
+   - **EKS with a NodeClaim**: cordon+drain+NodeClaim delete; the Node object
+     disappears with the instance, so no untaint is needed.
+   - **EKS without a NodeClaim** (anomalous): cordon+drain, a loud
+     `action=reclaim` warning that scrub-by-termination is unavailable, then
+     untaint — the node is left cordoned for operator action.
+   - **kind**: `action=reclaim_intent reason=window_close`, then untaint
+     (documented degradation — matches the wave behavior on kind).
+   Nodes a wave already cordoned are in-flight reclaims and are left alone.
+   Idempotent: only actual transitions act and emit.
+3. **Borrow curve** — resolves the active `borrowingLimitCurve` entry (the most
+   recently passed `at`, daily recurrence), converts `gpuLimitPct` to an
+   absolute quantity against the *current* summed `nvidia.com/gpu` capacity of
+   lendable Nodes, and patches the `targets.trainingQueue` ClusterQueue
+   `borrowingLimit`. Patches only on change.
 
 A malformed or unsupported schedule (bad YAML, wrong `schemaVersion`, missing
-required field) logs `action=schedule_invalid` with the reason and **skips the
-tick** — the actuator never crash-loops on bad intent.
+required field, **any clock field that is not strict `HH:MM`** — window
+`opensAt`/`closesAt`, every `reclaimWaves[].startsAt`, every
+`borrowingLimitCurve[].at` — or an invalid `days[]` name) logs
+`action=schedule_invalid` with the reason and **skips the whole tick before
+any kubectl call** — malformed intent never reaches waves or taints, and the
+actuator never crash-loops on it.
 
 ## Schedule schema consumed (contract)
 
@@ -99,6 +123,7 @@ single-line `kc <subcommand> <resource> ...` wrapper so the parser fails closed.
 | Window taints | real | real |
 | borrowingLimit patch | real (fake-GPU capacity) | real |
 | Reclaim wave | `reclaim_intent` log only | cordon + drain + NodeClaim delete |
+| Window close (still-lent node) | `reclaim_intent reason=window_close`, then untaint | same reclaim path as waves; untaint only if no NodeClaim |
 | Karpenter detection | `kubectl api-versions` lacks `karpenter.sh/` | present |
 
 On kind, label the fake-GPU nodes `karpenter.sh/nodepool=gpu-lendable` (the
@@ -118,15 +143,22 @@ cache writes to `KUBECTL_CACHE_DIR=/tmp/kubectl-cache` on an emptyDir.
 ## Tests
 
 ```sh
-bash controllers/lending/test.sh --offline   # syntax + RBAC subset + malformed schedule (no cluster)
-bash controllers/lending/test.sh             # + live scenarios against the current kubecontext
+bash controllers/lending/test.sh --offline   # syntax + RBAC subset + malformed schedules (no cluster)
+bash controllers/lending/test.sh             # + live scenarios against the pinned kubecontext
 ```
 
-Live scenarios (U1 kind harness drives these; they run against any cluster and
-clean up after themselves): window open adds the lent taint / closed removes
-it; a shrunk curve patches `borrowingLimit` to match (skips if the
-`training-borrow` ClusterQueue is absent); a reclaim tick on a Karpenter-less
-cluster logs the intent without erroring.
+Offline covers syntax, the RBAC-verb-subset check, and three malformed-schedule
+scenarios (garbage YAML, a malformed time `"6:3x"`, a bad day name) — each must
+log `schedule_invalid` and exit clean **without reaching any kubectl call**.
+
+Live scenarios (U1 kind harness drives these; they run against the pinned
+kubecontext and clean up after themselves): window open adds the lent taint /
+closed removes it; a shrunk curve patches `borrowingLimit` to match (skips if
+the `training-borrow` ClusterQueue is absent); a reclaim tick on a
+Karpenter-less cluster logs the intent without erroring; a close-boundary tick
+(`closesAt` == wave `startsAt`) routes the still-lent node through the reclaim
+path (`reclaim_intent` + `reason=window_close`) before the degradation untaint;
+a due wave fires exactly once across 3 ticks (fired-waves marker file).
 
 ## How the real operator replaces this
 
