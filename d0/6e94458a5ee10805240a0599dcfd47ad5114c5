@@ -1,0 +1,31 @@
+README.md
+  s_592792c0856826::t_cf8f1561943e4f 1-37
+.github/workflows/nightly-full-validate.yaml
+  s_592792c0856826::t_8f8fafb94b84af 1-23
+.github/workflows/validate.yaml
+  s_592792c0856826::t_6d41dd10122702 1-41
+scripts/validate.sh
+  s_592792c0856826::t_207c4efc401b76 1-101
+.gitignore
+  s_592792c0856826::t_2849fb92a98698 1-6
+Makefile
+  s_592792c0856826::t_1d2606ff18e128 1-19
+docs/conventions.md
+  s_592792c0856826::t_7a40a2b799a9db 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "d06e94458a5ee10805240a0599dcfd47ad5114c5",
+  "prompts": {},
+  "sessions": {
+    "s_592792c0856826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7fcca5a-b398-4a55-a496-3fb3654635b5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
