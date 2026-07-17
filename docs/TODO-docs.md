@@ -27,9 +27,9 @@ its mode, commit. Don't gate value on a full reorg.
 
 ## Actions (each a standalone increment)
 
-- [ ] **T1 — Tutorial: "Validate the platform on your laptop in 5 minutes."** `docs/tutorials/first-validation.md`. A guided lesson (fixed path, every step succeeds, author owns the goal): clone, install helm/kubeconform/kyverno, `make demo`, then `make validate`, ending at "you just saw the policy plane reject an unsafe pod." NOT a how-to — no choices, no digressions. `make demo` (scripts/demo.sh) is the spine.
+- [x] **T1 — Tutorial: "Validate the platform on your laptop."** `docs/tutorials/first-validation.md` — DONE (2026-07-17). Guided lesson spined on `make demo` + `make validate`; no choices/digressions; links out to E1 and add-a-service for the next steps.
 - [ ] **T2 — Tutorial: "Add your first service."** `docs/tutorials/add-a-service.md`. Copy `example-inference.yaml`, edit values, `make validate`, watch it fail on a bad key, fix it. Teaches the values-are-the-interface idea by doing.
-- [ ] **E1 — Explanation: the double-pay problem and the lending model.** `docs/explanation/why-lending.md`. Extract from the plan's Problem Frame + Contradiction Analysis (TRIZ) — why hold GPUs, why separation in time/space/discard-recover. Discussion, no steps.
+- [x] **E1 — Explanation: the double-pay problem and the lending model.** `docs/explanation/why-lending.md` — DONE (2026-07-17). Discussion of the double-pay, the busy∧free/trusted∧untrusted contradiction, and the time/space/discard-recover separation; no steps; links to runbooks + conventions.
 - [ ] **E2 — Explanation: why serving is never Kueue-admitted.** `docs/explanation/reclaim-model.md`. From KTD6 + the ARIZ layered-reclaim resolution: borrowingLimit curve (planned) vs PriorityClass preemption (emergency). This is the most-misunderstood design point — worth a standalone why.
 - [ ] **E3 — Explanation: the capability-tier model.** `docs/explanation/capability-model.md`. The "why blast radius decides autonomy" half of capability-tiers.md.
 - [ ] **R1 — Reference tidy.** Gather loose `docs/*.md` reference under `docs/reference/`; leave a landing page (below) pointing at them. Mechanical move, no rewrite.
