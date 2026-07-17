@@ -1,0 +1,26 @@
+tests/integration/admission/admission_test.sh
+  s_93f8bad0fe0b70::t_c8bf0070b12998 1-210,214-221,223-236,238-287
+  s_93f8bad0fe0b70::t_7264d1e6b27214 211-213
+  s_93f8bad0fe0b70::t_fd1ae88779308b 237
+  s_93f8bad0fe0b70::t_e35769ea5a9204 222
+tests/integration/admission/fixtures/inline-secret.yaml
+  s_93f8bad0fe0b70::t_2e2585ccbe6b38 1-12
+tests/integration/admission/fixtures/eso-managed-secret.yaml
+  s_93f8bad0fe0b70::t_f125e21d9a854e 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "f134cd0d4226d4d03ff3fff5a804c08afb949844",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
