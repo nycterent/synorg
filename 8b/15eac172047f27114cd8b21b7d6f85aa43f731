@@ -1,0 +1,22 @@
+clusters/pilot/karpenter/warm-floor-balloon.yaml
+  s_93f8bad0fe0b70::t_ccce81a4fcd25e 13-21
+  s_93f8bad0fe0b70::t_fef922260467bf 35
+tests/integration/admission/admission_test.sh
+  s_93f8bad0fe0b70::t_21b1ec80f725c6 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "8b15eac172047f27114cd8b21b7d6f85aa43f731",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
