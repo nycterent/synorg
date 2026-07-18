@@ -135,6 +135,21 @@ lent_nodes() {
 has_lent_node() { [ -n "$(lent_nodes)" ]; }
 no_lent_node() { [ -z "$(lent_nodes)" ]; }
 
+# none_of_set_lent FILE — every node named in FILE has shed the lent taint
+# (a deleted node counts as cleared). Scopes the reclaim verdict to the nodes
+# that were lent when the assertion started: an admitted training workload
+# re-pends after each wave drain, Karpenter re-provisions, and the still-open
+# window re-lends the fresh node — nothing but the window close can clear
+# those late lends (Kueue keeps an admitted workload admitted when the
+# borrowingLimit shrinks). The ramp invariant is about the capacity that was
+# OUT on loan, not about fresh borrows the close will collect.
+none_of_set_lent() {
+  local snapshot="$1" still
+  still="$(lent_nodes)"
+  [ -z "$still" ] && return 0
+  ! grep -qxF -f "$snapshot" <<<"$still"
+}
+
 # hhmm_plus TZ MINUTES — wall-clock HH:MM offset from now in TZ (GNU + BSD date).
 hhmm_plus() {
   local tz="$1" mins="$2"
@@ -237,6 +252,12 @@ training_pod_on_lent_node() {
 assert_lend() {
   step "assert 1/6: lend — lendable node tainted lent + training borrows onto it"
   load_schedule_targets || { echo "FAIL: lend — cannot read live lending-schedule targets"; return 1; }
+  # Quiescence gate: a previous run's restored schedule can leave the
+  # controller mid-close-reclaim; driving a new window over leftover lent
+  # nodes races the close path (observed: the just-lent node was close-path
+  # deleted seconds after the lend assertion recorded it). Start clean.
+  wait_until "lendable pool quiescent (no leftover lent node)" 900 no_lent_node \
+    || { echo "FAIL: lend — leftover lent nodes did not clear; a prior run's reclaim is stuck"; return 1; }
   drive_schedule_now "$E2E_RAMP_MINUTES" || { echo "FAIL: lend — could not drive the schedule"; return 1; }
   training_submit || { echo "FAIL: lend — could not submit the training workload"; return 1; }
   wait_until "a $LENDABLE_POOL node carrying $LENT_TAINT_KEY" "$E2E_LEND_TIMEOUT" has_lent_node \
@@ -290,13 +311,18 @@ assert_reclaim_ahead_of_ramp() {
   step "assert 2/6: reclaim-ahead-of-ramp — waves finish before the synthetic ramp needs capacity"
   [ -n "$LENDABLE_POOL" ] || { echo "FAIL: reclaim — schedule targets not loaded (did lend run?)"; return 1; }
   has_lent_node || { echo "FAIL: reclaim — nothing is lent, so there is nothing to reclaim (no vacuous pass)"; return 1; }
+  # Scope the verdict to the nodes lent NOW (see none_of_set_lent): the waves
+  # must return THIS lent capacity before the deadline; fresh borrows lent
+  # after the final wave belong to the close.
+  local lent_entry_set="$E2E_STATE_DIR/reclaim-entry-lent.txt"
+  lent_nodes > "$lent_entry_set"
   local ramp_epoch=$(( $(date +%s) + E2E_RAMP_MINUTES * 60 ))
   loadgen_start "$E2E_RAMP_MINUTES" || { echo "FAIL: reclaim — could not start the synthetic inference ramp"; return 1; }
   # The driven schedule (assert_lend) placed the waves BEFORE the ramp deadline
   # and the window close AFTER it — within [now, deadline] only reclaimWaves
   # can clear lent taints, so the controller must reclaim wave-by-wave.
-  wait_until "all lent taints cleared (reclaim complete)" $(( E2E_RAMP_MINUTES * 60 + 300 )) no_lent_node \
-    || { echo "FAIL: reclaim — lent nodes remain after ramp + grace"; return 1; }
+  wait_until "entry lent set reclaimed (waves complete)" $(( E2E_RAMP_MINUTES * 60 + 300 )) none_of_set_lent "$lent_entry_set" \
+    || { echo "FAIL: reclaim — entry-set lent nodes remain after ramp + grace"; return 1; }
   local done_epoch; done_epoch="$(date +%s)"
   if [ "$done_epoch" -ge "$ramp_epoch" ]; then
     echo "FAIL: reclaim finished $(( done_epoch - ramp_epoch ))s AFTER the ramp deadline — the render path would have queued"
