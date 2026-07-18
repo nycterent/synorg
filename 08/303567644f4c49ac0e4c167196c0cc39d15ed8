@@ -1,0 +1,31 @@
+docs/residual-review-findings/feat-eks-gpu-platform.md
+  s_93f8bad0fe0b70::t_809fa6600f5ff6 74-75
+runbooks/e2e-gpu-run.md
+  s_93f8bad0fe0b70::t_0543bc83da2ff0 184-204
+tests/e2e/assertions.sh
+  s_93f8bad0fe0b70::t_85c01a4819dca7 56,58
+  s_93f8bad0fe0b70::t_d9c4cd099e91b5 11-22
+  s_93f8bad0fe0b70::t_d8a06b3983815d 147-155,157,162-166,169
+  s_93f8bad0fe0b70::t_6069449494e601 313-318,320-326,329,331-332,334-335,339-340,343-344,346-349,353,355-356
+  s_93f8bad0fe0b70::t_1fb3bc8ea15e93 182
+  s_93f8bad0fe0b70::t_879684326386dd 256-268,275-277,285-308
+  s_93f8bad0fe0b70::t_fbb8397c397bb1 244-251
+  s_93f8bad0fe0b70::t_16f4d9bd312408 44-46
+  s_93f8bad0fe0b70::t_40af8d1d4c40db 345
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "08303567644f4c49ac0e4c167196c0cc39d15ed8",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
