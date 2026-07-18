@@ -222,15 +222,32 @@ ledger_snapshot_entry() {
   # (and its hard-fail hook) meaningful.
   terraform -chdir="$ODCR_DIR" init -input=false >/dev/null \
     || fail "ledger: terraform init failed in $ODCR_DIR — configure backend.tf (infra/terraform/backend.tf.example) before any e2e phase"
-  ledger_capture "$LEDGER_ENTRY_FILE"
+  ledger_capture_or_fresh "$LEDGER_ENTRY_FILE"
   sed 's/^/  entry: /' "$LEDGER_ENTRY_FILE"
+}
+
+# ledger_capture_or_fresh FILE — like ledger_capture, but a successfully
+# initialized module whose state is EMPTY (never applied, or destroyed by this
+# run) is a legitimate, loudly-announced "no reservations" — distinct from an
+# unreadable ledger, which still hard-fails. This is what makes a first-ever
+# deploy (and a fully disposable cheap run) startable without weakening the
+# no-vacuous-pass rule: the fresh case requires a SUCCESSFUL init plus a
+# provably empty state list, never a swallowed error.
+ledger_capture_or_fresh() {
+  local out="$1"
+  if [ -z "$(terraform -chdir="$ODCR_DIR" state list 2>/dev/null)" ]; then
+    echo "fresh-state: no reservations (ODCR module state empty)" > "$out"
+    echo "  ledger: ODCR state is empty — fresh module; entry ledger = none (loud, not vacuous)"
+  else
+    ledger_capture "$out"
+  fi
 }
 
 ledger_assert_unchanged() {
   step "ledger: exit assertion (zero-net-release invariant)"
   [ -f "$LEDGER_ENTRY_FILE" ] || fail "ledger: no entry snapshot at $LEDGER_ENTRY_FILE — cannot prove zero net release"
   local now_file="$E2E_STATE_DIR/ledger-exit.txt"
-  ledger_capture "$now_file"
+  ledger_capture_or_fresh "$now_file"
   if ! diff -u "$LEDGER_ENTRY_FILE" "$now_file"; then
     fail "zero-net-release VIOLATED: reservation totals/held changed across the \
 e2e run — STOP, follow runbooks/capacity-carve.md abort semantics before anything else"
@@ -374,15 +391,28 @@ phase_down() {
       rc=1
     fi
   fi
-  # Cheap mode: remove the overlay's ODCR tfvars — the run leaves no trace on
-  # the working tree. (The clusters carried every live overlay patch; those
-  # died with the destroy above. The cheap ODCR itself is NOT destroyed —
-  # same human-gated rule as production; runsheet "Cheap mode" billing note.)
+  # Cheap mode: the run's OWN reservation is destroyed — but only when the
+  # tfvars carries the overlay marker, proving this run (not an operator)
+  # declared it. A held ODCR bills like a running instance; leaving the cheap
+  # g4dn reservation behind would be a standing leak. The production held
+  # book stays human-gated (capacity-carve.md): without the marker, no
+  # destroy — same rule as before.
+  if [ "$E2E_CHEAP" = 1 ] && [ -f "$ODCR_DIR/held.tfvars" ] \
+      && head -1 "$ODCR_DIR/held.tfvars" | grep -q 'synorg-e2e-cheap-overlay'; then
+    if terraform -chdir="$ODCR_DIR" init -input=false \
+        && terraform -chdir="$ODCR_DIR" destroy -input=false -auto-approve -var-file=held.tfvars; then
+      echo "  cheap ODCR (run-owned, marker-verified) destroyed — no standing reservation"
+    else
+      echo "DOWN FAIL: $ODCR_DIR — cheap run-owned reservation may still be held (billable!)" >&2
+      rc=1
+    fi
+  fi
+  # Remove the overlay's ODCR tfvars — the run leaves no trace on the tree.
   if [ "$E2E_CHEAP" = 1 ]; then
     bash "$CHEAP_OVERLAY" clean || rc=1
   fi
   if [ "$rc" -eq 0 ]; then
-    echo "DOWN OK — pilot destroyed; held reservations untouched"
+    echo "DOWN OK — pilot destroyed; production held reservations untouched (cheap run-owned ODCR removed when present)"
   fi
   return "$rc"
 }
