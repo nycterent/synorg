@@ -1,0 +1,23 @@
+mkdocs.yml
+  s_93f8bad0fe0b70::t_c9bc348a11fc09 61
+docs/adr/0002-training-arbitrage-via-multikueue.md
+  s_93f8bad0fe0b70::t_b4e07fa0a4030f 1-38
+docs/glossary.md
+  s_93f8bad0fe0b70::t_b9ea7836364d6a 22-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e25c6dd3e59c7de732deac2abbdef7600709b5b6",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
