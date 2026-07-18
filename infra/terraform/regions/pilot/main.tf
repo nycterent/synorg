@@ -53,6 +53,13 @@ module "karpenter" {
   # v1 Karpenter (v1.x line, KTD9) IAM permissions.
   enable_v1_permissions = true
 
+  # IRSA trust for the controller service account (§4.5 installs the chart
+  # into kube-system with SA "karpenter"); without this the module defaults
+  # to Pod Identity and AssumeRoleWithWebIdentity is denied (found live).
+  enable_irsa                     = true
+  irsa_oidc_provider_arn          = module.eks.oidc_provider_arn
+  irsa_namespace_service_accounts = ["kube-system:karpenter"]
+
   # Node role Karpenter attaches to provisioned instances.
   node_iam_role_use_name_prefix = false
   node_iam_role_name            = "${var.cluster_name}-karpenter-node"
