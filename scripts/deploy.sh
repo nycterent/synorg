@@ -360,6 +360,14 @@ step_sync() {
   # the ArgoCD sync path itself is NOT being exercised.
   if [ "${DEPLOY_DIRECT_SYNC:-0}" = 1 ]; then
     echo "DIRECT-SYNC: applying clusters/pilot/ straight to the spoke — GitOps sync path NOT exercised this run"
+    # ArgoCD's CreateNamespace=true sync option makes namespaces; a bare
+    # kubectl apply does not — pre-create every namespace the manifests
+    # declare (derived from the manifests, not a hand list).
+    local ns
+    for ns in $(grep -rh 'namespace:' clusters/pilot/ | awk '{print $2}' | sort -u); do
+      kubectl --context "$PILOT_CONTEXT" get namespace "$ns" >/dev/null 2>&1 \
+        || run kubectl --context "$PILOT_CONTEXT" create namespace "$ns"
+    done
     run kubectl --context "$PILOT_CONTEXT" apply --server-side --force-conflicts -R -f clusters/pilot/
   fi
   local i ok=0
