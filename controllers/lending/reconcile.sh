@@ -385,10 +385,10 @@ reconcile_borrow_limit() {
 }
 
 # reconcile_waves TZ POOL TAINT — fire any due reclaim wave, at most ONCE per
-# wave per local day: a marker file under $KUBECTL_CACHE_DIR/fired-waves/
-# (<YYYY-MM-DD>-w<index>, schedule-local date) records each firing, so a wave
-# that stays due for WAVE_FIRE_WINDOW_SECONDS cannot re-fire every tick and
-# compound ceil(fraction x currently-lent) toward 1-(1-f)^n. Markers live on
+# scheduled occurrence: a marker file under $KUBECTL_CACHE_DIR/fired-waves/
+# (<YYYY-MM-DD>-w<index>-<startsAt>, schedule-local date) records each firing,
+# so a wave that stays due for WAVE_FIRE_WINDOW_SECONDS cannot re-fire every
+# tick and compound ceil(fraction x currently-lent) toward 1-(1-f)^n. Markers live on
 # the emptyDir: they survive container restarts but not pod replacement
 # (accepted v0 caveat, see KUBECTL_CACHE_DIR note above). As a structural
 # backstop, selection also excludes already-cordoned nodes, so even a re-fire
@@ -414,8 +414,14 @@ reconcile_waves() {
     grace="$(yq -r ".reclaimWaves[$i].drainGraceSeconds // 120" "$SCHEDULE_FILE")"
     delta="$(minutes_since "$now_min" "$(hm_to_min "$starts")")"
     [ $(( delta * 60 )) -lt "$WAVE_FIRE_WINDOW_SECONDS" ] || continue
-    # Once-semantics: skip a wave that already fired today.
-    marker="$fired_dir/$today-w$i"
+    # Once-semantics PER OCCURRENCE: the marker keys on the wave's scheduled
+    # startsAt as well as the date — a re-driven schedule (game-day rehearsal
+    # compresses the same wave names onto new times, possibly several times a
+    # day) is a NEW occurrence and must fire again. Keying on date+index
+    # alone silently skipped every same-day re-drive: reclaim then fell to
+    # the window close on every rehearsal after the first (observed live as
+    # 128-242s-late reclaims with zero reclaim_wave log lines).
+    marker="$fired_dir/$today-w$i-${starts/:/}"
     [ ! -e "$marker" ] || continue
     touch "$marker"
     # currently-lent nodes = lendable-pool nodes carrying the lent taint,
