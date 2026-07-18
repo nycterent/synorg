@@ -42,6 +42,13 @@ MODE="apply"          # apply | plan
 DRY_RUN=0             # 1 = print the command sequence, execute nothing
 AUTO_APPROVE=0        # -auto-approve for non-ODCR modules only
 
+# Controller pins for §4.5 — keep in sync with tests/kind/up.sh (Kyverno,
+# Kueue) and tests/kind/kwok-up.sh (Karpenter core version); the AWS provider
+# chart is versioned in lockstep with the core.
+KYVERNO_VERSION="v1.18.2"
+KUEUE_VERSION="v0.18.3"
+KARPENTER_VERSION="1.14.0"
+
 usage() {
   cat <<'EOF'
 usage: scripts/deploy.sh [--plan] [--dry-run] [--auto-approve] [--help]
@@ -303,9 +310,44 @@ step_register_spoke() {
       || { rm -f "$akc"; fail "argocd cluster add failed (core mode)"; }
     rm -f "$akc"
   fi
-  # Convergence (moved from §3 — only possible after registration): the
-  # regions ApplicationSet generates the pilot-* apps for the new spoke; wait
-  # for the balloon and NodePools to arrive, bounded.
+}
+
+# --- §4.5 Platform controllers on the spoke ---------------------------------
+# The pilot terraform provisions Karpenter's IAM/SQS plumbing and exports the
+# values "consumed by the Karpenter controller Helm values" — but nothing ever
+# installed the controller, nor Kyverno, nor Kueue (the kind harness installs
+# its own; the EKS side was undefined — found live). Pins match the harness.
+step_controllers() {
+  step "4.5/7 platform controllers on the spoke (Karpenter + Kyverno + Kueue)"
+  [ "$MODE" = "plan" ] && { echo "plan mode: skipping controller installs"; return 0; }
+  if [ "$DRY_RUN" = 1 ]; then
+    echo "DRY-RUN: helm install karpenter oci://public.ecr.aws/karpenter/karpenter --version $KARPENTER_VERSION (values from pilot outputs)"
+    echo "DRY-RUN: kubectl apply kyverno $KYVERNO_VERSION + kueue $KUEUE_VERSION pinned manifests; wait rollouts"
+    return 0
+  fi
+  local cname car cqu
+  cname="$(terraform -chdir="$PILOT_DIR" output -raw cluster_name)"
+  car="$(terraform -chdir="$PILOT_DIR" output -raw karpenter_controller_iam_role_arn)"
+  cqu="$(terraform -chdir="$PILOT_DIR" output -raw karpenter_interruption_queue_name)"
+  run helm --kube-context "$PILOT_CONTEXT" upgrade --install karpenter \
+    oci://public.ecr.aws/karpenter/karpenter --version "$KARPENTER_VERSION" \
+    --namespace kube-system \
+    --set "settings.clusterName=$cname" \
+    --set "settings.interruptionQueue=$cqu" \
+    --set "serviceAccount.annotations.eks\.amazonaws\.com/role-arn=$car" \
+    --wait --timeout 10m
+  run kubectl --context "$PILOT_CONTEXT" apply --server-side --force-conflicts \
+    -f "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_VERSION}/install.yaml"
+  run kubectl --context "$PILOT_CONTEXT" -n kyverno wait deploy --all --for=condition=Available --timeout=300s
+  run kubectl --context "$PILOT_CONTEXT" apply --server-side --force-conflicts \
+    -f "https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml"
+  run kubectl --context "$PILOT_CONTEXT" -n kueue-system rollout status deploy/kueue-controller-manager --timeout=300s
+}
+
+# --- §4.6 Sync clusters/pilot/ onto the spoke + convergence ------------------
+step_sync() {
+  step "4.6/7 sync clusters/pilot/ + convergence (balloon, NodePools)"
+  [ "$MODE" = "plan" ] && { echo "plan mode: skipping sync"; return 0; }
   if [ "$DRY_RUN" = 1 ]; then
     echo "DRY-RUN: wait for warm-floor-balloon (platform-system) + NodePools on the spoke (<=10m)"
     return 0
@@ -368,6 +410,8 @@ step_odcr
 step_mgmt
 step_pilot
 step_register_spoke
+step_controllers
+step_sync
 step_policy
 step_scheduling
 step_evidence
