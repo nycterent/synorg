@@ -1,4 +1,7 @@
 site_name: synorg platform
+# file-style URLs (page.html, not page/) so the built site works over file://
+# — these docs are read locally from site/; flip back if we ever host them.
+use_directory_urls: false
 site_description: Multi-region GPU compute platform on EKS — docs organised by Diátaxis.
 docs_dir: docs
 site_dir: site
