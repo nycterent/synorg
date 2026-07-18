@@ -116,7 +116,7 @@ authenticate first (aws sso login / export AWS_PROFILE=...), then re-run. \
 Nothing was planned or applied."
   fi
   if [ "$MODE" = "apply" ]; then
-    need kubectl; need argocd; need kyverno   # fail fast, not mid-bootstrap
+    need kubectl; need argocd; need kyverno; need helm; need yq   # fail fast, not mid-bootstrap
   fi
 fi
 
@@ -217,6 +217,21 @@ step_mgmt() {
   tf_step "$MGMT_DIR" ${AUTO_APPROVE_ARGS[0]+"${AUTO_APPROVE_ARGS[@]}"}
   [ "$MODE" = "plan" ] && return 0
   update_kubeconfig "$MGMT_DIR" "$MGMT_CONTEXT" '<mgmt cluster_name output>'
+  # install.yaml is the SELF-MANAGE Application CR — it needs ArgoCD (CRDs +
+  # controller) already running. Its header documents the one-time out-of-band
+  # chart install; this is that step, with chart/version/values extracted FROM
+  # the CR itself so the bootstrap can never drift from the git source of truth.
+  local arepo achart aver avals
+  arepo="$(yq '.spec.source.repoURL' clusters/mgmt/argocd/install.yaml)"
+  achart="$(yq '.spec.source.chart' clusters/mgmt/argocd/install.yaml)"
+  aver="$(yq '.spec.source.targetRevision' clusters/mgmt/argocd/install.yaml)"
+  avals="$(mktemp)"
+  yq '.spec.source.helm.valuesObject' clusters/mgmt/argocd/install.yaml > "$avals"
+  run helm --kube-context "$MGMT_CONTEXT" upgrade --install argocd "$achart" \
+    --repo "$arepo" --version "$aver" \
+    --namespace argocd --create-namespace -f "$avals" --wait --timeout 10m
+  rm -f "$avals"
+  # Now ArgoCD adopts itself: the Application CR points at the same chart.
   run kubectl --context "$MGMT_CONTEXT" apply -f clusters/mgmt/argocd/install.yaml
   run kubectl --context "$MGMT_CONTEXT" -n argocd wait --for=condition=Available \
     deployment --all --timeout=600s
