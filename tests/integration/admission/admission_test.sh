@@ -34,7 +34,7 @@ RENDER_ONLY="${RENDER_ONLY:-0}"
 
 KCTX="${ADMISSION_TEST_CONTEXT:-kind-synorg}"
 TEST_NS="team-admission-e2e"     # team-* prefix: in scope for deny-inline-secrets
-BALLOON_NS="karpenter"           # namespace the balloon Deployment declares
+BALLOON_NS="platform-system"     # namespace the balloon Deployment declares
 
 # --- Helpers (mirrors scripts/validate.sh) ----------------------------------
 fail() { echo "ADMISSION FAIL: $*" >&2; exit 1; }
