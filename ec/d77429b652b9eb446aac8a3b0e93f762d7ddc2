@@ -1,0 +1,22 @@
+tests/e2e/run.sh
+  s_93f8bad0fe0b70::t_a0c48ffa6d98db 250
+  s_93f8bad0fe0b70::t_6abc4e95478940 225,229-243
+  s_93f8bad0fe0b70::t_25a4db8ce55e9d 394-410
+  s_93f8bad0fe0b70::t_aa20d6fc2eab94 244-245,415
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "ecd77429b652b9eb446aac8a3b0e93f762d7ddc2",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
