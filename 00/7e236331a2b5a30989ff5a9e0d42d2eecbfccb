@@ -1,0 +1,23 @@
+infra/terraform/regions/pilot/variables.tf
+  s_93f8bad0fe0b70::t_e218a9b9d3a491 7-12
+tests/e2e/run.sh
+  s_93f8bad0fe0b70::t_63b23cbb8ed120 151-156
+infra/terraform/regions/pilot/main.tf
+  s_93f8bad0fe0b70::t_44dbb9e6325e24 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "007e236331a2b5a30989ff5a9e0d42d2eecbfccb",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
