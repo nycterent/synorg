@@ -1,0 +1,23 @@
+tests/e2e/assertions.sh
+  s_e175eff4a5c206::t_2449105510303b 196
+  s_e175eff4a5c206::t_e16e336b41fa28 539-547
+  s_e175eff4a5c206::t_4728c0aca56ce1 426-432,435-436,439
+rehearsal/namespace.yaml
+  s_e175eff4a5c206::t_d073e3719a250f 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "38a6a7c9c2dfae69d9f5c23bddc0d1f8cd1e3241",
+  "prompts": {},
+  "sessions": {
+    "s_e175eff4a5c206": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b03c458-dacc-45e1-9075-0d9fc755d85f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
