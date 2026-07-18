@@ -1,0 +1,23 @@
+docs/adr/0001-multi-region-is-availability-arbitrage.md
+  s_93f8bad0fe0b70::t_352c0d33277e5a 1-23
+mkdocs.yml
+  s_93f8bad0fe0b70::t_48642fcc0d8c34 59-60
+docs/glossary.md
+  s_93f8bad0fe0b70::t_352c0d33277e5a 1-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "81d3b8999a9aa353bb8c30cbf0a708f4103f7a15",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
