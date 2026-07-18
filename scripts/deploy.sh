@@ -235,6 +235,10 @@ step_mgmt() {
   run kubectl --context "$MGMT_CONTEXT" apply -f clusters/mgmt/argocd/install.yaml
   run kubectl --context "$MGMT_CONTEXT" -n argocd wait --for=condition=Available \
     deployment --all --timeout=600s
+  # The ApplicationSets ARE the GitOps write API (regions + services). Without
+  # them nothing ever generates the pilot-* Applications — first live run
+  # proved the gap: the balloon never syncs and §4's convergence never comes.
+  run kubectl --context "$MGMT_CONTEXT" apply -f clusters/mgmt/appsets/
 }
 
 # --- §3 Pilot region cluster + Karpenter held fleet (U3) --------------------
@@ -259,23 +263,61 @@ step_pilot() {
   # Provisioning consumed reservation slots — re-assert nothing was released.
   guard_zero_net_release
   update_kubeconfig "$PILOT_DIR" "$PILOT_CONTEXT" '<pilot cluster_name output>'
-  # Runbook confirms: the warm floor is held and the three NodePools exist.
-  run kubectl --context "$PILOT_CONTEXT" -n platform-system get deploy warm-floor-balloon
-  run kubectl --context "$PILOT_CONTEXT" get nodepools
+  # The balloon/NodePool convergence checks live in §4: they can only pass
+  # AFTER the spoke is registered and the regions ApplicationSet has synced
+  # clusters/pilot/ onto it — at §3 nothing has synced yet (proven live).
 }
 
 # --- §4 Register the spoke with the hub -------------------------------------
 step_register_spoke() {
   step "4/7 register spoke with hub — deploy-platform.md §4"
   [ "$MODE" = "plan" ] && { echo "plan mode: skipping cluster registration"; return 0; }
+  # argocd runs in --core mode against a TEMP kubeconfig holding both contexts
+  # with mgmt as current — no `argocd login` bootstrap (there is no API-server
+  # session to create) and the operator's real kubeconfig current-context is
+  # never touched.
+  local akc="" acore=()
+  if [ "$DRY_RUN" != 1 ]; then
+    akc="$(mktemp)"
+    KUBECONFIG="$HOME/.kube/config" kubectl config view --flatten --minify --context "$MGMT_CONTEXT" > "$akc"
+    KUBECONFIG="$HOME/.kube/config:$akc" kubectl config view --flatten > "$akc.merged" && mv "$akc.merged" "$akc"
+    kubectl --kubeconfig "$akc" config use-context "$MGMT_CONTEXT" >/dev/null
+    acore=(--core)
+  fi
   # Idempotency pre-check: a re-run must not re-add (or error on) the spoke.
-  if [ "$DRY_RUN" != 1 ] && argocd cluster list -o name 2>/dev/null | grep -qx pilot; then
+  if [ "$DRY_RUN" != 1 ] && KUBECONFIG="$akc" argocd "${acore[@]}" cluster list -o name 2>/dev/null | grep -qx pilot; then
     echo "spoke 'pilot' already registered — skipping"
+    rm -f "$akc"
     return 0
   fi
   # Scoped spoke secret (assume-role limited to this spoke, never fleet-wide
-  # admin — KTD7). Requires `argocd login` against the hub first.
-  run argocd cluster add "$PILOT_CONTEXT" --name pilot --label synorg.io/role=spoke
+  # admin — KTD7).
+  if [ "$DRY_RUN" = 1 ]; then
+    run argocd cluster add "$PILOT_CONTEXT" --name pilot --label synorg.io/role=spoke
+  else
+    KUBECONFIG="$akc" argocd --core cluster add "$PILOT_CONTEXT" --name pilot \
+      --label synorg.io/role=spoke --yes \
+      || { rm -f "$akc"; fail "argocd cluster add failed (core mode)"; }
+    rm -f "$akc"
+  fi
+  # Convergence (moved from §3 — only possible after registration): the
+  # regions ApplicationSet generates the pilot-* apps for the new spoke; wait
+  # for the balloon and NodePools to arrive, bounded.
+  if [ "$DRY_RUN" = 1 ]; then
+    echo "DRY-RUN: wait for warm-floor-balloon (platform-system) + NodePools on the spoke (<=10m)"
+    return 0
+  fi
+  local i ok=0
+  for i in $(seq 1 60); do
+    if kubectl --context "$PILOT_CONTEXT" -n platform-system get deploy warm-floor-balloon >/dev/null 2>&1 \
+        && [ "$(kubectl --context "$PILOT_CONTEXT" get nodepools -o name 2>/dev/null | wc -l)" -ge 1 ]; then
+      ok=1; break
+    fi
+    sleep 10
+  done
+  [ "$ok" = 1 ] || fail "spoke registered but clusters/pilot/ never synced (balloon/NodePools absent after 10m) — check the regions ApplicationSet + Applications on the hub"
+  run kubectl --context "$PILOT_CONTEXT" -n platform-system get deploy warm-floor-balloon
+  run kubectl --context "$PILOT_CONTEXT" get nodepools
 }
 
 # --- §5 Policy plane (U5) ---------------------------------------------------
