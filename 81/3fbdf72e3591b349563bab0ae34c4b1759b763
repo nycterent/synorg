@@ -1,0 +1,38 @@
+clusters/pilot/observability/recording-rules.yaml
+  s_e175eff4a5c206::t_abedf0acab8f95 26-33
+tests/e2e/stand-ins/lendable-hold.yaml
+  s_e175eff4a5c206::t_adc324f85c1100 1-52
+tests/e2e/assertions.sh
+  s_e175eff4a5c206::t_ab8908b4cb36fc 52-54
+  s_e175eff4a5c206::t_76b4ee6148d393 379-386,388
+  s_e175eff4a5c206::t_bbc92392a59bdd 207-218,220,223
+  s_e175eff4a5c206::t_4f56eecde57d42 408-414
+tests/e2e/stand-ins/monitors.yaml
+  s_e175eff4a5c206::t_caabf3da2286c7 1-41
+tests/e2e/stand-ins/checkpoint-pv.yaml
+  s_e175eff4a5c206::t_0ef9773d6eda96 1-42
+tests/e2e/stand-ins/training-values.yaml
+  s_e175eff4a5c206::t_281a0a7a0a711b 1-31
+tests/e2e/run.sh
+  s_e175eff4a5c206::t_24841ab72f7952 64-74
+  s_e175eff4a5c206::t_bf8ed7e9a73288 356,360-382
+  s_e175eff4a5c206::t_a1a2c3230fe278 383-384
+tests/e2e/stand-ins/inference-values.yaml
+  s_e175eff4a5c206::t_18d8889f50090f 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "813fbdf72e3591b349563bab0ae34c4b1759b763",
+  "prompts": {},
+  "sessions": {
+    "s_e175eff4a5c206": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b03c458-dacc-45e1-9075-0d9fc755d85f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
