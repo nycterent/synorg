@@ -244,6 +244,14 @@ assert_lend() {
   echo "  lent nodes:"; lent_nodes | sed 's/^/    /'
   wait_until "a Running e2e-training pod on a lent node" "$E2E_LEND_TIMEOUT" training_pod_on_lent_node \
     || { echo "FAIL: lend — node lent but no training pod borrowed onto it within ${E2E_LEND_TIMEOUT}s"; return 1; }
+  # The lendable-hold stand-in did its bootstrap job (a pool node exists and
+  # is lent). Park it for the rest of the run: every wave-evicted hold pod
+  # would otherwise re-provision a fresh lendable node that the still-open
+  # window immediately re-lends — reclaim then chases its own tail past the
+  # ramp deadline (observed live: reclaim finished 128s late). The training
+  # job's own re-pending pods keep the pool occupied for the storm scenarios;
+  # cleanup restores the hold.
+  k -n platform-system scale deploy/lendable-hold --replicas=0 >/dev/null 2>&1 || true
   # Record the identity that must NOT survive the scrub (node-scrub.md Step 0).
   local node old_instance old_nodeclaim
   node="$(lent_nodes | head -1)"
@@ -486,6 +494,9 @@ e2e_cleanup() {
   step "assertions cleanup (loadgen, training workload, schedule, port-forward)"
   loadgen_stop
   training_delete
+  # Restore the lendable-hold bootstrap (parked after the lend assertion) so
+  # the kept stack is ready for the next --test without re-running --up.
+  k -n platform-system scale deploy/lendable-hold --replicas=1 >/dev/null 2>&1 || true
   restore_schedule || echo "  WARNING: could not restore the original schedule — restore it manually from $SCHEDULE_ORIG" >&2
   prom_stop
   return 0

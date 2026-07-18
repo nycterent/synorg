@@ -59,6 +59,14 @@ spec:
         - name: trainer
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Evidence-plane scrape contract (U9): the trainer image serves the
+          # checkpoint gate metrics (training_checkpoint_lost_seconds,
+          # checkpoint_store_write_throughput_mbps) on :9100. Declared here
+          # because PodMonitor port matching only sees DECLARED container
+          # ports — an undeclared port is silently relabel-dropped.
+          ports:
+            - name: metrics
+              containerPort: 9100
           command:
             {{- toYaml .Values.command | nindent 12 }}
           env:

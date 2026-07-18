@@ -89,6 +89,14 @@ rules:
   - apiGroups: [""]
     resources: ["pods/eviction"]
     verbs: ["create"]
+  # kubectl drain resolves each DaemonSet-owned pod's controller to honor
+  # --ignore-daemonsets; without this every drain errors on the aws-node/
+  # kube-proxy/device-plugin pods and falls through dirty (observed live:
+  # "cannot get resource daemonsets ... continuing command...", then
+  # drain_incomplete → nodeclaim delete without a clean eviction pass).
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
