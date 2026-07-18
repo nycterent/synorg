@@ -148,7 +148,12 @@ vpc_export_tfvars() {
   export TF_VAR_vpc_id="$vpc_id"
   export TF_VAR_subnet_ids="$subnets"
   export TF_VAR_control_plane_subnet_ids="$subnets"
-  echo "vpc: exported TF_VAR_vpc_id=$vpc_id TF_VAR_subnet_ids=$subnets (+ control_plane_subnet_ids)"
+  # A disposable-VPC run is driven from OUTSIDE the VPC (laptop/CI) — there is
+  # no VPN/peering into a throwaway network, so the API endpoints must be
+  # public for this run. Both modules share the variable name; KTD7's
+  # private-by-default posture is unchanged for operator-supplied VPCs.
+  export TF_VAR_cluster_endpoint_public_access=true
+  echo "vpc: exported TF_VAR_vpc_id=$vpc_id TF_VAR_subnet_ids=$subnets (+ control_plane_subnet_ids; public API endpoints for this disposable run)"
 }
 
 # vpc_up — create the disposable VPC and export its outputs for the cluster

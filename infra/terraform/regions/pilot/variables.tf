@@ -4,6 +4,12 @@ variable "region" {
   default     = "eu-west-1"
 }
 
+variable "cluster_endpoint_public_access" {
+  description = "Expose the spoke API server publicly. Off by default (same KTD7 posture as the hub); the disposable e2e VPC path enables it — a laptop-driven test run has no network path into a throwaway VPC."
+  type        = bool
+  default     = false
+}
+
 variable "cluster_name" {
   description = "Name of the pilot spoke EKS cluster."
   type        = string
