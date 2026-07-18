@@ -56,6 +56,8 @@ nav:
       - Run the real-GPU e2e: runbooks/e2e-gpu-run.md
   - Reference:
       - Conventions: conventions.md
+      - Glossary: glossary.md
+      - "ADR 0001: multi-region is arbitrage": adr/0001-multi-region-is-availability-arbitrage.md
       - Capability tiers: capability-tiers.md
       - Agent interface: agent-interface.md
       - SLO catalog: slo-catalog.md
