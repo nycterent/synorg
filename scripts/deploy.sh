@@ -287,7 +287,8 @@ step_register_spoke() {
     acore=(--core)
   fi
   # Idempotency pre-check: a re-run must not re-add (or error on) the spoke.
-  if [ "$DRY_RUN" != 1 ] && KUBECONFIG="$akc" argocd "${acore[@]}" cluster list -o name 2>/dev/null | grep -qx pilot; then
+  # (-o name is not a valid argocd output format; json+jq is version-stable.)
+  if [ "$DRY_RUN" != 1 ] && KUBECONFIG="$akc" argocd "${acore[@]}" cluster list -o json 2>/dev/null | jq -r '.[].name' | grep -qx pilot; then
     echo "spoke 'pilot' already registered — skipping"
     rm -f "$akc"
     return 0
@@ -298,7 +299,7 @@ step_register_spoke() {
     run argocd cluster add "$PILOT_CONTEXT" --name pilot --label synorg.io/role=spoke
   else
     KUBECONFIG="$akc" argocd --core cluster add "$PILOT_CONTEXT" --name pilot \
-      --label synorg.io/role=spoke --yes \
+      --label synorg.io/role=spoke --yes --upsert \
       || { rm -f "$akc"; fail "argocd cluster add failed (core mode)"; }
     rm -f "$akc"
   fi
