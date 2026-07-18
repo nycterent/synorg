@@ -70,6 +70,39 @@ MAX_TICKS="${MAX_TICKS:-0}"
 # and the loop uses no watch-style single long request.
 kc() { kubectl --cache-dir="$KUBECTL_CACHE_DIR" --request-timeout=30s "$@"; }
 
+# In-pod, kubectl's in-cluster-config fallback is SKIPPED whenever any config
+# override flag is set: clientcmd only falls back when the merged kubeconfig
+# equals the bare defaults, and kc's --request-timeout makes it "non-default"
+# — every call then dials the localhost:8080 default and the controller goes
+# blind (observed live on EKS; kind test.sh runs out-of-pod with a kubeconfig,
+# so the blind spot never showed there). Materialize the in-cluster identity
+# as an explicit kubeconfig so kc's flags can't disable it. token-file (not an
+# inline token) so the kubelet-rotated bound token is re-read per request.
+SA_DIR=/var/run/secrets/kubernetes.io/serviceaccount
+materialize_incluster_kubeconfig() {
+  [ -z "${KUBECONFIG:-}" ] && [ -f "$SA_DIR/token" ] || return 0
+  export KUBECONFIG="$KUBECTL_CACHE_DIR/kubeconfig"
+  cat > "$KUBECONFIG" <<EOF
+apiVersion: v1
+kind: Config
+clusters:
+  - name: in-cluster
+    cluster:
+      server: https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}
+      certificate-authority: $SA_DIR/ca.crt
+users:
+  - name: sa
+    user:
+      tokenFile: $SA_DIR/token
+contexts:
+  - name: in-cluster
+    context:
+      cluster: in-cluster
+      user: sa
+current-context: in-cluster
+EOF
+}
+
 # log LEVEL KEY=VALUE... — structured single-line logs (the evidence plane and
 # the kind-path reclaim assertions grep these).
 log() {
@@ -435,6 +468,7 @@ main() {
   command -v yq >/dev/null 2>&1 || { log error msg="yq not installed"; exit 1; }
   command -v jq >/dev/null 2>&1 || { log error msg="jq not installed"; exit 1; }
   mkdir -p "$KUBECTL_CACHE_DIR"
+  materialize_incluster_kubeconfig
   # Heartbeat contract (Deployment livenessProbe): the file's mtime says the
   # LOOP IS ALIVE — not that the tick succeeded. Touched at startup (so the
   # probe's initialDelay covers validate+first-tick without a race) and after
