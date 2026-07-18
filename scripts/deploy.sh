@@ -182,6 +182,15 @@ step_odcr() {
   local extra=()
   [ -f "$ODCR_DIR/held.tfvars" ] && extra+=(-var-file=held.tfvars)
   # Never -auto-approve here: touching live held capacity is human-gated.
+  # ONE exception, mirroring the e2e teardown rule: a cheap-mode run whose
+  # held.tfvars carries the cheap-overlay marker is declaring its OWN
+  # disposable reservation (1x g4dn) — that run also destroys it at --down.
+  # Without the marker, the human gate stands, exactly as before.
+  if [ "${E2E_CHEAP:-0}" = 1 ] && [ -f "$ODCR_DIR/held.tfvars" ] \
+      && head -1 "$ODCR_DIR/held.tfvars" | grep -q 'synorg-e2e-cheap-overlay'; then
+    echo "  ODCR: cheap run-owned reservation (marker-verified) — auto-approving this apply"
+    extra+=(-auto-approve)
+  fi
   tf_step "$ODCR_DIR" ${extra[0]+"${extra[@]}"}
   [ "$MODE" = "apply" ] && guard_zero_net_release
   return 0
