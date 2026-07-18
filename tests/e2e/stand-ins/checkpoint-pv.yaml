@@ -22,9 +22,13 @@ spec:
   claimRef:
     namespace: team-ml
     name: training-checkpoints
+  # /var/tmp itself, not a subdirectory: DirectoryOrCreate makes root-owned
+  # 0755 dirs, and the stub runs as uid 65532 — /var/tmp is sticky 1777 on
+  # every node, so checkpoints are writable with no fsGroup story (hostPath
+  # ignores fsGroup entirely).
   hostPath:
-    path: /var/tmp/synorg-e2e-checkpoints
-    type: DirectoryOrCreate
+    path: /var/tmp
+    type: Directory
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
