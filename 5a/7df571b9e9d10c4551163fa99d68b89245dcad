@@ -1,0 +1,49 @@
+tests/e2e/run.sh
+  s_93f8bad0fe0b70::t_03c112c6f584c0 100-105
+  s_93f8bad0fe0b70::t_1d7b879c1372bb 272-276
+  s_93f8bad0fe0b70::t_39d381f4f2a1ef 348-355
+  s_93f8bad0fe0b70::t_662bf3f9b523d3 133-164
+  s_93f8bad0fe0b70::t_4bbf7772807fbc 34-37
+  s_93f8bad0fe0b70::t_761ce4ce4e49cc 52-55
+  s_93f8bad0fe0b70::t_a5cb5be15b5269 290-294
+  s_93f8bad0fe0b70::t_8a6e8c5cf9b8d6 95-99
+  s_93f8bad0fe0b70::t_6605f6296e2448 257-265,267-270
+  s_93f8bad0fe0b70::t_f2d7b7d741cf8a 56-60,62
+  s_93f8bad0fe0b70::t_abacac2cfc7b21 365-376
+scripts/deploy.sh
+  s_93f8bad0fe0b70::t_79fd8bfaaf0cd3 33-37
+  s_93f8bad0fe0b70::t_d59a8492dfa3c2 62-63
+runbooks/e2e-gpu-run.md
+  s_93f8bad0fe0b70::t_dc47d95257f665 276-279,282,289
+  s_93f8bad0fe0b70::t_2432d8f1826bb2 280-281,283-288
+tests/e2e/vpc/variables.tf
+  s_93f8bad0fe0b70::t_28328fed63caa0 1-5
+tests/e2e/vpc/versions.tf
+  s_93f8bad0fe0b70::t_1a8764b5ff69e6 1-10
+tests/e2e/vpc/outputs.tf
+  s_93f8bad0fe0b70::t_16c7ab9c673898 1-9
+tests/e2e/vpc/main.tf
+  s_93f8bad0fe0b70::t_cfe512ce069381 1-80
+tests/e2e/cheap-overlay/apply.sh
+  s_93f8bad0fe0b70::t_029caa4032ecac 335-340
+  s_93f8bad0fe0b70::t_b38f52a78caeab 67-73,76-79
+  s_93f8bad0fe0b70::t_1c00cb0d736e62 102-116
+tests/e2e/vpc/.terraform.lock.hcl
+  s_93f8bad0fe0b70::t_e9c534885a5ba5 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "5a7df571b9e9d10c4551163fa99d68b89245dcad",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
