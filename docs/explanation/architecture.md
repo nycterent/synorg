@@ -24,6 +24,124 @@ hand.
 
 ![Hub-spoke topology: the git monorepo (the only write API) feeds the ArgoCD hub, which syncs each region spoke; inside a spoke Karpenter provisions the warm-floor, lendable, and web NodePools while Kueue, the lending controller, Kyverno + VAP, and Prometheus run alongside](../assets/diagrams/architecture-topology.svg){ .diagram }
 
+## Anatomy of the estate
+
+That shape is instantiated today as two EKS clusters, both v1.33, both in
+eu-west-1 — the EU pilot region ([region set](../region-set.md)). The canonical
+names live in [conventions](../conventions.md); everything below greps back to
+a Terraform module or a manifest in this repo.
+
+| Cluster | Role | Region | EKS | Managed node group | Defined in |
+|---|---|---|---|---|---|
+| `synorg-mgmt` | hub | eu-west-1 | 1.33 | `hub`: 2× m6i.large (max 4) | `infra/terraform/mgmt/` |
+| `synorg-pilot` | spoke | eu-west-1 | 1.33 | `system`: 2× m6i.large (max 3) — Karpenter + add-ons only | `infra/terraform/regions/pilot/` |
+
+The hub's data plane runs ArgoCD and nothing else, behind a private API
+endpoint. Future regions are more spokes, not more hub: registering a cluster
+secret labelled `synorg.io/role=spoke` is all the `regions` ApplicationSet
+needs to generate that spoke's Applications
+(`clusters/mgmt/appsets/regions.yaml`).
+
+### AZs and held capacity
+
+<div class="md-has-sidebar" markdown>
+<main markdown>
+
+The VPC and subnets are a pre-existing layer, passed into both clusters'
+Terraform as variables (`vpc_id`, `subnet_ids`) — the network itself is not
+defined in this repo. What the repo does pin is where the GPUs sit: the held
+On-Demand Capacity Reservations are per-AZ objects, all declared in
+`eu-west-1a` (`infra/terraform/regions/pilot/odcr/`):
+
+| Reservation | Instance type | Count |
+|---|---|---|
+| `p5-48xlarge-a` | `p5.48xlarge` | 4 |
+| `g6e-12xlarge-a` | `g6e.12xlarge` | 8 |
+| `g7e-2xlarge-a` | `g7e.2xlarge` | 3 |
+
+</main>
+<aside markdown>
+
+Counts are placeholders until the capture: each must equal the running ECS
+instance count for that flavor+AZ, recorded in the [capacity transition
+ledger](../capacity-transition.md) before apply.
+
+</aside>
+</div>
+
+The reservations are `open` (running instances associate in place), carry no
+end date, and are guarded by `prevent_destroy` — held capacity never lapses as
+a side effect. Each is tagged `synorg.io/held-capacity=true`, which is how the
+`gpu-held` EC2NodeClass discovers them: a new reservation joins the fleet with
+no manifest edit. Because the reservations are per-AZ, the warm floor they
+back is AZ-pinned with them. Alongside the cluster sits the training
+checkpoint bucket `synorg-pilot-training-checkpoints` (versioned,
+KMS-encrypted; `infra/terraform/regions/pilot/checkpoint-store/`).
+
+### Node pools
+
+<div class="md-has-sidebar" markdown>
+<main markdown>
+
+Karpenter provisions all pilot capacity beyond the system node group, from
+three NodePools (`clusters/pilot/karpenter/`):
+
+| Pool | Weight | Instance types | Capacity | Taint | Limit | Who lands there |
+|---|---|---|---|---|---|---|
+| `gpu-warm-floor` | 100 | `p5.48xlarge`, `g6e.12xlarge` | reserved, then on-demand | `pool.synorg.io/warm-floor` | 32 GPUs | inference + the balloon; never consolidated (`budgets: nodes: "0"`) |
+| `gpu-lendable` | 50 | `p5.48xlarge`, `g6e.12xlarge` | reserved, then on-demand | `pool.synorg.io/lendable`, plus `lending.synorg.io/lent` while lent | 64 GPUs | training admitted through Kueue during the window |
+| `web` | 10 | c/m/r families, generation > 5 | on-demand | none | 1000 CPU | web and system workloads, the lending controller |
+
+Both GPU pools reference the `gpu-held` EC2NodeClass; `web` has its own with
+no reservation terms, so web load can never consume held GPU capacity. Every
+node carries a `pool.synorg.io/name` label — Kueue's ResourceFlavors and the
+lending controller key off the pool names, never off instance types.
+
+</main>
+<aside markdown>
+
+`E2E_CHEAP=1` shrinks this surface for the real-GPU e2e: instance lists become
+`g4dn.xlarge` (1× T4; spot for the lendable pool), one floor node, two
+lendable — same physics, ~$5–10 a run
+(`tests/e2e/cheap-overlay/apply.sh`).
+
+</aside>
+</div>
+
+### What runs where
+
+![The two clusters and their namespaces: synorg-mgmt runs only the argocd namespace (ArgoCD, ApplicationSets, team AppProjects); synorg-pilot runs karpenter, kueue, lending, platform-system, observability, and team namespaces, drawing on the held ODCRs and the S3 checkpoint store](../assets/diagrams/cluster-anatomy.svg){ .diagram }
+
+On the hub everything lives in `argocd`: ArgoCD itself (Helm chart `argo-cd`
+7.7.0, installed once, self-managed thereafter), the `regions` and `services`
+ApplicationSets, and one AppProject per team. On the pilot, the `regions`
+ApplicationSet maps each `clusters/pilot/<dir>` to an Application named
+`pilot-<dir>` targeting a namespace of the same name:
+
+- `karpenter` — the synced NodePool and EC2NodeClass manifests (cluster-scoped
+  objects; the Karpenter controller itself is installed with the cluster and
+  runs on the system node group).
+- `kueue` — the ClusterQueues (`platform-lendable`, `training-borrow`),
+  ResourceFlavors, and PriorityClasses, all cluster-scoped. The Kueue
+  controller runs in `kueue-system` in the kind harness; its EKS install is
+  not yet defined in this repo.
+- `lending` — the lending controller and its schedule ConfigMap, region-local
+  so reclaim survives a hub outage.
+- `platform-system` — the warm-floor balloon Deployment that holds the floor
+  warm.
+- `observability` — kube-prometheus-stack (`65.x`), dcgm-exporter (`3.x`),
+  the evidence-plane recording rules, and the SLO definitions.
+- `team-<name>` — one namespace per team: its LocalQueue and its
+  golden-chart services (the `services` ApplicationSet renders
+  `clusters/pilot/services/*.yaml` into `team-{{.team}}`).
+
+The policy plane is cluster-scoped: five Kyverno ClusterPolicies applied from
+`policies/kyverno/` (deploy step 5). The Kyverno controller install is
+likewise not yet pinned in the repo. The [deploy
+runbook](../runbooks/deploy-platform.md) brings this estate up from zero in
+seven steps; the [test ladder](testing.md) proves it at increasing cost before
+any of it touches AWS.
+
 ## The four planes
 
 The system is easier to reason about as four planes than as a pile of
