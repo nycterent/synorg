@@ -29,6 +29,8 @@ theme:
 
 markdown_extensions:
   - admonition
+  - attr_list        # required (with md_in_html) for the landing page's grid cards
+  - md_in_html       # markdown inside <div class="grid cards" markdown> blocks
   - pymdownx.superfences
   - pymdownx.details
   - toc: {permalink: true}
