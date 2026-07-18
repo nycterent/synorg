@@ -1,0 +1,20 @@
+tests/e2e/vpc/main.tf
+  s_93f8bad0fe0b70::t_d3a3f58f914d5a 19-21
+  s_93f8bad0fe0b70::t_92d319b018a1f2 56-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "6f06db57d170ddff8098f76595596b73bf25a661",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
