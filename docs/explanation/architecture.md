@@ -1,4 +1,9 @@
-# Architecture
+---
+hide:
+  - toc
+---
+
+# Architecture { .tufte }
 
 This is the map an infrastructure engineer needs before touching the system:
 what the pieces are, how they fit, and where control and data flow. It explains

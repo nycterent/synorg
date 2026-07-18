@@ -1,4 +1,9 @@
-# The test ladder
+---
+hide:
+  - toc
+---
+
+# The test ladder { .tufte }
 
 Why the platform's verification is shaped as a ladder — `make validate` →
 `make integration` → `make smoke` → `make e2e` — and what each rung can and
@@ -8,6 +13,9 @@ to run the last, follow the [e2e runsheet](../runbooks/e2e-gpu-run.md). For the
 system the ladder tests, read [architecture](architecture.md).
 
 ## Why a ladder at all
+
+<div class="md-has-sidebar" markdown>
+<main markdown>
 
 No single test environment can be simultaneously cheap, fast, and real. An
 offline render costs nothing and finishes in seconds but sees no API server; a
@@ -19,8 +27,14 @@ of seeing it — a schema typo dies in `validate`, a wrong toleration in
 `integration`, a broken live install in `smoke`, and only GPU physics waits for
 `e2e`.
 
+</main>
+<aside markdown>
+
 The rungs are Makefile targets, so the ladder is discoverable from `make help`
 and each tier runs byte-for-byte the same locally and in CI.
+
+</aside>
+</div>
 
 ## What each tier proves — and cannot see
 
@@ -76,15 +90,25 @@ nothing about production.
 
 ## The kind/Karpenter boundary
 
+<div class="md-has-sidebar" markdown>
+<main markdown>
+
 Karpenter splits cleanly into a provider-agnostic core and an AWS provider, and
 the ladder splits with it. The core — NodePool scheduling, taints,
 consolidation, drift — runs on kind via the upstream kwok provider and is
 covered by the integration tier. Everything that talks to EC2 —
 `EC2NodeClass`, ODCR capture, subnet/AMI resolution, scrub-by-instance-
 termination, DCGM GPU-physical metrics — cannot exist on kind and defers to
-e2e. (`EC2NodeClass` *schema* stays covered offline by `make validate`.) The
-kwok provider's `karpenter.kwok.sh/*` instance types are test-only and never
-appear in the real overlays.
+e2e. The kwok provider's `karpenter.kwok.sh/*` instance types are test-only
+and never appear in the real overlays.
+
+</main>
+<aside markdown>
+
+`EC2NodeClass` *schema* stays covered offline by `make validate`.
+
+</aside>
+</div>
 
 One consequence: the kwok provider has no published image and is built from
 source with `go` + `ko`, so the kwok phase requires a Go toolchain —

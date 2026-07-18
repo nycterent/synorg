@@ -1,4 +1,9 @@
-# Why the platform lends GPUs
+---
+hide:
+  - toc
+---
+
+# Why the platform lends GPUs { .tufte }
 
 This is a discussion of the problem the platform exists to solve and the idea at
 its heart. It explains; it does not instruct. To run anything, see the
@@ -20,10 +25,22 @@ could have run on that idle fleet. The platform exists to end that double-pay:
 lend the idle held GPUs to training at night, and take them back before the
 morning customer ramp.
 
-The obstacle was never the economics; it was safety. On the old platform (static
-ECS auto-scaling groups, no scheduler-level preemption) there was no way to put
-training on an inference node and reliably evict it in time. Lending was unsafe,
-so it never happened. Making it safe is what the rest of the design is about.
+<div class="md-has-sidebar" markdown>
+<main markdown>
+
+The obstacle was never the economics; it was safety. On the old platform there
+was no way to put training on an inference node and reliably evict it in time.
+Lending was unsafe, so it never happened. Making it safe is what the rest of
+the design is about.
+
+</main>
+<aside markdown>
+
+The old platform: static ECS auto-scaling groups, no scheduler-level
+preemption.
+
+</aside>
+</div>
 
 ## The node that must be two things at once
 
@@ -47,11 +64,21 @@ Three separations carry the design, and each maps to a concrete mechanism.
 
 ![A 24-hour timeline of one node: a lendable node serves prod by day, goes idle in the evening, is lent to training overnight, drains through staged reclaim waves before the morning ramp, scrubs, and returns to prod; below it, the warm floor serves prod all day and never lends](../assets/diagrams/why-lending-day.svg){ .diagram }
 
+<div class="md-has-sidebar" markdown>
+<main markdown>
+
 **In time.** A node is not busy and free simultaneously; it is busy during a
 lending window at night and free during the day. The window opens off-peak and
 closes with staged reclaim waves that start *ahead* of the morning ramp, so
-capacity is already back before customers need it. Capacity intent lives in git
-— the schedule is a file, not a pager.
+capacity is already back before customers need it.
+
+</main>
+<aside markdown>
+
+Capacity intent lives in git — the schedule is a file, not a pager.
+
+</aside>
+</div>
 
 **In space.** Not every node lends. A never-lent *warm floor* is held aside
 permanently to carry the latency guarantee no matter what the lending pool is

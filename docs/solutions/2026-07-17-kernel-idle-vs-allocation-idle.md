@@ -1,4 +1,9 @@
-# Kernel-idle is not allocation-idle — and lending only fixes one of them
+---
+hide:
+  - toc
+---
+
+# Kernel-idle is not allocation-idle — and lending only fixes one of them { .tufte }
 
 **Date:** 2026-07-17
 **Context:** GPU utilization instrumentation and the lending thesis

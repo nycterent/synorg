@@ -71,3 +71,6 @@ nav:
 
 extra_css:
   - assets/extra.css
+  # Tufte-style layer for Explanation pages only — every rule is scoped to
+  # pages whose H1 carries { .tufte }; all other pages are unaffected.
+  - stylesheets/tufte-explanation.css

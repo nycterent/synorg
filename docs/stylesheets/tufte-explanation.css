@@ -1,0 +1,154 @@
+/* Tufte-style presentation for EXPLANATION pages only.
+ *
+ * Scoping mechanism
+ * -----------------
+ * This file is loaded globally via extra_css, but every rule is scoped to
+ * `.md-typeset:has(> h1.tufte)` — the content article of a page whose H1
+ * carries the `tufte` class. Explanation pages opt in from markdown via
+ * attr_list on their title:
+ *
+ *     # The test ladder { .tufte }
+ *
+ * which Material renders as `<h1 class="tufte" id="...">` as a direct child
+ * of `<article class="md-content__inner md-typeset">`. Pages without the
+ * marker (runbooks, reference, tutorials, home) match nothing here and are
+ * visually unchanged. `:has()` is supported by all current browsers.
+ *
+ * Margin notes
+ * ------------
+ * The margin-note mechanic (via md_in_html) is:
+ *
+ *     <div class="md-has-sidebar" markdown>
+ *     <main markdown>   ...body prose...   </main>
+ *     <aside markdown>  ...margin note...  </aside>
+ *     </div>
+ *
+ * On wide screens (>=60em) the aside sits in the right margin beside the
+ * main text; below 60em it folds inline as a small indented note block —
+ * reduced, never hidden.
+ *
+ * Fonts are self-hosted (no CDN): Crimson Pro variable woff2 (latin subset,
+ * weights 200-900, normal + italic) under stylesheets/fonts/, so the built
+ * site stays fully self-contained and works over file://.
+ *
+ * Note: 1rem = 20px (Material sets html { font-size: 125% }).
+ */
+
+@font-face {
+  font-family: "Crimson Pro";
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url("fonts/crimson-pro-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Crimson Pro";
+  font-style: italic;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url("fonts/crimson-pro-italic-latin.woff2") format("woff2");
+}
+
+.md-typeset:has(> h1.tufte) {
+  --tufte-serif: "Crimson Pro", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  /* ~65-70ch of Crimson Pro at the body size below. */
+  --tufte-measure: 29rem;
+
+  font-family: var(--tufte-serif);
+  /* Crimson Pro runs small; 0.9rem = 18px reads like Material's 16px sans. */
+  font-size: 0.9rem;
+  line-height: 1.55;
+
+  /* Serif headings, kept coherent with the body. Colors stay Material's. */
+  & h1,
+  & h2,
+  & h3,
+  & h4,
+  & h5,
+  & h6 {
+    font-family: var(--tufte-serif);
+  }
+
+  & h1 {
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+
+  & h2,
+  & h3 {
+    font-weight: 600;
+  }
+
+  /* Code (inline and blocks) keeps Material's mono styling: Material sets
+   * font-family directly on code/kbd/pre elements, so the serif set above
+   * never reaches them by inheritance. No override needed. */
+
+  /* Cap the prose column so the right margin stays free for asides.
+   * Allowlist of prose blocks only — tables, code blocks, diagrams, and
+   * grid cards keep their full width. */
+  & > :is(p, ul, ol, dl, blockquote, h1, h2, h3, h4, h5, h6, .admonition, details) {
+    max-width: var(--tufte-measure);
+  }
+
+  /* Diagram paragraphs (p > img.diagram) are exempt from the measure. */
+  & > p:has(> img.diagram) {
+    max-width: none;
+  }
+
+  /* --- Margin notes: wide layout (aside in the right margin) --- */
+  & .md-has-sidebar {
+    display: grid;
+    grid-template-columns: minmax(0, var(--tufte-measure)) minmax(8rem, 13rem);
+    column-gap: 1.6rem;
+    align-items: start;
+  }
+
+  & .md-has-sidebar > main {
+    grid-column: 1;
+    min-width: 0;
+  }
+
+  /* Keep the measure on main-column prose even when the grid collapses to
+   * block below 60em (harmless in grid mode — the column is already capped). */
+  & .md-has-sidebar > main > * {
+    max-width: var(--tufte-measure);
+  }
+
+  & .md-has-sidebar > aside {
+    grid-column: 2;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    color: var(--md-default-fg-color--light);
+    /* Optically align with the top of the main paragraph beside it. */
+    padding-top: 1.05rem;
+  }
+
+  & .md-has-sidebar > main > :first-child,
+  & .md-has-sidebar > aside > :first-child {
+    margin-top: 1em;
+  }
+
+  & .md-has-sidebar > aside > :first-child {
+    margin-top: 0;
+  }
+
+  & .md-has-sidebar > aside p {
+    margin: 0 0 0.6em;
+  }
+}
+
+/* --- Margin notes: narrow collapse (<60em, Material's tablet breakpoint).
+ * The aside folds inline as a subtle indented note block — never hidden. */
+@media screen and (max-width: 59.9375em) {
+  .md-typeset:has(> h1.tufte) .md-has-sidebar {
+    display: block;
+  }
+
+  .md-typeset:has(> h1.tufte) .md-has-sidebar > aside {
+    margin: 0.8rem 0 0.8rem 0.8rem;
+    padding: 0.1rem 0 0.1rem 0.8rem;
+    border-left: 2px solid var(--md-default-fg-color--lighter);
+    max-width: calc(var(--tufte-measure) - 1.6rem);
+  }
+}
