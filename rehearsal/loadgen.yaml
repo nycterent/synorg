@@ -81,6 +81,10 @@ spec:
       restartPolicy: Always
       securityContext:
         runAsNonRoot: true
+        # grafana/k6 declares USER "k6" (non-numeric): with runAsNonRoot the
+        # kubelet cannot verify it and refuses the container
+        # (CreateContainerConfigError) — pin the image's uid explicitly.
+        runAsUser: 12345
         seccompProfile:
           type: RuntimeDefault
       containers:
