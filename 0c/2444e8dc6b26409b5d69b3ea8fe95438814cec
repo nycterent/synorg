@@ -1,0 +1,26 @@
+tests/e2e/assertions.sh
+  s_e175eff4a5c206::t_f16e1f4d86787b 247-254
+  s_e175eff4a5c206::t_1270fa69cd5331 497-499
+clusters/pilot/lending/lending-controller.yaml
+  s_e175eff4a5c206::t_3bdc1df3dfed2c 92-99
+charts/training-job/templates/job.yaml
+  s_e175eff4a5c206::t_ea7daba602853c 62-69
+tests/e2e/stand-ins/monitors.yaml
+  s_e175eff4a5c206::t_054e22bf2d09f3 25-27,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "0c2444e8dc6b26409b5d69b3ea8fe95438814cec",
+  "prompts": {},
+  "sessions": {
+    "s_e175eff4a5c206": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b03c458-dacc-45e1-9075-0d9fc755d85f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
