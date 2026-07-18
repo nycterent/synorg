@@ -193,7 +193,7 @@ restore_schedule() {
 # Synthetic inference ramp — the game-day loadgen (runbooks/game-day.md Step 1/3).
 loadgen_start() {
   local ramp_min="$1"
-  k apply -f rehearsal/scenarios.yaml -f rehearsal/loadgen.yaml >/dev/null
+  k apply -f rehearsal/namespace.yaml -f rehearsal/scenarios.yaml -f rehearsal/loadgen.yaml >/dev/null
   k -n rehearsal set env deploy/game-day-loadgen \
     PEAK_RPS="$E2E_PEAK_RPS" RAMP_MINUTES="$ramp_min" TARGET_URL="$E2E_TARGET_URL" >/dev/null
   k -n rehearsal scale deploy/game-day-loadgen --replicas=1 >/dev/null
@@ -423,14 +423,20 @@ assert_game_day_storm() {
 # --- 6. ledger: zero net capacity release ------------------------------------
 assert_ledger_zero_net_release() {
   step "assert 6/6: ledger — zero net capacity release (capacity-carve.md invariant)"
-  [ -f "$LEDGER_ENTRY_FILE" ] || { echo "FAIL: ledger — no entry snapshot to compare against"; return 1; }
+  # Baseline is the TEST-START snapshot (taken in e2e_assert_all), not the
+  # run-entry one: --up legitimately creates the run-owned cheap ODCR after
+  # the run-entry snapshot, so comparing against run-entry would flag every
+  # kept-stack --test as drift. This assertion's scope is "the game-day
+  # physics released/created no capacity"; the run-level fresh==fresh
+  # invariant stays with run.sh's ledger_assert_unchanged at --down.
+  [ -f "$LEDGER_TEST_ENTRY_FILE" ] || { echo "FAIL: ledger — no test-start snapshot to compare against"; return 1; }
   local now_file="$E2E_STATE_DIR/ledger-test.txt"
   ledger_read > "$now_file" || { echo "FAIL: ledger — cannot read reservation state"; return 1; }
-  if ! diff -u "$LEDGER_ENTRY_FILE" "$now_file"; then
-    echo "FAIL: ledger — reservation totals/held drifted during the run (capacity released or lost)"
+  if ! diff -u "$LEDGER_TEST_ENTRY_FILE" "$now_file"; then
+    echo "FAIL: ledger — reservation totals/held drifted during the test (capacity released or lost)"
     return 1
   fi
-  echo "PASS: ledger — reservation totals/held identical to the entry snapshot"
+  echo "PASS: ledger — reservation totals/held identical to the test-start snapshot"
 }
 
 # --- Cleanup + trap chaining -------------------------------------------------
@@ -530,6 +536,15 @@ e2e_restore_traps() {
 e2e_assert_all() {
   local failed=0 a
   e2e_install_cleanup_trap
+  # Test-start ledger baseline for assert 6 (see its comment): captured before
+  # any assertion touches the cluster. An unreadable ledger fails HERE — a run
+  # that can't prove its capacity baseline has no verdict.
+  LEDGER_TEST_ENTRY_FILE="$E2E_STATE_DIR/ledger-test-entry.txt"
+  if ! ledger_read > "$LEDGER_TEST_ENTRY_FILE"; then
+    echo "FAIL: ledger — cannot read reservation state at test start (no baseline, no verdict)"
+    e2e_restore_traps
+    return 1
+  fi
   if ! prom_start; then
     echo "FAIL: evidence plane unreachable — an unmeasured run has no verdict (game-day.md abort)"
     e2e_cleanup          # includes prom_stop — no leaked port-forward

@@ -1,0 +1,9 @@
+# Rehearsal namespace — game-day loadgen + scenarios ConfigMap live here, on
+# demand (README): nothing in clusters/ creates it, so the harness applies this
+# first. Web-pool workloads only; never a GPU node under test.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rehearsal
+  labels:
+    app.kubernetes.io/name: game-day
