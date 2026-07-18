@@ -1,0 +1,21 @@
+scripts/deploy.sh
+  s_93f8bad0fe0b70::t_88497825e76353 162-172,175-180
+tests/e2e/run.sh
+  s_93f8bad0fe0b70::t_d54b20235c3fb9 400-404,407-425
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "4f8e4fb09ba3eb7165b83587162f5e350dfd2c96",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
