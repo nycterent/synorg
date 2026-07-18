@@ -412,6 +412,24 @@ phase_down() {
     vpc_export_tfvars \
       || echo "DOWN WARN: cannot read $VPC_DIR outputs — cluster destroys may lack TF_VAR_vpc_id/subnet_ids" >&2
   fi
+  # Karpenter-provisioned nodes are NOT terraform-managed: destroying the
+  # pilot cluster first orphans them running, and their ENIs then pin the
+  # subnets/IGW so the VPC destroy hangs forever (observed live: 3 orphans,
+  # subnets stuck 17+ min). Terminate everything Karpenter launched for the
+  # pilot BEFORE the terraform destroys; scoped by the cluster ownership tag
+  # AND the nodepool tag so nothing else can ever match.
+  local orphans
+  orphans="$(aws ec2 describe-instances --region "$REGION" \
+    --filters "Name=tag:kubernetes.io/cluster/${PILOT_CONTEXT},Values=owned" \
+              "Name=tag-key,Values=karpenter.sh/nodepool" \
+              "Name=instance-state-name,Values=running,pending,stopping,stopped" \
+    --query 'Reservations[].Instances[].InstanceId' --output text 2>/dev/null | tr '\t' ' ')"
+  if [ -n "${orphans// /}" ]; then
+    echo "  down: terminating Karpenter-provisioned pilot nodes first: $orphans"
+    # shellcheck disable=SC2086
+    aws ec2 terminate-instances --region "$REGION" --instance-ids $orphans >/dev/null \
+      || { echo "DOWN FAIL: could not terminate Karpenter nodes ($orphans) — VPC destroy will hang" >&2; rc=1; }
+  fi
   for dir in "$CKPT_DIR" "$PILOT_DIR" "$MGMT_DIR"; do
     if terraform -chdir="$dir" init -input=false \
         && terraform -chdir="$dir" destroy -input=false -auto-approve; then
