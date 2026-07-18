@@ -42,12 +42,20 @@ E2E_STATE_DIR="${E2E_STATE_DIR:-build/e2e}"    # snapshots + logs (workflow arti
 E2E_CONFIRM="${E2E_CONFIRM:-}"                 # yes = skip the interactive confirm
 E2E_KEEP="${E2E_KEEP:-0}"                      # 1 = leave the pilot up on failure
 E2E_UP_TIMEOUT="${E2E_UP_TIMEOUT:-2700}"       # seconds for deploy + node readiness
+E2E_CHEAP="${E2E_CHEAP:-0}"                    # 1 = cheap-run sizing overlay: g4dn.xlarge spot,
+                                               # 1-GPU nodes (tests/e2e/cheap-overlay/; runsheet
+                                               # "Cheap mode"). Default OFF = production profile.
+CHEAP_OVERLAY="tests/e2e/cheap-overlay/apply.sh"
 
 # Spot GPU vCPU quota (g5/g6 land here). Runsheet Step 2 names these; --check
 # only DESCRIBES them (read-only) and hints, it never requests an increase.
 SPOT_GVT_QUOTA_CODE="L-3819A6DF"     # "All G and VT Spot Instance Requests" (vCPUs)
 ONDEMAND_GVT_QUOTA_CODE="L-DB2E81BA" # "Running On-Demand G and VT instances" (vCPUs)
-MIN_GPU_VCPUS_HINT="${MIN_GPU_VCPUS_HINT:-48}" # 1x g6.12xlarge + headroom
+if [ "$E2E_CHEAP" = 1 ]; then
+  MIN_GPU_VCPUS_HINT="${MIN_GPU_VCPUS_HINT:-16}" # cheap: g4dn.xlarge = 4 vCPU; 2 spot nodes + headroom
+else
+  MIN_GPU_VCPUS_HINT="${MIN_GPU_VCPUS_HINT:-48}" # 1x g6.12xlarge + headroom
+fi
 
 usage() {
   cat <<'EOF'
@@ -66,6 +74,10 @@ runbooks/e2e-gpu-run.md (READ IT FIRST — quota, feature gate, relabel gotchas)
 
 Environment:
   E2E_CONFIRM=yes  auto-confirm the full cycle (workflow_dispatch sets this)
+  E2E_CHEAP=1      cheap-run sizing overlay: g4dn.xlarge spot, 1-GPU nodes,
+                   minimal counts (tests/e2e/cheap-overlay/; runsheet "Cheap
+                   mode"). NOT the production instance profile. Export it for
+                   EVERY phase of a cheap run (--check/--up/--test/--down).
   E2E_KEEP=1       keep the pilot up when a phase fails (debugging)
   E2E_STATE_DIR    snapshots/logs dir (default build/e2e)
   AWS_REGION       region (default eu-west-1); PILOT_CONTEXT/MGMT_CONTEXT as
@@ -81,6 +93,17 @@ EOF
 fail() { echo "E2E FAIL: $*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || fail "'$1' not installed — required for the e2e tier"; }
 step() { echo; echo "==> $*"; }
+
+# Loud, unmissable notice whenever the cheap overlay is active — a cheap run
+# must never be mistaken for the production-profile proof (runsheet "Cheap
+# mode" carries the full scope caveats).
+cheap_banner() {
+  [ "$E2E_CHEAP" = 1 ] || return 0
+  echo "############################################################################"
+  echo "# CHEAP MODE: g4dn.xlarge spot, 1-GPU nodes — not the production instance  #"
+  echo "# profile (tests/e2e/cheap-overlay/; runbooks/e2e-gpu-run.md 'Cheap mode') #"
+  echo "############################################################################"
+}
 
 PHASE="full"
 while [ $# -gt 0 ]; do
@@ -161,6 +184,7 @@ e2e run — STOP, follow runbooks/capacity-carve.md abort semantics before anyth
 # --- Phases ------------------------------------------------------------------
 phase_check() {
   step "check: tools + credentials + quota sanity (no mutation, no deploy)"
+  cheap_banner
   gate
   echo "credentials OK: $(aws sts get-caller-identity --query Arn --output text)"
   # Quota sanity HINTS (read-only). g5/g6 spot capacity draws from the
@@ -184,6 +208,7 @@ phase_check() {
 
 phase_up() {
   step "up: deploy the spot-GPU pilot (scripts/deploy.sh, runbook order)"
+  cheap_banner
   gate
   # Entry snapshot BEFORE the deploy so the zero-net-release invariant spans
   # from --up to the exit assert in --down — one bracket across the whole run,
@@ -191,10 +216,25 @@ phase_up() {
   # sharing $E2E_STATE_DIR. phase_full already snapshotted; the guard keeps
   # this idempotent.
   [ -f "$LEDGER_ENTRY_FILE" ] || ledger_snapshot_entry
+  # Cheap mode: declare the 1x g4dn ODCR BEFORE deploy so step_odcr's
+  # -var-file=held.tfvars pickup sees the cheap counts; the capture itself must
+  # be pre-applied from the same tfvars (runsheet "Cheap mode") so terraform
+  # sees no changes and the non-interactive --up proceeds.
+  if [ "$E2E_CHEAP" = 1 ]; then
+    bash "$CHEAP_OVERLAY" write-tfvars
+  fi
   # ODCR is applied WITHOUT -auto-approve by design (deploy.sh); for e2e the
   # capture must be pre-existing (no changes => terraform does not prompt) —
   # runsheet Step 1. All other modules auto-approve.
   bash scripts/deploy.sh --auto-approve
+  # Cheap mode: AFTER the deploy converges, resize the live sizing surface
+  # (NodePools, balloon, Kueue quotas) to g4dn.xlarge counts. The overlay
+  # detaches ArgoCD automated sync for exactly those apps first — selfHeal
+  # would otherwise revert the patches (see cheap-overlay/apply.sh header).
+  if [ "$E2E_CHEAP" = 1 ]; then
+    step "up: cheap overlay — resize pools/quotas to g4dn.xlarge (ArgoCD-sticky, see overlay header)"
+    bash "$CHEAP_OVERLAY" apply
+  fi
   step "up: wait for GPU nodes schedulable + balloon floor (bounded)"
   local deadline=$(( $(date +%s) + E2E_UP_TIMEOUT ))
   until kubectl --context "$PILOT_CONTEXT" get nodes 2>/dev/null | grep -q ' Ready'; do
@@ -238,6 +278,13 @@ phase_down() {
       rc=1
     fi
   done
+  # Cheap mode: remove the overlay's ODCR tfvars — the run leaves no trace on
+  # the working tree. (The clusters carried every live overlay patch; those
+  # died with the destroy above. The cheap ODCR itself is NOT destroyed —
+  # same human-gated rule as production; runsheet "Cheap mode" billing note.)
+  if [ "$E2E_CHEAP" = 1 ]; then
+    bash "$CHEAP_OVERLAY" clean || rc=1
+  fi
   if [ "$rc" -eq 0 ]; then
     echo "DOWN OK — pilot destroyed; held reservations untouched"
   fi

@@ -52,6 +52,11 @@ Do not run anything until you have read, in this order:
   nodes (g6.12xlarge spot ≈ $1.5-2.5/h each, region-dependent) + NAT/EBS/S3
   for ~half a day: plan on **$30-80 per full run**. Review actual spend after
   teardown (post-run checklist).
+- **Cheap mode (`E2E_CHEAP=1`): plan on ~$5-10 per full run** — 1-3
+  g4dn.xlarge nodes (1× T4, spot ≈ $0.15-0.25/h each); the two EKS control
+  planes and NAT dominate the bill. Scope caveats and mechanism: the
+  [Cheap mode](#cheap-mode-e2e_cheap1--g4dnxlarge-spot-sizing-overlay)
+  section below.
 - **Time budget:** ~45 min deploy, ~60-90 min physics + game-day (repeatRuns
   multiplies), ~20 min teardown. Block **3-4 hours**; do not start a run you
   cannot finish — a half-done run left up burns GPU-hours.
@@ -71,6 +76,17 @@ aws service-quotas get-service-quota --region "$AWS_REGION" \
 # Require: >= 48 vCPUs (one g6.12xlarge + headroom). If lower:
 aws service-quotas request-service-quota-increase --region "$AWS_REGION" \
   --service-code ec2 --quota-code L-3819A6DF --desired-value 96
+```
+
+**Cheap-mode ask:** a cheap run (`E2E_CHEAP=1`) needs only **≥ 16 vCPUs** on
+`L-3819A6DF` — g4dn.xlarge is 4 vCPU, so two lendable spot nodes are 8 vCPUs
+plus headroom. `--check` under `E2E_CHEAP=1` validates against 16 instead of
+48. File whichever ask matches the run you booked (both, if the full-size run
+follows the cheap shakeout):
+
+```bash
+aws service-quotas request-service-quota-increase --region "$AWS_REGION" \
+  --service-code ec2 --quota-code L-3819A6DF --desired-value 16   # cheap mode only
 ```
 
 `make e2e ARGS=--check` (Step 7) re-reads both quotas and hints, but it only
@@ -238,6 +254,91 @@ teardown skip is the `keep-on-failure` input when the test step failed.
 - [ ] Game-day report recorded per `runbooks/game-day.md` Step 8 (per-scenario,
       per-run tables + verdict) — this is the Phase 2→3 gate evidence.
 - [ ] Logs/artifacts archived: `$E2E_STATE_DIR/` (CI uploads it automatically).
+
+## Cheap mode (`E2E_CHEAP=1`) — g4dn.xlarge spot sizing overlay
+
+An env-gated overlay (`tests/e2e/cheap-overlay/apply.sh`, wired into
+`tests/e2e/run.sh`; **default OFF**) that runs the same e2e on 1-GPU
+g4dn.xlarge nodes for ~$5-10 instead of $30-80. The checked-in production
+manifests (the pinned p5/g6e instance lists, pool sizes, quotas, ODCR counts)
+are **never edited** — the overlay transforms the *live* objects after the
+deploy converges, and dies with the teardown. Export `E2E_CHEAP=1` for
+**every** phase (`--check`, `--up`, `--test`, `--down`); every phase prints an
+unmissable `CHEAP MODE` banner so a cheap run can never be mistaken for the
+production-profile proof.
+
+**Cheap mode intentionally exercises the same physics with 1-GPU nodes**: the
+lent-taint flips, staged reclaim waves, NodeClaim-delete scrub with a
+new-instance-id proof, balloon preemption, borrowingLimit curve, and the
+zero-net-release ledger all run the identical code paths — only the node size
+and counts shrink.
+
+What the overlay resizes (one coherent set — the hand-synced cross-file
+invariants from `docs/residual-review-findings/feat-eks-gpu-platform.md`,
+re-asserted by the script's `COHERENCE` output on every render/apply):
+
+| Surface | Production (committed) | Cheap (live overlay) |
+|---|---|---|
+| NodePool instance types (both GPU pools) | `p5.48xlarge`, `g6e.12xlarge` | `g4dn.xlarge` (1× T4) |
+| `gpu-lendable` capacity types | `reserved`, `on-demand` | `spot`, `on-demand` (**test-only spot**) |
+| `gpu-lendable` GPU limit | 64 | 2 (= 2 nodes × 1 GPU) |
+| `gpu-warm-floor` GPU limit | 32 | 1 (= 1 node × 1 GPU) |
+| `warm-floor-balloon` replicas | 4 | 1 (× 1 GPU/pod = floor GPU count) |
+| Kueue `platform-lendable` nominalQuota | 64 | 2 |
+| Kueue `training-borrow` borrowingLimit | 64 | 2 |
+| ODCR `held_reservations` | 4× p5 + 8× g6e + 3× g7e | 1× g4dn.xlarge (`held.tfvars`) |
+
+The lending schedule needs **no** overlay: `gpuLimitPct` is a percentage the
+controller multiplies against *live* lendable capacity at tick time
+(`controllers/lending/reconcile.sh reconcile_borrow_limit`), so the curve
+scales down automatically; no absolute GPU count appears in the schedule.
+
+**Mechanism (why live patches stick — ArgoCD):** `clusters/pilot/*` converges
+via the `regions` ApplicationSet with `selfHeal: true`, which reverts bare
+kubectl patches; and the ApplicationSet controller owns the generated
+Application specs, so patching an Application alone does not stick either. The
+ApplicationSets themselves are unmanaged (nothing reconciles
+`clusters/mgmt/appsets/`), so the overlay patches the **ApplicationSet**
+(`ignoreApplicationDifferences` on `/spec/syncPolicy`), drops `automated` sync
+from exactly `pilot-karpenter` and `pilot-kueue`, then resizes the live
+objects — sticky for the run, scoped to the sizing surface, and destroyed with
+the clusters at `--down`. If the ApplicationSets were never bootstrapped, the
+detach is skipped (nothing reconciles those objects, so direct patches hold).
+The only host-side artifact is `infra/terraform/regions/pilot/odcr/held.tfvars`
+(marker-tagged), which `--down` removes.
+
+**Cheap-mode ODCR (read before `--up`):**
+
+- Pre-apply the 1× g4dn capture from the same tfvars the overlay writes
+  (`tests/e2e/cheap-overlay/apply.sh write-tfvars`, then
+  `terraform -chdir=infra/terraform/regions/pilot/odcr apply -var-file=held.tfvars`,
+  human-gated as always) — `--up` needs a no-changes ODCR plan to proceed
+  non-interactively, exactly like the production runsheet Step 1.
+- **A held ODCR bills like a running instance from the moment it exists** —
+  create it right before the run and keep the carve window short. g4dn.xlarge
+  on-demand ≈ $0.5-0.7/h; hours, not days.
+- Teardown never destroys the ODCR (same human-gated rule as production), so
+  **release the cheap reservation deliberately after the run** per
+  `runbooks/capacity-carve.md` — it keeps billing until you do.
+- **Sandbox account only:** the cheap tfvars replaces the whole
+  `held_reservations` map. In an account whose state holds the production
+  reservations, terraform would plan their destroy and `prevent_destroy`
+  hard-errors — that guard firing means you pointed cheap mode at the wrong
+  account. Use an account whose ODCR state was created from the cheap tfvars.
+
+**What a cheap run does NOT prove** (honest scope — rerun full-size for
+these):
+
+- **Multi-GPU-per-node behavior**: per-GPU bin-packing, partial-node borrow,
+  balloon-holds-one-of-8-GPUs semantics, NVLink/VRAM-scrub nuance on 8-GPU
+  hosts — every node here has exactly one GPU.
+- **p5/g6e-class capacity dynamics**: real ODCR contention, reserved-capacity
+  fallback under scarcity, p5 launch latencies and interruption behavior.
+- **Production quota/scale envelopes**: the 48+ vCPU spot footprint, multi-AZ
+  spread, consolidation pressure at fleet size.
+- The **spot lendable pool is a test-only liberty** — production lendable is
+  `reserved`/`on-demand`; spot interruptions during a cheap run are noise the
+  production profile does not have.
 
 ## Abort / invariant semantics
 
