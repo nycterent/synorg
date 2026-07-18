@@ -1,0 +1,21 @@
+docs/TODO-docs.md
+  s_93f8bad0fe0b70::t_161a2358c6c2b0 38
+docs/explanation/testing.md
+  s_93f8bad0fe0b70::t_17b0b1fc7896e7 128-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "b99e6ad6ca553b3cc9174cf227fd137560af1d9e",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
