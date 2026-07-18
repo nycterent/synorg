@@ -389,6 +389,14 @@ step_sync() {
     for d in karpenter kueue lending; do
       run kubectl --context "$PILOT_CONTEXT" apply --server-side --force-conflicts -R -f "clusters/pilot/$d/"
     done
+    # The lending-controller manifest pins the canonical registry.synorg.io
+    # image, which is not pushed anywhere yet — a direct-sync run must supply
+    # the image it actually built (e.g. the run's ECR push) or the deploy
+    # ends in ImagePullBackOff.
+    if [ -n "${DEPLOY_LENDING_IMAGE:-}" ]; then
+      run kubectl --context "$PILOT_CONTEXT" -n lending set image \
+        deploy/lending-controller "controller=$DEPLOY_LENDING_IMAGE"
+    fi
     # Observability: install the same charts the Application CRs pin —
     # specs yq-extracted from the CRs so nothing drifts from git.
     local doc chart repo ver vals
