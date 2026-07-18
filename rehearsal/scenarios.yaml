@@ -16,6 +16,13 @@
 # contract and naive consumers (jq after `yq -o json`, agents) do not resolve
 # YAML aliases — an un-exploded `*alias` would read as a literal string. Explicit
 # beats clever for a read-API.
+#
+# Checkpoint gates read *_over_time windows, not instants: a reclaim wave
+# kills the trainer's node mid-scenario, the pod is Pending while its
+# replacement boots, and its gauges go Prometheus-stale in exactly the
+# minutes where lost-work peaks — an instant query returns "no samples" at
+# the moment the gate matters most. The 10m window spans one scenario run
+# (600s settle) and keeps the worst observed value on the record.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -55,10 +62,10 @@ data:
           - metric: render_start_seconds:p95:reclaim_window
             comparison: "<="
             param: renderStartP95TargetSeconds
-          - metric: max(training_checkpoint_lost_seconds)
+          - metric: max(max_over_time(training_checkpoint_lost_seconds[10m]))
             comparison: "<="
             param: trainingLostWorkMaxSeconds
-          - metric: min(checkpoint_store_write_throughput_mbps)
+          - metric: min(min_over_time(checkpoint_store_write_throughput_mbps[10m]))
             comparison: ">="
             param: sharedStoreMinThroughputMBps
 
@@ -78,10 +85,10 @@ data:
           - metric: render_start_seconds:p95:reclaim_window
             comparison: "<="
             param: renderStartP95TargetSeconds
-          - metric: max(training_checkpoint_lost_seconds)
+          - metric: max(max_over_time(training_checkpoint_lost_seconds[10m]))
             comparison: "<="
             param: trainingLostWorkMaxSeconds
-          - metric: min(checkpoint_store_write_throughput_mbps)
+          - metric: min(min_over_time(checkpoint_store_write_throughput_mbps[10m]))
             comparison: ">="
             param: sharedStoreMinThroughputMBps
 
@@ -100,10 +107,10 @@ data:
           - metric: render_start_seconds:p95:reclaim_window
             comparison: "<="
             param: renderStartP95TargetSeconds
-          - metric: max(training_checkpoint_lost_seconds)
+          - metric: max(max_over_time(training_checkpoint_lost_seconds[10m]))
             comparison: "<="
             param: trainingLostWorkMaxSeconds
-          - metric: min(checkpoint_store_write_throughput_mbps)
+          - metric: min(min_over_time(checkpoint_store_write_throughput_mbps[10m]))
             comparison: ">="
             param: sharedStoreMinThroughputMBps
 
@@ -127,9 +134,9 @@ data:
           - metric: render_start_seconds:p95:reclaim_window
             comparison: "<="
             param: renderStartP95TargetSeconds
-          - metric: max(training_checkpoint_lost_seconds)
+          - metric: max(max_over_time(training_checkpoint_lost_seconds[10m]))
             comparison: "<="
             param: trainingLostWorkMaxSeconds
-          - metric: min(checkpoint_store_write_throughput_mbps)
+          - metric: min(min_over_time(checkpoint_store_write_throughput_mbps[10m]))
             comparison: ">="
             param: sharedStoreMinThroughputMBps
