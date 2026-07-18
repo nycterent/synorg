@@ -58,6 +58,7 @@ nav:
       - Conventions: conventions.md
       - Glossary: glossary.md
       - "ADR 0001: multi-region is arbitrage": adr/0001-multi-region-is-availability-arbitrage.md
+      - "ADR 0002: MultiKueue training arbitrage": adr/0002-training-arbitrage-via-multikueue.md
       - Capability tiers: capability-tiers.md
       - Agent interface: agent-interface.md
       - SLO catalog: slo-catalog.md

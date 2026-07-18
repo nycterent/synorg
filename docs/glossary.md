@@ -19,3 +19,8 @@ reclaims (drain + scrub) ahead of inference demand.
 **Spoke** — a per-region workload cluster registered to the mgmt hub's
 ArgoCD by cluster-secret label; each spoke carries its own pools, policies,
 and region-local lending loop.
+
+**Training arbitrage** — placing training jobs, at admission time, on
+whichever region's spoke can admit them (MultiKueue dispatch, ADR 0002).
+Never mid-run migration; a job restarts in-region against its region-local
+checkpoint bucket.
