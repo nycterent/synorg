@@ -368,7 +368,33 @@ step_sync() {
       kubectl --context "$PILOT_CONTEXT" get namespace "$ns" >/dev/null 2>&1 \
         || run kubectl --context "$PILOT_CONTEXT" create namespace "$ns"
     done
-    run kubectl --context "$PILOT_CONTEXT" apply --server-side --force-conflicts -R -f clusters/pilot/
+    # Curated, not blind -R: services/ holds helm VALUES files (not
+    # manifests), and observability/prometheus-stack.yaml holds hub-side
+    # ArgoCD Application CRs whose sync source is the (absent) git remote.
+    local d
+    for d in karpenter kueue lending; do
+      run kubectl --context "$PILOT_CONTEXT" apply --server-side --force-conflicts -R -f "clusters/pilot/$d/"
+    done
+    # Observability: install the same charts the Application CRs pin —
+    # specs yq-extracted from the CRs so nothing drifts from git.
+    local doc chart repo ver vals
+    for doc in 0 1; do
+      chart="$(yq "select(document_index == $doc) | .spec.source.chart" clusters/pilot/observability/prometheus-stack.yaml)"
+      repo="$(yq "select(document_index == $doc) | .spec.source.repoURL" clusters/pilot/observability/prometheus-stack.yaml)"
+      ver="$(yq "select(document_index == $doc) | .spec.source.targetRevision" clusters/pilot/observability/prometheus-stack.yaml)"
+      vals="$(mktemp)"
+      yq "select(document_index == $doc) | .spec.source.helm.valuesObject // {}" clusters/pilot/observability/prometheus-stack.yaml > "$vals"
+      run helm --kube-context "$PILOT_CONTEXT" upgrade --install "pilot-$chart" "$chart" \
+        --repo "$repo" --version "$ver" --namespace observability --create-namespace \
+        -f "$vals" --wait --timeout 10m
+      rm -f "$vals"
+    done
+    # PrometheusRule CRs (recording rules / SLOs) need the operator CRDs
+    # from the stack above — apply after it.
+    run kubectl --context "$PILOT_CONTEXT" apply --server-side --force-conflicts \
+      -f clusters/pilot/observability/recording-rules.yaml \
+      -f clusters/pilot/observability/slo-definitions.yaml
+    echo "DIRECT-SYNC: services/ skipped (helm values for the golden chart — GitOps-only surface)"
   fi
   local i ok=0
   for i in $(seq 1 60); do
