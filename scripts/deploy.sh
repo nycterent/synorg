@@ -384,9 +384,14 @@ step_sync() {
       ver="$(yq "select(document_index == $doc) | .spec.source.targetRevision" clusters/pilot/observability/prometheus-stack.yaml)"
       vals="$(mktemp)"
       yq "select(document_index == $doc) | .spec.source.helm.valuesObject // {}" clusters/pilot/observability/prometheus-stack.yaml > "$vals"
+      # dcgm-exporter is a GPU-node DaemonSet: it cannot be Ready before the
+      # first GPU node exists (the balloon provisions it AFTER this step), so
+      # only the prometheus stack itself is waited on.
+      local wait_args=(--wait --timeout 10m)
+      [ "$chart" = "dcgm-exporter" ] && wait_args=()
       run helm --kube-context "$PILOT_CONTEXT" upgrade --install "pilot-$chart" "$chart" \
         --repo "$repo" --version "$ver" --namespace observability --create-namespace \
-        -f "$vals" --wait --timeout 10m
+        -f "$vals" ${wait_args[0]+"${wait_args[@]}"}
       rm -f "$vals"
     done
     # PrometheusRule CRs (recording rules / SLOs) need the operator CRDs
