@@ -48,7 +48,6 @@
 #                       survive container restarts (same pod) but a pod
 #                       replacement clears the emptyDir and can allow one
 #                       re-fire — accepted v0 caveat
-#   EVENT_NAMESPACE     namespace for emitted Events (default lending)
 #   EMIT_EVENTS         emit Kubernetes Events per action (default true)
 #   WAVE_FIRE_WINDOW_SECONDS  how long after startsAt a wave stays due (default 300)
 #   MAX_TICKS           stop after N ticks; 0 = run forever (test hook)
@@ -57,7 +56,6 @@ set -euo pipefail
 SCHEDULE_FILE="${SCHEDULE_FILE:-/etc/lending/schedule.yaml}"
 TICK_SECONDS="${TICK_SECONDS:-60}"
 KUBECTL_CACHE_DIR="${KUBECTL_CACHE_DIR:-/tmp/kubectl-cache}"
-EVENT_NAMESPACE="${EVENT_NAMESPACE:-lending}"
 EMIT_EVENTS="${EMIT_EVENTS:-true}"
 WAVE_FIRE_WINDOW_SECONDS="${WAVE_FIRE_WINDOW_SECONDS:-300}"
 MAX_TICKS="${MAX_TICKS:-0}"
@@ -114,16 +112,21 @@ log() {
 # every state transition lands as a Kubernetes Event on the Node (or, for
 # quota changes, the ClusterQueue) so U9 evidence never scrapes logs.
 emit_event() {
-  local reason="$1" kind="$2" name="$3" message="$4" api="v1" ts
+  local reason="$1" kind="$2" name="$3" message="$4" api="v1" ts ns
   [ "$EMIT_EVENTS" = "true" ] || return 0
   [ "$kind" = "ClusterQueue" ] && api="kueue.x-k8s.io/v1beta1"
+  # API validation requires event.namespace == involvedObject.namespace; both
+  # kinds emitted here (Node, ClusterQueue) are cluster-scoped (involvedObject
+  # namespace empty), and the apiserver maps that to the "default" namespace —
+  # an event created anywhere else is rejected.
+  ns=default
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   kc create -f - >/dev/null <<EOF || log warn action=emit_event reason="$reason" msg="event create failed (non-fatal)"
 apiVersion: v1
 kind: Event
 metadata:
   generateName: lending-controller-
-  namespace: $EVENT_NAMESPACE
+  namespace: $ns
 type: Normal
 reason: $reason
 message: "$message"
