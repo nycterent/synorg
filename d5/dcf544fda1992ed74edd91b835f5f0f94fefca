@@ -1,0 +1,23 @@
+docs/adr/0005-odcr-economics-insurance-plus-metrics.md
+  s_93f8bad0fe0b70::t_8a5187d1c23c69 1-37
+docs/glossary.md
+  s_93f8bad0fe0b70::t_3d016791ea5e6f 32-38
+mkdocs.yml
+  s_93f8bad0fe0b70::t_0a3b0d690fa94e 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "d5dcf544fda1992ed74edd91b835f5f0f94fefca",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
