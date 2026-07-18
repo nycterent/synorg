@@ -1,0 +1,20 @@
+controllers/lending/reconcile.sh
+  s_e175eff4a5c206::t_a1b5a07f7e2f0e 121
+  s_e175eff4a5c206::t_ffb26cce6c1871 115,118-120,122,129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "c35f10c5638ea2ec0e5e04eb826c4227e72e6ead",
+  "prompts": {},
+  "sessions": {
+    "s_e175eff4a5c206": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b03c458-dacc-45e1-9075-0d9fc755d85f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
