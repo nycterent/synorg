@@ -181,13 +181,27 @@ verdict — abort here rather than discover it mid-assertion.
 make e2e ARGS=--test
 ```
 
-Runs `tests/e2e/assertions.sh` in order: **lend** → **reclaim-ahead-of-ramp**
-(driven schedule + synthetic inference ramp) → **scrub** (nodeclaim deleted,
-replacement has a NEW instance-id; old vs new recorded) → **rejoin under the
-render-start p95 gate** → **game-day storm scenarios** (passGates from
-`rehearsal/scenarios.yaml`, `repeatRuns` times — a single green run is not a
-pass) → **ledger zero-net-release**. Every assertion prints PASS/FAIL; empty
-metrics are failures, never skips.
+Runs `tests/e2e/assertions.sh` in order: **lend** (taints + borrow pod, and a
+snapshot of every lendable-pool instance-id at lend time) →
+**reclaim-ahead-of-ramp** — the live schedule is driven onto a compressed
+timeline: window opens now, reclaim waves at **+5/+8/+11 min**
+(`E2E_WAVE_OFFSETS`), production ramp deadline at **+15 min**
+(`E2E_RAMP_MINUTES`), window close at **+20 min** (`E2E_CLOSE_MINUTES`). The
+close deliberately lands AFTER the ramp deadline: since the close path also
+reclaims, a close inside the window could bail out a dead wave schedule —
+with this ordering only the staged waves can clear lent taints before the
+deadline, and the assertion additionally requires the controller's own
+wave-firing (`action=reclaim_wave … reclaiming=`) and wave NodeClaim-deletion
+(`action=nodeclaim_deleted … wave=`) log lines as positive evidence
+(unreachable controller logs are a FAIL, not a skip) → **scrub** (nodeclaim
+deleted; a Ready replacement whose instance-id is OUTSIDE the lend-time
+snapshot — a pre-existing sibling never satisfies it; old vs new recorded) →
+**rejoin under the render-start p95 gate** → **game-day storm scenarios**
+(passGates from `rehearsal/scenarios.yaml`, `repeatRuns` times — a single
+green run is not a pass) → **ledger zero-net-release**. Every assertion prints
+PASS/FAIL; empty metrics are failures, never skips. The driven window closing
+at +20 min adds no material runtime — the reclaim verdict lands before the
++15 min deadline and the schedule is restored during cleanup.
 
 ## Step 11 — Teardown: `make e2e ARGS=--down`
 

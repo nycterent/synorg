@@ -8,10 +8,18 @@
 #   1. lend                 — a lendable-pool node carries the lent taint and a
 #                             training pod actually borrows onto it
 #   2. reclaim-ahead-of-ramp— a driven schedule + synthetic inference ramp;
-#                             reclaim completes BEFORE the ramp needs capacity
-#   3. scrub                — the reclaimed node's nodeclaim is deleted and the
-#                             replacement has a NEW EC2 instance-id (old vs new
-#                             recorded; equal id = VRAM not reset, node-scrub.md)
+#                             reclaim completes BEFORE the ramp needs capacity.
+#                             The driven window closes AFTER the ramp deadline,
+#                             so inside the measured window only reclaimWaves
+#                             can clear taints, and the controller's own
+#                             wave-firing + NodeClaim-deletion log lines are
+#                             required as positive evidence — a dead wave
+#                             schedule cannot be bailed out by the close path
+#   3. scrub                — the reclaimed node's nodeclaim is deleted and a
+#                             replacement carries an EC2 instance-id OUTSIDE
+#                             the lend-time pool snapshot (genuinely NEW
+#                             instance — a pre-existing sibling never counts;
+#                             equal id = VRAM not reset, node-scrub.md)
 #   4. rejoin-under-p95     — render_start_seconds:p95:reclaim_window holds the
 #                             gate while the node returns (runbooks/game-day.md)
 #   5. game-day-storm       — the storm scenarios from rehearsal/scenarios.yaml
@@ -33,6 +41,9 @@ fi
 E2E_LEND_TIMEOUT="${E2E_LEND_TIMEOUT:-900}"        # s: window open -> lent taint + borrow pod
 E2E_RAMP_MINUTES="${E2E_RAMP_MINUTES:-15}"         # rehearsal productionRampAt = now + this
 E2E_WAVE_OFFSETS="${E2E_WAVE_OFFSETS:-5 8 11}"     # minutes from now for waves 1..3
+E2E_CLOSE_MINUTES="${E2E_CLOSE_MINUTES:-$(( E2E_RAMP_MINUTES + 5 ))}" # rehearsal closesAt = now + this;
+                                                   # MUST be > E2E_RAMP_MINUTES so only waves can
+                                                   # clear taints before the deadline (#19)
 E2E_SCRUB_TIMEOUT="${E2E_SCRUB_TIMEOUT:-1200}"     # s: nodeclaim delete -> fresh node Ready
 E2E_SCENARIO_SETTLE="${E2E_SCENARIO_SETTLE:-600}"  # s of storm load before gate evaluation
 E2E_SCENARIOS="${E2E_SCENARIOS:-compressed-reclaim storm-all-at-once}"
@@ -42,7 +53,9 @@ E2E_TARGET_URL="${E2E_TARGET_URL:-http://inference.pilot.svc.cluster.local/rende
 
 SCHEDULE_ORIG="$E2E_STATE_DIR/schedule-orig.yaml"
 SCRUB_STATE="$E2E_STATE_DIR/scrub-old-identity.txt"
+POOL_ENTRY_IDS="$E2E_STATE_DIR/pool-entry-providerids.txt"  # all pool providerIDs at lend time (#20)
 SCENARIOS_INNER="$E2E_STATE_DIR/scenarios-inner.yaml"
+E2E_DRIVE_EPOCH=0       # set by drive_schedule_now; bounds the controller-log reads (#19)
 
 # --- Helpers -----------------------------------------------------------------
 k() { kubectl --context "$PILOT_CONTEXT" "$@"; }
@@ -131,17 +144,29 @@ hhmm_plus() {
 }
 
 # drive_schedule_now RAMP_MINUTES — compress the live schedule onto the next
-# RAMP_MINUTES: window opens now, waves at $E2E_WAVE_OFFSETS, ramp at the end.
-# Saves the original once; restore_schedule puts it back.
+# RAMP_MINUTES: window opens now, waves at $E2E_WAVE_OFFSETS, ramp at the end,
+# window close at $E2E_CLOSE_MINUTES. Saves the original once; restore_schedule
+# puts it back.
+#
+# Ordering invariant (#19): waves < ramp deadline < closesAt. The close lands
+# AFTER the deadline on purpose — since the close-as-reclaim fix the close path
+# also reclaims, so a closesAt inside the window would let a dead wave schedule
+# pass as "reclaim ahead of ramp". With this ordering, only reclaimWaves can
+# clear lent taints before the deadline.
 drive_schedule_now() {
-  local ramp_min="$1" tz sched w1 w2 w3
+  local ramp_min="$1" close_min="$E2E_CLOSE_MINUTES" tz sched w1 w2 w3
   sched="$(live_schedule)" || return 1
   [ -f "$SCHEDULE_ORIG" ] || printf '%s\n' "$sched" > "$SCHEDULE_ORIG"
   tz="$(yq -r '.timezone' <<<"$sched")"
   read -r w1 w2 w3 <<<"$E2E_WAVE_OFFSETS"
+  if [ "$w3" -ge "$ramp_min" ] || [ "$close_min" -le "$ramp_min" ]; then
+    echo "  drive_schedule_now: invalid rehearsal timeline — need waves ($E2E_WAVE_OFFSETS) < ramp (+${ramp_min}m) < close (+${close_min}m); fix E2E_WAVE_OFFSETS/E2E_RAMP_MINUTES/E2E_CLOSE_MINUTES" >&2
+    return 1
+  fi
+  E2E_DRIVE_EPOCH="$(date +%s)"
   printf '%s\n' "$sched" | yq \
     ".windows[0].opensAt = \"$(hhmm_plus "$tz" -1)\"
-     | .windows[0].closesAt = \"$(hhmm_plus "$tz" "$w3")\"
+     | .windows[0].closesAt = \"$(hhmm_plus "$tz" "$close_min")\"
      | .productionRampAt = \"$(hhmm_plus "$tz" "$ramp_min")\"
      | .reclaimWaves[0].startsAt = \"$(hhmm_plus "$tz" "$w1")\"
      | .reclaimWaves[1].startsAt = \"$(hhmm_plus "$tz" "$w2")\"
@@ -154,7 +179,7 @@ drive_schedule_now() {
   k -n lending create configmap lending-schedule \
       --from-file=schedule.yaml="$E2E_STATE_DIR/schedule-rehearsal.yaml" \
       --dry-run=client -o yaml | k replace -f - >/dev/null
-  echo "  schedule driven: window open now, waves +${w1}/+${w2}/+${w3}m, ramp +${ramp_min}m (orig saved)"
+  echo "  schedule driven: window open now, waves +${w1}/+${w2}/+${w3}m, ramp +${ramp_min}m, close +${close_min}m (orig saved)"
 }
 
 restore_schedule() {
@@ -216,18 +241,40 @@ assert_lend() {
   { [ -n "$old_instance" ] && [ -n "$old_nodeclaim" ]; } \
     || { echo "FAIL: lend — cannot record old instance identity for node '$node' (needed by the scrub assertion)"; return 1; }
   printf '%s %s %s\n' "$node" "$old_instance" "$old_nodeclaim" > "$SCRUB_STATE"
+  # Snapshot EVERY lendable-pool providerID at lend time (#20): the scrub
+  # assertion passes only on a Ready pool node OUTSIDE this set — a genuinely
+  # new EC2 instance, never a pre-existing sibling on a >=2-node fleet.
+  k get nodes -l "karpenter.sh/nodepool=$LENDABLE_POOL" -o json \
+    | jq -r '.items[].spec.providerID // empty' > "$POOL_ENTRY_IDS"
+  [ -s "$POOL_ENTRY_IDS" ] \
+    || { echo "FAIL: lend — could not snapshot lendable-pool providerIDs (needed by the scrub assertion)"; return 1; }
+  echo "  pool entry snapshot: $(wc -l < "$POOL_ENTRY_IDS" | tr -d ' ') instance id(s) recorded"
   echo "PASS: lend — $node lent and borrowed onto (old identity recorded: ${old_instance##*/})"
 }
 
 # --- 2. reclaim ahead of ramp ------------------------------------------------
+# Wave evidence (#19): the reclaim proof must be WAVE-driven, not close-path.
+# drive_schedule_now places closesAt after the ramp deadline, and this helper
+# reads the controller's own log lines (exact formats from
+# controllers/lending/reconcile.sh; bounded by --since/--tail):
+#   wave firing:        action=reclaim_wave wave=<name> lent_nodes=<n> reclaiming=<c>
+#   wave NodeClaim del: action=nodeclaim_deleted node=<n> nodeclaim=<ncl> wave=<name> reason=NodeScrubStarted
+# The close path logs `reason=window_close` instead of `wave=<name>`, and a
+# due-but-empty wave logs msg="due but no lent nodes" WITHOUT a reclaiming=
+# token — so the greps in the assertion match actual wave-driven action only.
+controller_logs_since_drive() {
+  local since=$(( $(date +%s) - E2E_DRIVE_EPOCH + 60 ))
+  k -n lending logs deploy/lending-controller --since="${since}s" --tail=5000
+}
 assert_reclaim_ahead_of_ramp() {
   step "assert 2/6: reclaim-ahead-of-ramp — waves finish before the synthetic ramp needs capacity"
   [ -n "$LENDABLE_POOL" ] || { echo "FAIL: reclaim — schedule targets not loaded (did lend run?)"; return 1; }
   has_lent_node || { echo "FAIL: reclaim — nothing is lent, so there is nothing to reclaim (no vacuous pass)"; return 1; }
   local ramp_epoch=$(( $(date +%s) + E2E_RAMP_MINUTES * 60 ))
   loadgen_start "$E2E_RAMP_MINUTES" || { echo "FAIL: reclaim — could not start the synthetic inference ramp"; return 1; }
-  # The driven schedule (assert_lend) already placed the waves inside the ramp
-  # window; the controller must return every lent node before the ramp lands.
+  # The driven schedule (assert_lend) placed the waves BEFORE the ramp deadline
+  # and the window close AFTER it — within [now, deadline] only reclaimWaves
+  # can clear lent taints, so the controller must reclaim wave-by-wave.
   wait_until "all lent taints cleared (reclaim complete)" $(( E2E_RAMP_MINUTES * 60 + 300 )) no_lent_node \
     || { echo "FAIL: reclaim — lent nodes remain after ramp + grace"; return 1; }
   local done_epoch; done_epoch="$(date +%s)"
@@ -235,41 +282,78 @@ assert_reclaim_ahead_of_ramp() {
     echo "FAIL: reclaim finished $(( done_epoch - ramp_epoch ))s AFTER the ramp deadline — the render path would have queued"
     return 1
   fi
-  echo "PASS: reclaim-ahead-of-ramp — completed $(( ramp_epoch - done_epoch ))s before the ramp deadline"
+  # Positive wave evidence (#19): the controller must have LOGGED the waves
+  # doing the work. Unreachable controller logs are a hard FAIL on EKS — a run
+  # without its actuator's evidence has no verdict, never a skip.
+  local logs waves_fired wave_deletes
+  if ! logs="$(controller_logs_since_drive)"; then
+    echo "FAIL: reclaim — cannot read controller logs (kubectl logs deploy/lending-controller -n lending) — wave evidence unavailable, no verdict"
+    return 1
+  fi
+  waves_fired="$(grep -c 'action=reclaim_wave .*reclaiming=' <<<"$logs" || true)"
+  if [ "${waves_fired:-0}" -lt 1 ]; then
+    echo "FAIL: reclaim — taints cleared before the deadline but the controller logged NO firing wave (action=reclaim_wave ... reclaiming=) since the schedule was driven — the staged waves did not do the reclaiming"
+    return 1
+  fi
+  # EKS path: the waves must have crossed the Karpenter scrub boundary. The
+  # taints were observed clear before the deadline, which precedes closesAt
+  # (drive_schedule_now ordering invariant), so every wave= deletion seen here
+  # happened before the window closed.
+  wave_deletes="$(grep -c 'action=nodeclaim_deleted .*wave=' <<<"$logs" || true)"
+  if [ "${wave_deletes:-0}" -lt 1 ]; then
+    echo "FAIL: reclaim — no wave-driven NodeClaim deletion (action=nodeclaim_deleted ... wave=) in controller logs — reclaim never crossed the Karpenter scrub boundary"
+    return 1
+  fi
+  echo "  wave evidence: $waves_fired wave firing(s), $wave_deletes wave-driven NodeClaim deletion(s) before closesAt"
+  echo "PASS: reclaim-ahead-of-ramp — completed $(( ramp_epoch - done_epoch ))s before the ramp deadline, wave-driven"
 }
 
 # --- 3. scrub: new instance-id -----------------------------------------------
 nodeclaim_gone() { ! k get nodeclaim "$1" >/dev/null 2>&1; }
-fresh_pool_node() {  # PREDICATE: some Ready pool node has providerID != $1
+# fresh_pool_node — PREDICATE (#20): some Ready pool node carries a providerID
+# OUTSIDE the lend-time entry snapshot ($POOL_ENTRY_IDS) — a genuinely NEW EC2
+# instance. A pre-existing sibling (any fleet >= 2) is in the snapshot and can
+# never satisfy this.
+fresh_pool_node() {
+  local entry; entry="$(cat "$POOL_ENTRY_IDS")" || return 1
   k get nodes -l "karpenter.sh/nodepool=$LENDABLE_POOL" -o json \
-    | jq -e --arg old "$1" '
-        [.items[]
-         | select(.status.conditions[]? | select(.type == "Ready" and .status == "True"))
-         | select(.spec.providerID != $old and .spec.providerID != null)
-        ] | length > 0' >/dev/null
+    | jq -e --arg entry "$entry" '
+        ($entry | split("\n") | map(select(length > 0))) as $set
+        | [.items[]
+           | select(.status.conditions[]? | select(.type == "Ready" and .status == "True"))
+           | select(.spec.providerID != null)
+           | select(.spec.providerID as $p | ($set | index($p)) == null)
+          ] | length > 0' >/dev/null
 }
 assert_scrub_new_instance() {
-  step "assert 3/6: scrub — reclaimed nodeclaim deleted, replacement has a NEW EC2 instance-id"
+  step "assert 3/6: scrub — reclaimed nodeclaim deleted, replacement is a genuinely NEW EC2 instance"
   [ -s "$SCRUB_STATE" ] || { echo "FAIL: scrub — no recorded old identity (lend assertion must pass first)"; return 1; }
-  local node old_instance old_nodeclaim
+  [ -s "$POOL_ENTRY_IDS" ] || { echo "FAIL: scrub — no lend-time pool snapshot (lend assertion must pass first)"; return 1; }
+  local node old_instance old_nodeclaim entry_ids entry_size
   read -r node old_instance old_nodeclaim < "$SCRUB_STATE"
+  entry_ids="$(cat "$POOL_ENTRY_IDS")"
+  entry_size="$(wc -l < "$POOL_ENTRY_IDS" | tr -d ' ')"
   wait_until "nodeclaim $old_nodeclaim deleted (instance terminated)" "$E2E_SCRUB_TIMEOUT" \
     nodeclaim_gone "$old_nodeclaim" \
     || { echo "FAIL: scrub — nodeclaim '$old_nodeclaim' still exists; the reclaimed node was never scrubbed"; return 1; }
-  wait_until "a fresh Ready node in $LENDABLE_POOL" "$E2E_SCRUB_TIMEOUT" fresh_pool_node "$old_instance" \
-    || { echo "FAIL: scrub — no replacement node with a different instance-id within ${E2E_SCRUB_TIMEOUT}s"; return 1; }
+  wait_until "a Ready $LENDABLE_POOL node outside the lend-time entry set" "$E2E_SCRUB_TIMEOUT" fresh_pool_node \
+    || { echo "FAIL: scrub — every Ready pool node's instance-id is inside the lend-time entry set ($entry_size id(s)); no genuinely new EC2 instance within ${E2E_SCRUB_TIMEOUT}s (a pre-existing sibling does not count)"; return 1; }
   local new_instance
   new_instance="$(k get nodes -l "karpenter.sh/nodepool=$LENDABLE_POOL" -o json \
-    | jq -r --arg old "$old_instance" \
-        '[.items[] | .spec.providerID | select(. != null and . != $old)][0]')"
-  # Equal instance-id would mean VRAM was never reset — node-scrub.md abort case.
-  if [ "$new_instance" = "$old_instance" ] || [ -z "$new_instance" ]; then
+    | jq -r --arg entry "$entry_ids" '
+        ($entry | split("\n") | map(select(length > 0))) as $set
+        | [.items[] | .spec.providerID | select(. != null) | . as $p | select(($set | index($p)) == null)][0] // empty')"
+  # Membership already implies new != old (old is in the entry set), but keep
+  # the explicit guard on the reclaimed node: an equal instance-id means VRAM
+  # was never reset — node-scrub.md abort case.
+  if [ -z "$new_instance" ] || [ "$new_instance" = "$old_instance" ]; then
     echo "FAIL: scrub — replacement instance-id equals the old one (VRAM not reset; node-scrub.md abort)"
     return 1
   fi
+  echo "  entry set:    $entry_size lend-time instance id(s)"
   echo "  old instance: ${old_instance##*/}  (node $node, nodeclaim $old_nodeclaim)"
-  echo "  new instance: ${new_instance##*/}"
-  echo "PASS: scrub — instance discarded and recovered fresh (old != new)"
+  echo "  new instance: ${new_instance##*/}  (outside the lend-time set)"
+  echo "PASS: scrub — instance discarded and recovered on a genuinely new instance (outside the entry set, old != new)"
 }
 
 # --- 4. rejoin under the render-start p95 gate -------------------------------
