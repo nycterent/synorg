@@ -125,3 +125,9 @@ ReservedCapacity feature gate) that must be arranged ahead of time — the
 scheduled-CI e2e against an ephemeral GPU account is deliberately deferred:
 until then, an unattended cron run would either fail on missing prerequisites
 or, worse, prove the wrong thing quietly.
+
+The rung has a budget lever: `E2E_CHEAP=1` runs the same physics on
+`g4dn.xlarge` spot (one T4 per node, ~$5–10 per run instead of $30–80) via a
+run-scoped sizing overlay that never touches the production manifests. What
+cheap mode does and does not prove is spelled out in the runsheet's cheap-mode
+section.
