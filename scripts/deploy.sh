@@ -30,6 +30,11 @@ cd "$ROOT"
 source "$ROOT/scripts/lib/ledger.sh"
 
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-eu-west-1}}"
+# Every terraform module (odcr/mgmt/pilot/checkpoint-store) declares
+# var.region with an eu-west-1 default — export it so AWS_REGION steers
+# terraform too, not just the aws-cli calls below (otherwise a us-east-1 run
+# would plan/apply against eu-west-1).
+export TF_VAR_region="$REGION"
 MGMT_CONTEXT="${MGMT_CONTEXT:-synorg-mgmt}"     # kubeconfig aliases set by
 PILOT_CONTEXT="${PILOT_CONTEXT:-synorg-pilot}"  # `aws eks update-kubeconfig`
 
@@ -54,7 +59,8 @@ Bootstrap the platform per runbooks/deploy-platform.md (§1-§7, in order).
   --help          this text.
 
 Environment:
-  AWS_REGION      region for capacity/EKS calls (default eu-west-1)
+  AWS_REGION      region for terraform modules + capacity/EKS calls
+                  (default eu-west-1; exported as TF_VAR_region)
   MGMT_CONTEXT    kubeconfig context alias for the hub (default synorg-mgmt)
   PILOT_CONTEXT   kubeconfig context alias for the spoke (default synorg-pilot)
 

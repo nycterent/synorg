@@ -273,6 +273,20 @@ new-instance-id proof, balloon preemption, borrowingLimit curve, and the
 zero-net-release ledger all run the identical code paths — only the node size
 and counts shrink.
 
+**Region + capacity variants:** the synthetic e2e has no data-residency
+constraint — regions are interchangeable for this test. Where the spot G/VT
+quota is 0 (e.g. us-east-1, on-demand G/VT quota 504), run the pure on-demand
+path: `AWS_REGION=us-east-1 E2E_CHEAP=1 E2E_CHEAP_CAPACITY=on-demand
+E2E_VPC=create tests/e2e/run.sh` — the lendable pool becomes `on-demand`-only
+(warm-floor keeps `reserved`), and `--check` hints against the on-demand quota
+(`L-DB2E81BA`) instead of spot (`L-3819A6DF`). On-demand g4dn.xlarge is
+~$0.53/hr/node — a full run stays single-digit dollars. `E2E_VPC=create`
+stands up a disposable throwaway VPC (`tests/e2e/vpc/`: two public subnets
+across two AZs, no NAT gateway — zero standing NAT cost, nodes get public IPs
+with SG-restricted access) before the cluster modules and destroys it last, so
+the run owns its network end-to-end instead of requiring an operator-provided
+`TF_VAR_vpc_id`/`TF_VAR_subnet_ids`.
+
 What the overlay resizes (one coherent set — the hand-synced cross-file
 invariants from `docs/residual-review-findings/feat-eks-gpu-platform.md`,
 re-asserted by the script's `COHERENCE` output on every render/apply):

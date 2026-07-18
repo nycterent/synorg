@@ -31,6 +31,10 @@ cd "$ROOT"
 
 # --- Config (env-overridable; defaults mirror scripts/deploy.sh) -------------
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-eu-west-1}}"
+# This script runs terraform directly too (--down destroys, ledger init) and
+# the modules default var.region to eu-west-1 — export so the active region
+# steers terraform here exactly as in scripts/deploy.sh.
+export TF_VAR_region="$REGION"
 PILOT_CONTEXT="${PILOT_CONTEXT:-synorg-pilot}"
 MGMT_CONTEXT="${MGMT_CONTEXT:-synorg-mgmt}"
 # Module dirs (ODCR_DIR/MGMT_DIR/PILOT_DIR/CKPT_DIR) + the shared ledger
@@ -45,7 +49,17 @@ E2E_UP_TIMEOUT="${E2E_UP_TIMEOUT:-2700}"       # seconds for deploy + node readi
 E2E_CHEAP="${E2E_CHEAP:-0}"                    # 1 = cheap-run sizing overlay: g4dn.xlarge spot,
                                                # 1-GPU nodes (tests/e2e/cheap-overlay/; runsheet
                                                # "Cheap mode"). Default OFF = production profile.
+E2E_CHEAP_CAPACITY="${E2E_CHEAP_CAPACITY:-spot,on-demand}"  # cheap lendable-pool capacity types;
+                                               # "on-demand" = pure on-demand for regions whose
+                                               # spot G/VT quota is 0 (e.g. us-east-1). The
+                                               # overlay reads the same env (same default).
+E2E_VPC="${E2E_VPC:-}"                         # create = stand up the disposable e2e VPC
+                                               # (tests/e2e/vpc/) before the cluster modules and
+                                               # destroy it last. Default unset = operator supplies
+                                               # TF_VAR_vpc_id/TF_VAR_subnet_ids/
+                                               # TF_VAR_control_plane_subnet_ids (current behavior).
 CHEAP_OVERLAY="tests/e2e/cheap-overlay/apply.sh"
+VPC_DIR="${VPC_DIR:-tests/e2e/vpc}"            # disposable-VPC module (E2E_VPC=create only)
 
 # Spot GPU vCPU quota (g5/g6 land here). Runsheet Step 2 names these; --check
 # only DESCRIBES them (read-only) and hints, it never requests an increase.
@@ -78,6 +92,17 @@ Environment:
                    minimal counts (tests/e2e/cheap-overlay/; runsheet "Cheap
                    mode"). NOT the production instance profile. Export it for
                    EVERY phase of a cheap run (--check/--up/--test/--down).
+  E2E_CHEAP_CAPACITY
+                   cheap lendable-pool capacity types, comma list (default
+                   "spot,on-demand"). Set "on-demand" where the spot G/VT
+                   quota is 0 (e.g. us-east-1) — --check then hints against
+                   the on-demand quota (L-DB2E81BA) instead of spot.
+  E2E_VPC=create   stand up a disposable throwaway VPC (tests/e2e/vpc/: public
+                   subnets, no NAT) before the cluster modules and destroy it
+                   last; exports TF_VAR_vpc_id, TF_VAR_subnet_ids and
+                   TF_VAR_control_plane_subnet_ids from its outputs. Default
+                   unset: the operator supplies those TF_VAR_* (the repo owns
+                   no VPC). Export it for EVERY phase of such a run.
   E2E_KEEP=1       keep the pilot up when a phase fails (debugging)
   E2E_STATE_DIR    snapshots/logs dir (default build/e2e)
   AWS_REGION       region (default eu-west-1); PILOT_CONTEXT/MGMT_CONTEXT as
@@ -103,6 +128,38 @@ cheap_banner() {
   echo "# CHEAP MODE: g4dn.xlarge spot, 1-GPU nodes — not the production instance  #"
   echo "# profile (tests/e2e/cheap-overlay/; runbooks/e2e-gpu-run.md 'Cheap mode') #"
   echo "############################################################################"
+}
+
+# --- Disposable e2e VPC (E2E_VPC=create; tests/e2e/vpc/) ---------------------
+# The mgmt and pilot modules require an operator-provided VPC (the repo owns
+# none). For the e2e only, E2E_VPC=create stands up a throwaway VPC the run
+# owns end-to-end: created BEFORE the cluster modules, destroyed LAST, never
+# touching any pre-existing VPC. Local state inside $VPC_DIR (gitignored).
+
+# vpc_export_tfvars — export TF_VAR_vpc_id / TF_VAR_subnet_ids /
+# TF_VAR_control_plane_subnet_ids from the disposable module's outputs. Both
+# mgmt and pilot declare exactly these three variables (same names, same
+# shapes: string + two list(string)); the control-plane ENIs share the two
+# public subnets. rc!=0 when the outputs are unreadable — callers decide.
+vpc_export_tfvars() {
+  local vpc_id subnets
+  vpc_id="$(terraform -chdir="$VPC_DIR" output -raw vpc_id 2>/dev/null)" || return 1
+  subnets="$(terraform -chdir="$VPC_DIR" output -json subnet_ids 2>/dev/null)" || return 1
+  export TF_VAR_vpc_id="$vpc_id"
+  export TF_VAR_subnet_ids="$subnets"
+  export TF_VAR_control_plane_subnet_ids="$subnets"
+  echo "vpc: exported TF_VAR_vpc_id=$vpc_id TF_VAR_subnet_ids=$subnets (+ control_plane_subnet_ids)"
+}
+
+# vpc_up — create the disposable VPC and export its outputs for the cluster
+# modules. Runs FIRST in phase_up, before scripts/deploy.sh touches mgmt/pilot.
+vpc_up() {
+  step "up: disposable e2e VPC (E2E_VPC=create — $VPC_DIR, created first, destroyed last)"
+  terraform -chdir="$VPC_DIR" init -input=false \
+    || fail "vpc: terraform init failed in $VPC_DIR"
+  terraform -chdir="$VPC_DIR" apply -input=false -auto-approve \
+    || fail "vpc: terraform apply failed in $VPC_DIR"
+  vpc_export_tfvars || fail "vpc: cannot read vpc_id/subnet_ids outputs from $VPC_DIR"
 }
 
 PHASE="full"
@@ -197,12 +254,26 @@ phase_check() {
   od_q="$(aws service-quotas get-service-quota --region "$REGION" \
     --service-code ec2 --quota-code "$ONDEMAND_GVT_QUOTA_CODE" \
     --query 'Quota.Value' --output text 2>/dev/null || echo "unknown")"
-  echo "spot G/VT vCPU quota   ($SPOT_GVT_QUOTA_CODE): $spot_q  (want >= $MIN_GPU_VCPUS_HINT)"
+  # The quota that gates the fleet launch depends on the capacity path: a pure
+  # on-demand cheap run (E2E_CHEAP_CAPACITY=on-demand — spot-quota-0 regions
+  # like us-east-1) draws from the on-demand G/VT quota; every other profile
+  # draws from the spot quota.
+  local hint_label="spot" hint_code="$SPOT_GVT_QUOTA_CODE" hint_q="$spot_q"
+  if [ "$E2E_CHEAP" = 1 ] && [ "$E2E_CHEAP_CAPACITY" = "on-demand" ]; then
+    hint_label="on-demand"; hint_code="$ONDEMAND_GVT_QUOTA_CODE"; hint_q="$od_q"
+  fi
+  echo "spot G/VT vCPU quota   ($SPOT_GVT_QUOTA_CODE): $spot_q"
   echo "on-dem G/VT vCPU quota ($ONDEMAND_GVT_QUOTA_CODE): $od_q  (ReservedCapacity fallback path)"
-  case "$spot_q" in
-    unknown) echo "HINT: could not read the spot quota — check service-quotas IAM, then runsheet Step 2" ;;
-    *) awk -v q="$spot_q" -v m="$MIN_GPU_VCPUS_HINT" 'BEGIN { if (q+0 < m+0) print "HINT: spot G/VT quota below " m " vCPUs — request an increase (runsheet Step 2) BEFORE --up or the fleet will not launch" }' ;;
+  echo "launch-path quota: $hint_label ($hint_code) = $hint_q  (want >= $MIN_GPU_VCPUS_HINT)"
+  case "$hint_q" in
+    unknown) echo "HINT: could not read the $hint_label quota — check service-quotas IAM, then runsheet Step 2" ;;
+    *) awk -v q="$hint_q" -v m="$MIN_GPU_VCPUS_HINT" -v l="$hint_label" 'BEGIN { if (q+0 < m+0) print "HINT: " l " G/VT quota below " m " vCPUs — request an increase (runsheet Step 2) BEFORE --up or the fleet will not launch" }' ;;
   esac
+  # E2E_VPC=create verifies nothing here (no cloud calls) — just name the mode
+  # so the operator sees the run will own its own VPC.
+  if [ "$E2E_VPC" = "create" ]; then
+    echo "vpc mode: E2E_VPC=create — disposable VPC ($VPC_DIR: 10.42.0.0/16, two public subnets, no NAT) created before the clusters, destroyed last; TF_VAR_vpc_id/subnet_ids need not be supplied"
+  fi
   echo "CHECK OK — prereqs satisfied; next: runbooks/e2e-gpu-run.md Steps 3-6, then --up"
 }
 
@@ -216,6 +287,11 @@ phase_up() {
   # sharing $E2E_STATE_DIR. phase_full already snapshotted; the guard keeps
   # this idempotent.
   [ -f "$LEDGER_ENTRY_FILE" ] || ledger_snapshot_entry
+  # Disposable VPC FIRST (before any cluster module): the mgmt/pilot applies
+  # below consume its outputs via the TF_VAR_* exports.
+  if [ "$E2E_VPC" = "create" ]; then
+    vpc_up
+  fi
   # Cheap mode: declare the 1x g4dn ODCR BEFORE deploy so step_odcr's
   # -var-file=held.tfvars pickup sees the cheap counts; the capture itself must
   # be pre-applied from the same tfvars (runsheet "Cheap mode") so terraform
@@ -269,6 +345,14 @@ phase_down() {
   # explicitly per module. A failed destroy must never reach DOWN OK, and the
   # loop keeps going so as much as possible is destroyed regardless.
   local dir rc=0
+  # Disposable VPC (E2E_VPC=create): `terraform destroy` still evaluates the
+  # cluster modules' required vars, and a standalone --down process no longer
+  # carries the exports from --up — re-derive them from the VPC module state.
+  # An unreadable output is a warning, not a stop: destroy as much as possible.
+  if [ "$E2E_VPC" = "create" ]; then
+    vpc_export_tfvars \
+      || echo "DOWN WARN: cannot read $VPC_DIR outputs — cluster destroys may lack TF_VAR_vpc_id/subnet_ids" >&2
+  fi
   for dir in "$CKPT_DIR" "$PILOT_DIR" "$MGMT_DIR"; do
     if terraform -chdir="$dir" init -input=false \
         && terraform -chdir="$dir" destroy -input=false -auto-approve; then
@@ -278,6 +362,18 @@ phase_down() {
       rc=1
     fi
   done
+  # Disposable VPC destroyed LAST — only after ckpt/pilot/mgmt released their
+  # ENIs/SGs can the VPC delete succeed. Same rc accumulation: a failed VPC
+  # destroy must never reach DOWN OK.
+  if [ "$E2E_VPC" = "create" ]; then
+    if terraform -chdir="$VPC_DIR" init -input=false \
+        && terraform -chdir="$VPC_DIR" destroy -input=false -auto-approve; then
+      :
+    else
+      echo "DOWN FAIL: $VPC_DIR — init/destroy failed; the disposable VPC may still exist" >&2
+      rc=1
+    fi
+  fi
   # Cheap mode: remove the overlay's ODCR tfvars — the run leaves no trace on
   # the working tree. (The clusters carried every live overlay patch; those
   # died with the destroy above. The cheap ODCR itself is NOT destroyed —

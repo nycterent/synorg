@@ -64,13 +64,19 @@ CHEAP_BALLOON_REPLICAS="$CHEAP_WARM_FLOOR_NODES"                              # 
 CHEAP_WARM_FLOOR_GPU_LIMIT=$(( CHEAP_WARM_FLOOR_NODES * CHEAP_GPUS_PER_NODE ))
 CHEAP_LENDABLE_GPU_LIMIT=$(( CHEAP_LENDABLE_NODE_LIMIT * CHEAP_GPUS_PER_NODE ))
 CHEAP_ODCR_COUNT="$CHEAP_WARM_FLOOR_NODES"                                    # reserved path holds the floor
-# Test-only: production is ["reserved","on-demand"]; cheap mode lets Karpenter
-# take spot for the lendable pool (warm-floor keeps its committed values so the
-# floor still exercises the reserved/ODCR path).
-CHEAP_LENDABLE_CAPACITY_TYPES='["spot","on-demand"]'
+# Test-only: production is ["reserved","on-demand"]; cheap mode by default
+# lets Karpenter take spot for the lendable pool (warm-floor keeps its
+# committed values so the floor still exercises the reserved/ODCR path).
+# E2E_CHEAP_CAPACITY=on-demand switches the lendable pool to pure on-demand —
+# for regions whose spot G/VT quota is 0 (e.g. us-east-1). Comma list;
+# validated + turned into a JSON array below, after fail() exists.
+E2E_CHEAP_CAPACITY="${E2E_CHEAP_CAPACITY:-spot,on-demand}"
 
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-eu-west-1}}"
-CHEAP_ODCR_AZ="${CHEAP_ODCR_AZ:-${REGION}a}"
+# ODCR AZ follows the ACTIVE region (default <region>a) so a us-east-1 run
+# never declares an eu-west-1 capture. E2E_CHEAP_AZ overrides; CHEAP_ODCR_AZ
+# kept as the historical override name (wins over both).
+CHEAP_ODCR_AZ="${CHEAP_ODCR_AZ:-${E2E_CHEAP_AZ:-${REGION}a}}"
 
 PILOT_CONTEXT="${PILOT_CONTEXT:-synorg-pilot}"
 MGMT_CONTEXT="${MGMT_CONTEXT:-synorg-mgmt}"
@@ -92,6 +98,21 @@ need() { command -v "$1" >/dev/null 2>&1 || fail "'$1' not installed — require
 step() { echo; echo "==> cheap-overlay: $*"; }
 k() { kubectl --context "$PILOT_CONTEXT" "$@"; }
 kh() { kubectl --context "$MGMT_CONTEXT" "$@"; }
+
+# CHEAP_LENDABLE_CAPACITY_TYPES — JSON array derived from E2E_CHEAP_CAPACITY
+# (e.g. "spot,on-demand" -> ["spot","on-demand"]); tokens validated first so a
+# typo fails here, not as a rejected NodePool requirement mid-run.
+case ",$E2E_CHEAP_CAPACITY," in
+  *,,*) fail "E2E_CHEAP_CAPACITY: empty element in '$E2E_CHEAP_CAPACITY' (want a comma list of spot|on-demand|reserved)" ;;
+esac
+IFS=, read -ra _cheap_cts <<<"$E2E_CHEAP_CAPACITY"
+for _ct in "${_cheap_cts[@]}"; do
+  case "$_ct" in
+    spot|on-demand|reserved) ;;
+    *) fail "E2E_CHEAP_CAPACITY: unknown capacity type '$_ct' (allowed: spot, on-demand, reserved; comma-separated)" ;;
+  esac
+done
+CHEAP_LENDABLE_CAPACITY_TYPES="[\"${E2E_CHEAP_CAPACITY//,/\",\"}\"]"
 
 # --- jq transforms (shared by render and apply — same bytes both ways) -------
 # Requirements are matched BY KEY (never by index) so a reordered manifest
@@ -311,6 +332,12 @@ usage: tests/e2e/cheap-overlay/apply.sh render|apply|write-tfvars|clean
 e2e-only cheap-run sizing overlay (E2E_CHEAP=1). See the header comment and
 runbooks/e2e-gpu-run.md "Cheap mode" for mechanism + scope. Never run against
 production manifests on disk — render is in-memory, apply targets live objects.
+
+Environment:
+  AWS_REGION          active region (default eu-west-1); the ODCR AZ follows it
+  E2E_CHEAP_AZ        override the ODCR AZ (default <region>a; CHEAP_ODCR_AZ wins)
+  E2E_CHEAP_CAPACITY  lendable-pool capacity types, comma list (default
+                      "spot,on-demand"; "on-demand" for spot-quota-0 regions)
 EOF
 }
 
