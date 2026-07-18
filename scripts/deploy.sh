@@ -351,7 +351,11 @@ step_controllers() {
   run helm --kube-context "$PILOT_CONTEXT" upgrade --install nvidia-device-plugin nvidia-device-plugin \
     --repo https://nvidia.github.io/k8s-device-plugin --version "$NVDP_VERSION" \
     --namespace kube-system \
-    --set-json 'tolerations=[{"key":"nvidia.com/gpu","operator":"Exists","effect":"NoSchedule"},{"key":"pool.synorg.io/warm-floor","operator":"Exists","effect":"NoSchedule"},{"key":"pool.synorg.io/lendable","operator":"Exists","effect":"NoSchedule"},{"key":"lending.synorg.io/lent","operator":"Exists","effect":"NoSchedule"}]'
+    --set-json 'tolerations=[{"key":"nvidia.com/gpu","operator":"Exists","effect":"NoSchedule"},{"key":"pool.synorg.io/warm-floor","operator":"Exists","effect":"NoSchedule"},{"key":"pool.synorg.io/lendable","operator":"Exists","effect":"NoSchedule"},{"key":"lending.synorg.io/lent","operator":"Exists","effect":"NoSchedule"}]' \
+    --set-json 'affinity={"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"pool.synorg.io/name","operator":"In","values":["warm-floor","lendable"]}]}]}}}'
+  # ^ the chart's default affinity keys on nvidia.com/gpu.present (a GPU
+  # Feature Discovery label we don't run) — DESIRED was 0 on a live GPU
+  # node; our pool labels are the truth here.
 }
 
 # --- §4.6 Sync clusters/pilot/ onto the spoke + convergence ------------------
