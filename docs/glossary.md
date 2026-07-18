@@ -24,3 +24,8 @@ and region-local lending loop.
 whichever region's spoke can admit them (MultiKueue dispatch, ADR 0002).
 Never mid-run migration; a job restarts in-region against its region-local
 checkpoint bucket.
+
+**Stranded-wait** — training queue-wait accrued in one region while another
+region's lendable pool has idle capacity (ADR 0003). The evidence-plane
+metric whose P95 breaching one hour over a rolling week reopens the
+checkpoint-relocation design.
