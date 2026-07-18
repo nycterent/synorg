@@ -405,7 +405,15 @@ step_sync() {
       repo="$(yq "select(document_index == $doc) | .spec.source.repoURL" clusters/pilot/observability/prometheus-stack.yaml)"
       ver="$(yq "select(document_index == $doc) | .spec.source.targetRevision" clusters/pilot/observability/prometheus-stack.yaml)"
       vals="$(mktemp)"
-      yq "select(document_index == $doc) | .spec.source.helm.valuesObject // {}" clusters/pilot/observability/prometheus-stack.yaml > "$vals"
+      # helm.values is a raw YAML STRING, helm.valuesObject a structured map —
+      # these CRs use `values`; extracting only valuesObject silently installed
+      # the stack with NO values (retention, open rule/monitor selectors and
+      # the dcgm scrape config all dropped). Accept either field.
+      if [ "$(yq "select(document_index == $doc) | .spec.source.helm | has(\"values\")" clusters/pilot/observability/prometheus-stack.yaml)" = "true" ]; then
+        yq -r "select(document_index == $doc) | .spec.source.helm.values" clusters/pilot/observability/prometheus-stack.yaml > "$vals"
+      else
+        yq "select(document_index == $doc) | .spec.source.helm.valuesObject // {}" clusters/pilot/observability/prometheus-stack.yaml > "$vals"
+      fi
       # dcgm-exporter is a GPU-node DaemonSet: it cannot be Ready before the
       # first GPU node exists (the balloon provisions it AFTER this step), so
       # only the prometheus stack itself is waited on.
