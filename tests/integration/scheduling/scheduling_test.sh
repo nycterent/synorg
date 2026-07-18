@@ -15,11 +15,13 @@
 #                                    valid because fake-GPU pods actually run (R1/KTD6)
 #   s5_warm_floor_taint_blocks_training  training tolerations cannot land on a
 #                                    warm-floor node (pool taint, R12 containment)
-#   s6_karpenter_kwok_lifecycle      Karpenter core on the kwok virtual substrate:
-#                                    provision (taints), consolidation (empty node),
-#                                    drift (template change replaces nodeclaim).
-#                                    Skipped LOUDLY when kwok is absent (up.sh --no-kwok)
 #   s7_tas_hot_swap                  out of scope on kind — explicit SKIP note
+#
+# The Karpenter/kwok lifecycle coverage (formerly s6 here) lives in
+# tests/kwok/karpenter_test.sh against its own isolated cluster: a live
+# Karpenter controller GC-cordons this harness's pool-labeled workers, so the
+# two suites can never share a cluster. s7 keeps its name — scenario names are
+# stable identifiers, never renumbered.
 #
 # Usage:
 #   scheduling_test.sh              run every scenario (Makefile `integration` entry)
@@ -59,16 +61,14 @@ TEAM_NS="team-ml"                   # LocalQueue namespace == team namespace
 FLAVOR="gpu-lendable"               # the only flavor training has quota on
 PC_INFERENCE="inference-critical"   # emergency-preempts training (R1)
 PC_TRAINING="training-preemptible"  # preemptible, never preempts (KTD12)
-KWOK_NODEPOOL="kwok-test"           # tests/kind/karpenter-kwok.yaml
 
-TEST_NS="scheduling-test"           # non-Kueue test pods (inference probe, kwok)
+TEST_NS="scheduling-test"           # non-Kueue test pods (inference probe)
 LABEL_KEY="synorg.io/scheduling-test"
 SEL="$LABEL_KEY=true"
 
 WAIT_ADMIT=90        # Kueue admission round trip
 WAIT_POD=240         # pod Running (first run pays the pause-image pull)
 WAIT_PREEMPT=180     # kube-scheduler preemption + victim teardown
-WAIT_KWOK=420        # Karpenter provision/consolidate/drift on kwok
 HOLD_PENDING=30      # observation window proving a workload is NOT admitted
 
 SCENARIOS=(
@@ -77,7 +77,6 @@ SCENARIOS=(
   s3_shrink_limit_stops_admission
   s4_inference_preempts_training
   s5_warm_floor_taint_blocks_training
-  s6_karpenter_kwok_lifecycle
   s7_tas_hot_swap
 )
 
@@ -136,8 +135,7 @@ job_pod_running() {
 }
 
 # assert_pod_on_lendable NS POD — bound to the REAL lendable worker (pool label
-# from docs/conventions.md), never a kwok virtual node (kwok nodes carry no
-# pool.synorg.io/name label).
+# from docs/conventions.md).
 assert_pod_on_lendable() {
   local node pool
   node="$(k -n "$1" get pod "$2" -o jsonpath='{.spec.nodeName}')"
@@ -232,18 +230,13 @@ ensure_ns() {
   k create namespace "$TEST_NS" --dry-run=client -o yaml | k apply -f - >/dev/null
 }
 
-# cleanup — EXIT trap: restore ClusterQueue values and the kwok NodePool
-# template, delete test workloads, wait for pod teardown (so back-to-back
-# scenarios start with free GPU capacity), drop the test namespace.
+# cleanup — EXIT trap: restore ClusterQueue values, delete test workloads,
+# wait for pod teardown (so back-to-back scenarios start with free GPU
+# capacity), drop the test namespace.
 cleanup() {
   local rc=$?
   set +e
   trap - EXIT
-  if [ "${DRIFT_PATCHED:-0}" = "1" ]; then
-    k patch nodepool "$KWOK_NODEPOOL" --type=json \
-      -p '[{"op":"remove","path":"/spec/template/metadata/labels/synorg-drift-test"}]' >/dev/null 2>&1 \
-      || echo "WARN: failed to remove drift-test label from NodePool $KWOK_NODEPOOL" >&2
-  fi
   if [ -n "${CQ_ORIG_LIMIT:-}" ]; then
     cq_set_limit "$CQ_ORIG_LIMIT" \
       || echo "WARN: failed to restore $CQ borrowingLimit=$CQ_ORIG_LIMIT — restore it by re-applying $KUEUE_DIR" >&2
@@ -333,7 +326,7 @@ scenario_s3_shrink_limit_stops_admission() {
 # s4: emergency reclaim (R1): a pending inference-critical pod preempts a
 # RUNNING training-preemptible pod node-level via kube-scheduler — real
 # eviction, no Kueue involvement (KTD6). Both pods pinned to the REAL lendable
-# worker (pool labels/taints from docs/conventions.md), never kwok nodes.
+# worker (pool labels/taints from docs/conventions.md).
 scenario_s4_inference_preempts_training() {
   begin_cq_window
   apply_training_job train-e "$GPU_CAP"           # fill the node: preemption is the only way in
@@ -388,74 +381,6 @@ scenario_s5_warm_floor_taint_blocks_training() {
     *) fail "warm-floor-probe unschedulable, but message does not name the warm-floor taint: $msg" ;;
   esac
   echo "  warm-floor-probe Pending/Unschedulable, scheduler names the taint: OK"
-}
-
-# s6: Karpenter provider-agnostic core on the kwok virtual substrate (KTD3).
-# Virtual nodes never run pods and never advertise nvidia.com/gpu — this
-# scenario only exercises NodePool provisioning, consolidation, and drift.
-scenario_s6_karpenter_kwok_lifecycle() {
-  if ! k get crd nodepools.karpenter.sh >/dev/null 2>&1 \
-     || ! k get nodepool "$KWOK_NODEPOOL" >/dev/null 2>&1; then
-    cat >&2 <<EOF
-================================================================================
- SKIP (LOUD): kwok/Karpenter virtual-node substrate is ABSENT.
- The NodePool CRD or NodePool '$KWOK_NODEPOOL' is not in context '$KCTX' —
- the harness was probably brought up with 'tests/kind/up.sh --no-kwok'.
- Karpenter provisioning/consolidation/drift semantics are NOT being tested.
- Re-run tests/kind/up.sh without --no-kwok to cover them.
-================================================================================
-EOF
-    exit 77
-  fi
-
-  kwok_sel="karpenter.sh/nodepool=$KWOK_NODEPOOL"
-  kwok_nodeclaims() { k get nodeclaims -l "$kwok_sel" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true; }
-  kwok_nodeclaim_exists() { [ -n "$(kwok_nodeclaims)" ]; }
-  kwok_node_exists() { [ -n "$(k get nodes -l "$kwok_sel" -o name 2>/dev/null)" ]; }
-  kwok_substrate_empty() { [ -z "$(kwok_nodeclaims)" ] && ! kwok_node_exists; }
-  kwok_pod_bound() { [ -n "$(k -n "$TEST_NS" get pods -l app=kwok-probe -o jsonpath='{.items[0].spec.nodeName}' 2>/dev/null)" ]; }
-
-  # 6a — provisioning: a pending pod that tolerates the virtual taint makes the
-  # NodePool provision a node carrying the template taints.
-  k apply -f "$WORKLOADS/kwok-deployment.yaml" >/dev/null
-  echo "  submitted kwok-probe deployment (tolerates karpenter.kwok.sh/virtual, pins nodepool=$KWOK_NODEPOOL)"
-  wait_for "$WAIT_KWOK" "NodeClaim for NodePool $KWOK_NODEPOOL" kwok_nodeclaim_exists
-  wait_for "$WAIT_KWOK" "kwok node registered" kwok_node_exists
-  local node taint_val
-  node="$(k get nodes -l "$kwok_sel" -o jsonpath='{.items[0].metadata.name}')"
-  taint_val="$(k get node "$node" -o jsonpath='{.spec.taints[?(@.key=="karpenter.kwok.sh/virtual")].value}')"
-  [ "$taint_val" = "true" ] || fail "provisioned kwok node $node lacks the template taint karpenter.kwok.sh/virtual=true (got '$taint_val')"
-  wait_for "$WAIT_KWOK" "kwok-probe pod bound to a node" kwok_pod_bound
-  local bound
-  bound="$(k -n "$TEST_NS" get pods -l app=kwok-probe -o jsonpath='{.items[0].spec.nodeName}')"
-  [ "$(k get node "$bound" -o jsonpath='{.metadata.labels.karpenter\.sh/nodepool}')" = "$KWOK_NODEPOOL" ] \
-    || fail "kwok-probe bound to '$bound', which is not a $KWOK_NODEPOOL node"
-  echo "  6a provision OK: node $node carries the virtual taint, pod bound to the pool"
-
-  # 6b — consolidation: empty the node; WhenEmptyOrUnderutilized (10s) must
-  # remove the now-lendable-and-empty virtual node.
-  k -n "$TEST_NS" scale deployment kwok-probe --replicas=0 >/dev/null
-  wait_for "$WAIT_KWOK" "empty kwok node consolidated away" kwok_substrate_empty
-  echo "  6b consolidation OK: empty node and its NodeClaim removed"
-
-  # 6c — drift: with demand present, a NodePool template change must REPLACE
-  # the nodeclaim (old gone, new one provisioned). Template restored on exit.
-  k -n "$TEST_NS" scale deployment kwok-probe --replicas=1 >/dev/null
-  wait_for "$WAIT_KWOK" "NodeClaim reprovisioned for drift test" kwok_nodeclaim_exists
-  local nc1
-  nc1="$(k get nodeclaims -l "$kwok_sel" -o jsonpath='{.items[0].metadata.name}')"
-  DRIFT_PATCHED=1
-  k patch nodepool "$KWOK_NODEPOOL" --type=merge \
-    -p '{"spec":{"template":{"metadata":{"labels":{"synorg-drift-test":"v2"}}}}}' >/dev/null
-  echo "  patched NodePool $KWOK_NODEPOOL template (label synorg-drift-test=v2) — expecting drift replacement of $nc1"
-  drift_replaced() {
-    local names; names="$(kwok_nodeclaims)"
-    [ -n "$names" ] || return 1
-    case " $names " in *" $nc1 "*) return 1 ;; esac
-    return 0
-  }
-  wait_for "$WAIT_KWOK" "nodeclaim $nc1 replaced by a drifted successor" drift_replaced
-  echo "  6c drift OK: $nc1 replaced by $(kwok_nodeclaims) after template change"
 }
 
 # s7: TAS / hot-swap — explicitly out of scope on kind (U3 packet #7).

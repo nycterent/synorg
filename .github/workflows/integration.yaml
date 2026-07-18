@@ -1,7 +1,8 @@
 name: integration
-# The integration tier (plan 002 U8): kind + fake-GPU harness running the
-# same `make integration` an engineer runs locally. Docker, jq and yq are
-# preinstalled on ubuntu runners; kind/kubectl/helm are pinned below.
+# The integration tier (plan 002 U8): the same `make integration` an engineer
+# runs locally — the main kind + fake-GPU harness phase, then the isolated
+# kwok/Karpenter cluster phase (tests/kind/kwok-up.sh). Docker, jq, yq and go
+# are preinstalled on ubuntu runners; kind/kubectl/helm are pinned below.
 on:
   pull_request:
     paths:
@@ -35,7 +36,9 @@ env:
 jobs:
   integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 45 for the main phase + 15 for the kwok phase (karpenter clone + ko
+    # build from source, then the provisioning/consolidation/drift suite).
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Cache toolchain
@@ -55,23 +58,27 @@ jobs:
       - name: Add toolchain to PATH
         run: echo "$HOME/bin" >> "$GITHUB_PATH"
       - name: Integration (same target as local)
-        # SKIP_KWOK=1: the Karpenter kwok provider has no published image and
-        # is built from a pinned source checkout with go+ko (minutes of module
-        # download + build). It backs exactly one scenario — scheduling s6
-        # (Karpenter-core provision/consolidation/drift) — which SKIPs loudly
-        # when the kwok NodePool is absent, so nothing passes vacuously (R6).
-        # CI buys the admission + Kueue quota/preemption signal at kind speed;
-        # s6 stays a local (full `make integration`) and e2e concern. The
-        # trade-off is documented in docs/explanation/testing.md.
-        run: SKIP_KWOK=1 make integration
+        # Both phases run: the main harness (Kyverno/Kueue/fake-GPU, NO
+        # Karpenter) and the isolated kwok/Karpenter cluster, where the kwok
+        # provider is built from a pinned source checkout with go+ko.
+        # go: no install step needed — karpenter v1.14.0's go.mod pins
+        # `go 1.26.5`, and the runner's preinstalled go (>=1.21) auto-fetches
+        # exactly that toolchain via the default GOTOOLCHAIN=auto, so the
+        # build is pinned by go.mod itself, not by the runner image.
+        run: make integration
       - name: Export kind logs (failure)
-        # make integration leaves the cluster up on failure by design, so the
-        # control-plane and node logs are still there to collect.
+        # make integration leaves the failing cluster up by design, so the
+        # control-plane and node logs are still there to collect (whichever
+        # phase failed; the other cluster export is a no-op).
         if: failure()
-        run: kind export logs /tmp/kind-logs --name synorg || true
+        run: |
+          kind export logs /tmp/kind-logs --name synorg || true
+          kind export logs /tmp/kind-logs-kwok --name synorg-kwok || true
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: kind-logs
-          path: /tmp/kind-logs
+          path: |
+            /tmp/kind-logs
+            /tmp/kind-logs-kwok
           if-no-files-found: ignore

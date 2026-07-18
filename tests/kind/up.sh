@@ -4,25 +4,26 @@
 # Kyverno + Kueue installed and the repo's policies/ + clusters/pilot/kueue/
 # applied. Idempotent: re-running against an existing cluster is safe.
 #
-# Two substrates, kept separate (KTD1/KTD2/KTD3):
-#   - REAL kind workers (tests/kind/cluster.yaml) carry the GPU pool labels and
-#     taints; fake-gpu-operator's device plugin (needs a real kubelet)
-#     advertises synthetic nvidia.com/gpu there, so pods actually run and real
-#     PriorityClass preemption + admission fire.
-#   - kwok VIRTUAL nodes (Karpenter kwok provider) exist only for Karpenter-core
-#     behavior (taint/drift/consolidation). They have no kubelet, no
-#     nvidia.com/gpu, and their NodePool is tainted so nothing schedules there
-#     without an explicit toleration (tests/kind/karpenter-kwok.yaml).
+# The REAL kind workers (tests/kind/cluster.yaml) carry the GPU pool labels
+# and taints; fake-gpu-operator's device plugin (needs a real kubelet)
+# advertises synthetic nvidia.com/gpu there, so pods actually run and real
+# PriorityClass preemption + admission fire.
+#
+# Karpenter is NEVER installed here (validated live, runs 6-9): a live
+# Karpenter controller garbage-collects these workers — they carry
+# karpenter.sh/nodepool labels (required so the unmodified Kueue
+# ResourceFlavors bind; KTD2, the labels cannot be removed) but have no
+# backing instance in Karpenter's cloudprovider list, so leaked-node GC
+# cordons them and kills the scheduling scenarios. The kwok/Karpenter
+# coverage runs in its own ephemeral cluster: tests/kind/kwok-up.sh.
 #
 # Flags:
 #   --fallback   Skip fake-gpu-operator; advertise nvidia.com/gpu by patching
 #                node status directly (kubectl patch --subresource=status).
 #                The operator release is uninstalled so the two paths never
 #                fight over node status. Scheduling fidelity only.
-#   --no-kwok    Skip the Karpenter kwok provider (it is built from source with
-#                go + ko; skip on machines without a Go toolchain).
 #
-# Env equivalents: FALLBACK=1, SKIP_KWOK=1.
+# Env equivalent: FALLBACK=1.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -36,9 +37,6 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 KYVERNO_VERSION="v1.18.2"
 KUEUE_VERSION="v0.18.3"
 FAKE_GPU_OPERATOR_VERSION="0.0.70"   # chart oci://ghcr.io/run-ai/fake-gpu-operator
-KWOK_VERSION="v0.8.0"                # kwok node simulator (stages + controller)
-KARPENTER_VERSION="v1.14.0"          # sigs.k8s.io/karpenter (kwok provider, built from source)
-KO_VERSION="v0.19.1"                 # ko, builds the kwok controller image into kind
 
 GPU_OP_NS="gpu-operator"
 GPU_COUNT="8"                        # simulated GPUs per GPU worker
@@ -68,11 +66,9 @@ usage() {
 }
 
 FALLBACK="${FALLBACK:-0}"
-SKIP_KWOK="${SKIP_KWOK:-0}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --fallback) FALLBACK=1 ;;
-    --no-kwok) SKIP_KWOK=1 ;;
     -h|--help) usage; exit 0 ;;
     *) fail "unknown flag: $1 (see --help)" ;;
   esac
@@ -211,73 +207,14 @@ else
 fi
 retry 12 gpu_capacity_ready || fail "GPU workers never advertised nvidia.com/gpu (mode: $GPU_MODE)"
 
-# --- 6. Karpenter kwok provider (virtual-node substrate) ---------------------
-# No published controller image exists for the kwok provider — it is built from
-# a pinned source checkout with ko and side-loaded into the kind node
-# (KO_DOCKER_REPO=kind.local). Needs a Go toolchain; skip with --no-kwok.
-install_karpenter_kwok() {
-  need go
-  need git
-  step "kwok $KWOK_VERSION + karpenter kwok provider $KARPENTER_VERSION"
-  k apply --server-side --force-conflicts \
-    -f "https://github.com/kubernetes-sigs/kwok/releases/download/${KWOK_VERSION}/kwok.yaml"
-  k apply --server-side --force-conflicts \
-    -f "https://github.com/kubernetes-sigs/kwok/releases/download/${KWOK_VERSION}/stage-fast.yaml"
-
-  local src="$ROOT/build/karpenter-kwok/karpenter-${KARPENTER_VERSION}"
-  if [ ! -d "$src" ]; then
-    mkdir -p "$(dirname "$src")"
-    git clone --quiet --depth 1 --branch "$KARPENTER_VERSION" \
-      https://github.com/kubernetes-sigs/karpenter "$src"
-  fi
-
-  local img repo tag digest
-  # --platform must match the kind node's architecture — ko defaults to
-  # linux/amd64, which yields a 0/1 CrashLoop (exec format) on arm64 hosts.
-  local arch; arch="$(docker version --format '{{.Server.Arch}}' 2>/dev/null || uname -m)"
-  case "$arch" in aarch64) arch=arm64 ;; x86_64) arch=amd64 ;; esac
-  img="$(cd "$src" && KO_DOCKER_REPO=kind.local KIND_CLUSTER_NAME="$CLUSTER_NAME" \
-    go run "github.com/google/ko@${KO_VERSION}" build -B --platform="linux/${arch}" sigs.k8s.io/karpenter/kwok)"
-  # ko prints REPO[:TAG]@DIGEST; split it the same way upstream's Makefile does.
-  repo="$(echo "$img" | cut -d '@' -f 1 | cut -d ':' -f 1)"
-  tag="$(echo "$img" | cut -d '@' -f 1 | cut -d ':' -f 2 -s)"
-  digest="$(echo "$img" | cut -d '@' -f 2 -s)"
-
-  k apply --server-side --force-conflicts -f "$src/kwok/charts/crds"
-  # The chart's node affinity forbids nodes carrying karpenter.sh/nodepool —
-  # which is every kind worker here (they impersonate the EKS pools). The
-  # control-plane node is the only legal home, so tolerate its taint.
-  helm --kube-context "$KCTX" upgrade --install karpenter "$src/kwok/charts" \
-    --namespace kube-system --skip-crds \
-    --set controller.image.repository="$repo" \
-    --set controller.image.tag="${tag:-latest}" \
-    --set controller.image.digest="$digest" \
-    --set-json 'tolerations=[{"key":"CriticalAddonsOnly","operator":"Exists"},{"key":"node-role.kubernetes.io/control-plane","operator":"Exists","effect":"NoSchedule"}]' \
-    --set settings.featureGates.staticCapacity=false \
-    --set settings.featureGates.capacityBuffer=false \
-    --wait --timeout 5m
-  # ^ staticCapacity/capacityBuffer: the v1.14.0 chart's FEATURE_GATES template
-  # references both but values.yaml defines neither — unset they render empty
-  # and the controller panics at boot ("invalid value of StaticCapacity").
-  # Test-only tainted NodePool + KWOKNodeClass: virtual nodes for
-  # taint/drift/consolidation tests, unreachable by GPU (or any untolerating)
-  # workloads.
-  k apply -f "$HERE/karpenter-kwok.yaml"
-}
-if [ "$SKIP_KWOK" = "1" ]; then
-  step "karpenter kwok provider: skipped (--no-kwok)"
-else
-  install_karpenter_kwok
-fi
-
-# --- 7. Repo policies (unmodified) -------------------------------------------
+# --- 6. Repo policies (unmodified) -------------------------------------------
 step "apply policies/ (kyverno + vap)"
 k apply --server-side --force-conflicts -f "$ROOT/policies/kyverno/"
 k apply --server-side --force-conflicts -f "$ROOT/policies/vap/"
 retry 24 k wait --for=condition=Ready clusterpolicy --all --timeout=10s \
   || fail "Kyverno ClusterPolicies never became Ready"
 
-# --- 8. Repo Kueue objects (unmodified) --------------------------------------
+# --- 7. Repo Kueue objects (unmodified) --------------------------------------
 step "apply clusters/pilot/kueue/"
 # team-ml is the namespace clusters/pilot/kueue/localqueue-team-example.yaml
 # expects; creating it is harness setup, not a manifest change.
@@ -286,7 +223,7 @@ k create namespace team-ml --dry-run=client -o yaml | k apply -f -
 retry 24 k apply --server-side --force-conflicts -f "$ROOT/clusters/pilot/kueue/" \
   || fail "could not apply clusters/pilot/kueue/ (Kueue webhook not admitting?)"
 
-# --- 9. Self-verify ----------------------------------------------------------
+# --- 8. Self-verify ----------------------------------------------------------
 step "verify"
 SYNORG_KCTX="$KCTX" SYNORG_GPU_MODE="$GPU_MODE" bash "$HERE/verify.sh"
 

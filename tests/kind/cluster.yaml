@@ -9,9 +9,11 @@
 # confined to how the node advertises capacity: fake-gpu-operator (or the
 # --fallback node-status patch) adds nvidia.com/gpu to these real workers.
 #
-# The kwok virtual nodes (Karpenter kwok provider, installed by up.sh) are a
-# SEPARATE substrate — they are provisioned at runtime, never listed here, and
-# never carry the GPU pool labels, so GPU workloads cannot land on them (KTD1).
+# Karpenter/kwok is NEVER installed in this cluster: a live Karpenter
+# controller treats these pool-labeled workers (karpenter.sh/nodepool with no
+# backing cloudprovider instance) as leaked nodes and GC-cordons them,
+# validated live. The kwok/Karpenter coverage runs in its own ephemeral
+# cluster — kwok-cluster.yaml, brought up by kwok-up.sh.
 #
 # Node image: kindest/node at k8s 1.33 — matches K8S_VERSION=1.33.0 pinned in
 # scripts/validate.sh, and satisfies the >=1.30 floor required for

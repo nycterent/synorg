@@ -107,3 +107,20 @@ product defects and two harness gaps were caught live and fixed:
 - scheduling_test.sh's borrowingLimit read/patch was index-based
   (`resources[0]`) and broke when cpu/memory coverage landed — now name-keyed
   like the controller's own path-finder.
+
+---
+
+# KTD1 one-cluster coexistence invalidated live — kwok isolated (2026-07-18)
+
+Live runs 6-9 with a RUNNING Karpenter controller falsified the two-substrates,
+one-cluster assumption (KTD1): the main harness workers carry
+`karpenter.sh/nodepool` labels (required so unmodified Kueue ResourceFlavors
+bind — KTD2, the labels cannot be removed) but have no backing instance in
+Karpenter's cloudprovider list, so leaked-node GC cordoned them and killed the
+scheduling scenarios. Resolved by moving all kwok/Karpenter coverage to an
+isolated ephemeral kind cluster: `tests/kind/kwok-cluster.yaml` +
+`kwok-up.sh`/`kwok-down.sh`, exercised by `tests/kwok/karpenter_test.sh`
+(formerly scheduling s6). `make integration` now runs both phases
+(`integration-kwok` runs the kwok phase alone; `integration-down` deletes both
+clusters); CI runs both — `SKIP_KWOK` is gone. The main harness never installs
+Karpenter again.

@@ -6,8 +6,7 @@
 # Kueue injects the gpu-lendable ResourceFlavor's nodeLabels
 # (karpenter.sh/nodepool=gpu-lendable) and tolerations
 # (pool.synorg.io/lendable, lending.synorg.io/lent) — exactly the
-# bind-to-real-workers behavior under test. kwok virtual nodes never carry the
-# gpu-lendable pool label, so training can never land there (KTD1).
+# bind-to-real-workers behavior under test.
 apiVersion: batch/v1
 kind: Job
 metadata:

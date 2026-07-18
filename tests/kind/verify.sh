@@ -7,9 +7,12 @@
 #      from docs/conventions.md; the web worker has neither.
 #   2. ValidatingAdmissionPolicy v1 is served.
 #   3. A probe GPU pod (policy-compliant: team label, training class, lendable
-#      toleration) schedules onto a REAL lendable worker — never a kwok node.
+#      toleration) schedules onto the REAL lendable worker.
 #   4. A plain non-GPU pod stays off GPU nodes (lands on the web pool).
-#   5. Any kwok virtual nodes present advertise NO nvidia.com/gpu (KTD1).
+#
+# No kwok/Karpenter assertions here: Karpenter is never installed in this
+# cluster (it GC-cordons the pool-labeled workers) — it lives in the isolated
+# kwok cluster (kwok-up.sh), verified by tests/kwok/karpenter_test.sh.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,7 +26,6 @@ pass() { echo "ok: $*"; }
 k() { kubectl --context "$KCTX" "$@"; }
 
 need kubectl
-need jq
 k get nodes >/dev/null 2>&1 || fail "no cluster reachable at context $KCTX — run tests/kind/up.sh first"
 
 # GPU mode: exported by up.sh; when run standalone, detect by whether the
@@ -128,13 +130,10 @@ k -n "$PROBE_NS" wait pod/gpu-probe --for=condition=Ready --timeout=240s \
 node="$(k -n "$PROBE_NS" get pod gpu-probe -o jsonpath='{.spec.nodeName}')"
 [ "$(k get node "$node" -o jsonpath='{.metadata.labels.pool\.synorg\.io/name}')" = "lendable" ] \
   || fail "GPU probe landed on '$node', not a lendable-pool node"
-[ -z "$(k get node "$node" -o jsonpath='{.metadata.annotations.kwok\.x-k8s\.io/node}')" ] \
-  || fail "GPU probe landed on kwok virtual node '$node' — GPU workloads must bind only to real workers (KTD1)"
 pass "GPU probe scheduled + Ready on real lendable worker $node"
 
 # Non-GPU probe: no tolerations, no selector — the only schedulable node is the
-# untainted web worker (control-plane and GPU pools are tainted; the kwok
-# NodePool is tainted too).
+# untainted web worker (control-plane and GPU pools are tainted).
 k apply -f - <<EOF
 apiVersion: v1
 kind: Pod
@@ -153,24 +152,6 @@ node="$(k -n "$PROBE_NS" get pod cpu-probe -o jsonpath='{.spec.nodeName}')"
 [ "$(k get node "$node" -o jsonpath='{.metadata.labels.pool\.synorg\.io/name}')" = "web" ] \
   || fail "non-GPU probe landed on '$node' — plain pods must stay off GPU nodes"
 pass "non-GPU probe Ready on web worker $node"
-
-# --- 5. kwok virtual nodes advertise no GPU (KTD1) ---------------------------
-# One node-list fetch; the kwok annotation + GPU allocatable are derived from
-# it locally instead of one k call per node.
-NODES_JSON="$(k get nodes -o json)"
-kwok_seen=0
-while IFS=$'\t' read -r n cap; do
-  [ -n "$n" ] || continue
-  kwok_seen=1
-  { [ -z "$cap" ] || [ "$cap" = "0" ]; } || fail "kwok virtual node $n advertises nvidia.com/gpu=$cap — GPU capacity belongs on real workers only (KTD1)"
-done < <(echo "$NODES_JSON" | jq -r '.items[]
-  | select((.metadata.annotations["kwok.x-k8s.io/node"] // "") != "")
-  | [.metadata.name, (.status.allocatable["nvidia.com/gpu"] // "")] | @tsv')
-if [ "$kwok_seen" = "1" ]; then
-  pass "kwok virtual nodes present, none advertise nvidia.com/gpu"
-else
-  pass "no kwok virtual nodes currently provisioned (nothing to assert)"
-fi
 
 echo
 echo "VERIFY OK (GPU mode: $GPU_MODE)"

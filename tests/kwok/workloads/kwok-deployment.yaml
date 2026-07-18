@@ -1,17 +1,18 @@
-# kwok-deployment.yaml — demand generator for the kwok/Karpenter scenarios
-# (U3, s6 / KTD3). The ONLY workload in this suite that tolerates the
-# karpenter.kwok.sh/virtual template taint, and it pins itself to the
-# kwok-test NodePool — so it can never consume real-worker capacity, and no
-# GPU workload can follow it onto virtual nodes. CPU-only request: kwok nodes
-# never advertise nvidia.com/gpu. Pods bound there never actually run (no
-# kubelet); s6 asserts provisioning/binding, not execution.
+# kwok-deployment.yaml — demand generator for the kwok/Karpenter lifecycle
+# suite (tests/kwok/karpenter_test.sh). Runs ONLY against the isolated kwok
+# cluster (tests/kind/kwok-up.sh): it tolerates the karpenter.kwok.sh/virtual
+# template taint and pins itself to the kwok-test NodePool, so the only real
+# node there (the control-plane) can never host it. CPU-only request: kwok
+# nodes never advertise nvidia.com/gpu. Pods bound to virtual nodes never
+# actually run (no kubelet); the suite asserts provisioning/binding, not
+# execution.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kwok-probe
-  namespace: scheduling-test
+  namespace: kwok-test
   labels:
-    synorg.io/scheduling-test: "true"
+    synorg.io/kwok-test: "true"
 spec:
   replicas: 1
   selector:
@@ -21,7 +22,7 @@ spec:
     metadata:
       labels:
         app: kwok-probe
-        synorg.io/scheduling-test: "true"
+        synorg.io/kwok-test: "true"
     spec:
       nodeSelector:
         karpenter.sh/nodepool: kwok-test

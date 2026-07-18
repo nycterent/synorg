@@ -1,7 +1,7 @@
 # Platform monorepo entrypoints. `make validate` is the contract (R10):
 # byte-for-byte the same script locally and in CI.
 
-.PHONY: validate validate-full render clean help integration integration-down deploy smoke e2e
+.PHONY: validate validate-full render clean help integration integration-kwok integration-down deploy smoke e2e
 
 validate: ## Diff-scoped validation: helm template + kubeconform + kyverno test
 	bash scripts/validate.sh
@@ -15,7 +15,7 @@ render: ## Render all charts with their CI values into build/rendered/ (no schem
 demo: ## Narrated read-only walkthrough (render + policy accept/deny + bridge)
 	bash scripts/demo.sh
 
-integration: ## Integration ladder: kind up -> lending controller suite -> tests/integration/*/ -> kind down
+integration: ## Integration ladder: main phase (kind up -> lending suite -> tests/integration/*/ -> down), then isolated kwok/Karpenter phase
 	bash tests/kind/up.sh
 	@rc=0; \
 	echo "== controllers/lending/test.sh"; \
@@ -31,9 +31,20 @@ integration: ## Integration ladder: kind up -> lending controller suite -> tests
 		exit 1; \
 	fi
 	bash tests/kind/down.sh
+	$(MAKE) integration-kwok
 
-integration-down: ## Delete the kind integration cluster (idempotent)
+integration-kwok: ## Isolated kwok/Karpenter phase alone: kwok cluster up -> tests/kwok/karpenter_test.sh -> down (needs go+git; kwok-up.sh fails loudly without them)
+	bash tests/kind/kwok-up.sh
+	@if bash tests/kwok/karpenter_test.sh; then \
+		bash tests/kind/kwok-down.sh; \
+	else \
+		echo "kwok phase FAILED — kwok cluster left up for debugging (make integration-down to remove)"; \
+		exit 1; \
+	fi
+
+integration-down: ## Delete BOTH kind integration clusters — main + kwok (idempotent)
 	bash tests/kind/down.sh
+	bash tests/kind/kwok-down.sh
 
 deploy: ## Credential-gated platform bootstrap (runbooks/deploy-platform.md); ARGS=--plan|--dry-run|--auto-approve
 	bash scripts/deploy.sh $(ARGS)

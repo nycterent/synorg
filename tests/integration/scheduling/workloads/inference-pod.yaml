@@ -5,10 +5,9 @@
 # training-preemptible pod to place it — the real preemption under test (R1).
 #
 # Pinned to the REAL lendable worker: nodeSelector pool.synorg.io/name=lendable
-# only matches the pool-labeled kind worker (docs/conventions.md); kwok virtual
-# nodes carry no pool label and no nvidia.com/gpu. Tolerations mirror the
-# gpu-lendable flavor's set so the pod can land while the node is pool-tainted
-# or actively lent.
+# only matches the pool-labeled kind worker (docs/conventions.md). Tolerations
+# mirror the gpu-lendable flavor's set so the pod can land while the node is
+# pool-tainted or actively lent.
 apiVersion: v1
 kind: Pod
 metadata:

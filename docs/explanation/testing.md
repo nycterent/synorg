@@ -27,7 +27,7 @@ and each tier runs byte-for-byte the same locally and in CI.
 | Tier | Command | Proves | Cannot see | Runs in |
 |---|---|---|---|---|
 | Offline | `make validate` | Charts render; schemas hold; Kyverno policies accept/deny the *rendered* output (CLI, offline) | No API server: webhook ordering, CEL admission at v1, controller behavior | laptop + CI on every PR (`validate.yaml`) |
-| Integration | `make integration` | Real admission verdicts and real Kueue quota/preemption on a disposable kind cluster with fake-GPU capacity | The AWS layer: `EC2NodeClass`, ODCR, real EC2 provisioning, scrub-by-termination, DCGM metrics | laptop + CI on PRs touching platform paths (`integration.yaml`) |
+| Integration | `make integration` | Real admission verdicts and real Kueue quota/preemption on a disposable kind cluster with fake-GPU capacity; Karpenter-core provisioning/consolidation/drift on a second, isolated kwok cluster | The AWS layer: `EC2NodeClass`, ODCR, real EC2 provisioning, scrub-by-termination, DCGM metrics | laptop + CI on PRs touching platform paths (`integration.yaml`) |
 | Smoke | `make smoke` | A *live* cluster — kind or EKS, current kubecontext — is healthy and still enforcing platform behavior | Nothing new about the manifests; it asserts a deployment, not the repo | manual, post-deploy |
 | Deploy | `make deploy` | The bootstrap runbook is executable end-to-end with one credential-gated entrypoint (`--plan` for dry-run) | It builds the platform; it does not exercise workloads | manual (needs AWS) |
 | e2e | `make e2e` | GPU physics: lend → reclaim → scrub (new instance-id) → serve under the p95 gate, on real spot capacity | Nothing — this is the top rung | manual / `workflow_dispatch` only (`e2e.yaml`) |
@@ -42,22 +42,32 @@ controller on kind (v1.18.2) is the same version the offline CLI pins in
 `validate.yaml`, so a pass at one rung is evidence about the same software the
 next rung runs.
 
-## The two-substrate design
+## Two clusters, kept apart
 
-The kind harness (`tests/kind/`) runs two node populations side by side,
-deliberately kept apart:
+The integration tier runs two disposable kind clusters, one after the other:
 
-- **Real kind workers** carry the GPU-pool labels and taints from
-  [conventions](../conventions.md), and the fake-gpu-operator's device plugin —
-  which needs a real kubelet — advertises synthetic `nvidia.com/gpu` on them.
-  Because the capacity is real to the kubelet, pods actually *run*, which is
-  what makes preemption tests honest: when inference preempts training, a
-  running pod is really evicted, not simulated.
-- **kwok virtual nodes** exist only for Karpenter. The Karpenter kwok provider
-  provisions them to exercise NodePool behavior — provisioning under taints,
-  consolidation of empty nodes, drift replacement. They have no kubelet and no
-  `nvidia.com/gpu`, and their NodePool is tainted so no test workload lands
-  there by accident.
+- **The main harness** (`tests/kind/up.sh`) has real kind workers carrying the
+  GPU-pool labels and taints from [conventions](../conventions.md), and the
+  fake-gpu-operator's device plugin — which needs a real kubelet — advertises
+  synthetic `nvidia.com/gpu` on them. Because the capacity is real to the
+  kubelet, pods actually *run*, which is what makes preemption tests honest:
+  when inference preempts training, a running pod is really evicted, not
+  simulated. Karpenter is never installed in this cluster.
+- **The isolated kwok cluster** (`tests/kind/kwok-up.sh`) is a single
+  control-plane node plus kwok and the Karpenter kwok provider. Karpenter
+  provisions virtual nodes there to exercise its provider-agnostic core —
+  provisioning under taints, consolidation of empty nodes, drift replacement
+  (`tests/kwok/karpenter_test.sh`). Virtual nodes have no kubelet and no
+  `nvidia.com/gpu`, and their NodePool is tainted.
+
+The isolation is not taste — it was validated live. The main harness's workers
+carry `karpenter.sh/nodepool` labels because the unmodified Kueue
+ResourceFlavors key on them, and those labels cannot be removed without
+modifying the manifests under test. To a live Karpenter controller, a labeled
+node with no backing instance in its cloudprovider list is a *leaked node*:
+garbage collection cordons it, killing the scheduling scenarios mid-run. So
+the two suites never share a cluster — Karpenter only ever sees nodes it
+provisioned itself.
 
 The fake-ness is confined to *how a node advertises capacity*. The workload
 manifests, the resource name `nvidia.com/gpu`, and the policies under test are
@@ -77,11 +87,12 @@ kwok provider's `karpenter.kwok.sh/*` instance types are test-only and never
 appear in the real overlays.
 
 One consequence: the kwok provider has no published image and is built from
-source with `go` + `ko`, so it is optional (`up.sh --no-kwok`, or
-`SKIP_KWOK=1`). CI runs the integration tier with `SKIP_KWOK=1` — the build
-would add minutes for exactly one scenario — so Karpenter-core coverage comes
-from full local runs and from e2e. When kwok is absent, that scenario skips
-*loudly* rather than passing quietly, which is the next point.
+source with `go` + `ko`, so the kwok phase requires a Go toolchain —
+`kwok-up.sh` checks for it and fails loudly with an install hint rather than
+skipping silently (R6). CI runs both phases; the runner's preinstalled Go
+bootstraps the exact toolchain karpenter's `go.mod` pins. When the kwok
+cluster is unreachable, the suite skips *loudly* rather than passing quietly,
+which is the next point.
 
 ## No vacuous passes
 
@@ -98,8 +109,8 @@ intentions:
   server.
 - On push to main, `validate` runs full-repo instead of diff-scoped, because an
   empty diff would pass vacuously.
-- Skips are loud and specific — kwok absent, ArgoCD absent on kind, TAS out of
-  scope — never silent greens.
+- Skips are loud and specific — kwok cluster unreachable, ArgoCD absent on
+  kind, TAS out of scope — never silent greens.
 - Waits are bounded; assertions pin specific conditions (Workload status
   conditions, pod phase, node taints), never a bare exit code.
 

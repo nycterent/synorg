@@ -11,46 +11,66 @@ The harness adapts the node/provider side only. The resource name stays
 `nvidia.com/gpu` and the workload manifests stay untouched — fake-ness is
 confined to how nodes advertise capacity.
 
+This directory also holds a SECOND, isolated cluster: `kwok-up.sh` /
+`kwok-down.sh` bring up a tiny ephemeral kwok/Karpenter cluster
+(`kwok-cluster.yaml`, single control-plane node) for the Karpenter-core suite
+in `tests/kwok/karpenter_test.sh`. See "Two clusters, kept apart" below for
+why the two can never be one.
+
 ## Prerequisites
 
 - `brew install kind kubernetes-cli helm` (kind not preinstalled on dev machines)
 - Docker daemon running (Docker Desktop or colima)
-- `go` + `git` — only for the Karpenter kwok provider, which has no published
-  image and is built from source with `ko`; skip with `--no-kwok`
+- `go` + `git` — required by the kwok cluster only (`kwok-up.sh`): the
+  Karpenter kwok provider has no published image and is built from source with
+  `ko`. The main harness (`up.sh`) needs neither.
 
-`up.sh` checks each of these and fails with an install hint (same `need`/`fail`
-contract as `scripts/validate.sh`).
+`up.sh` and `kwok-up.sh` check their own prerequisites and fail with an
+install hint (same `need`/`fail` contract as `scripts/validate.sh`).
 
 ## Usage
 
 ```sh
-bash tests/kind/up.sh              # create + install + apply + self-verify
+bash tests/kind/up.sh              # main harness: create + install + apply + self-verify
 bash tests/kind/up.sh --fallback   # advertise GPUs via node-status patch, operator off
-bash tests/kind/up.sh --no-kwok    # skip the Karpenter kwok provider (no Go toolchain)
-bash tests/kind/verify.sh          # re-run the assertions standalone
-bash tests/kind/down.sh            # delete the cluster (idempotent)
-make integration                   # up -> tests/integration/*/ -> down
+bash tests/kind/verify.sh          # re-run the main-harness assertions standalone
+bash tests/kind/down.sh            # delete the main cluster (idempotent)
+
+bash tests/kind/kwok-up.sh         # isolated kwok/Karpenter cluster (needs go + git)
+bash tests/kwok/karpenter_test.sh  # Karpenter-core lifecycle suite against it
+bash tests/kind/kwok-down.sh       # delete the kwok cluster (idempotent)
+
+make integration                   # main phase, then kwok phase
+make integration-kwok              # kwok phase alone
+make integration-down              # delete BOTH clusters
 ```
 
-Re-running `up.sh` against an existing cluster is safe: cluster creation,
-installs (server-side apply / `helm upgrade --install`), patches, and probe
-pods are all idempotent. All `kubectl`/`helm` calls target the `kind-synorg`
-context explicitly; your current kubecontext is never touched.
+Re-running `up.sh` (or `kwok-up.sh`) against an existing cluster is safe:
+cluster creation, installs (server-side apply / `helm upgrade --install`),
+patches, and probe pods are all idempotent. All `kubectl`/`helm` calls target
+the `kind-synorg` (or `kind-synorg-kwok`) context explicitly; your current
+kubecontext is never touched.
 
-## Two-substrate design (KTD1/KTD2/KTD3)
+## Two clusters, kept apart (KTD2/KTD3)
 
-| Substrate | Nodes | Purpose | GPU capacity |
+| Cluster | Nodes | Purpose | GPU capacity |
 |---|---|---|---|
-| Real kind workers | `cluster.yaml`: one per pool, labeled `pool.synorg.io/name` + `karpenter.sh/nodepool`, GPU pools tainted per `docs/conventions.md` | GPU scheduling, admission, PriorityClass preemption — pods actually run on a real kubelet | `nvidia.com/gpu` via fake-gpu-operator (or fallback patch) |
-| kwok virtual nodes | Provisioned at runtime by the Karpenter kwok provider from the test-only `kwok-test` NodePool (`karpenter-kwok.yaml`) | Karpenter-core behavior only: NodePool scheduling, taints, drift, consolidation (`karpenter.kwok.sh/*` instance types) | **None — ever** |
+| Main harness (`cluster.yaml`, `up.sh`) | Real kind workers, one per pool, labeled `pool.synorg.io/name` + `karpenter.sh/nodepool`, GPU pools tainted per `docs/conventions.md` | GPU scheduling, admission, PriorityClass preemption, Kueue quota — pods actually run on a real kubelet. **No Karpenter.** | `nvidia.com/gpu` via fake-gpu-operator (or fallback patch) |
+| Isolated kwok cluster (`kwok-cluster.yaml`, `kwok-up.sh`) | One control-plane node + kwok virtual nodes provisioned at runtime from the test-only `kwok-test` NodePool (`karpenter-kwok.yaml`) | Karpenter-core behavior only: NodePool provisioning, taints, drift, consolidation (`karpenter.kwok.sh/*` instance types) | **None — ever** |
 
-kwok nodes have no kubelet: an `image: fake` pod placed there never runs, so a
-GPU workload landing on one would make preemption tests evict non-running pods.
-Three fences keep the substrates apart: the `kwok-test` NodePool template
-carries a `karpenter.kwok.sh/virtual=true:NoSchedule` taint, kwok nodes never
-get the `pool.synorg.io/name` / GPU `karpenter.sh/nodepool` labels the GPU
-selectors and Kueue ResourceFlavors key on, and `verify.sh` asserts no kwok
-node ever advertises `nvidia.com/gpu`.
+Why isolated (validated live, runs 6-9): a live Karpenter controller
+garbage-collects the main harness's workers. They carry
+`karpenter.sh/nodepool` labels — required so the unmodified Kueue
+ResourceFlavors bind (KTD2; the labels cannot be removed) — but have no
+backing instance in Karpenter's cloudprovider list, so leaked-node GC cordons
+them and kills the scheduling scenarios. One-cluster coexistence is dead: the
+main harness never installs Karpenter, and Karpenter only ever sees nodes it
+provisioned itself.
+
+kwok virtual nodes have no kubelet — pods bound there never run — and the
+`kwok-test` NodePool template carries a
+`karpenter.kwok.sh/virtual=true:NoSchedule` taint, so only the explicitly
+tolerating probe workload (`tests/kwok/workloads/`) can land on them.
 
 ## GPU advertisement: operator vs fallback
 
@@ -82,16 +102,19 @@ uninstalled so the two paths never fight over node status. Semantics:
 | Kyverno | `v1.18.2` — same as the CLI pin in `.github/workflows/validate.yaml` | `up.sh` |
 | Kueue | `v0.18.3` | `up.sh` |
 | fake-gpu-operator | chart `0.0.70` | `up.sh` |
-| kwok | `v0.8.0` | `up.sh` |
-| Karpenter (kwok provider) | `v1.14.0`, built with ko `v0.19.1` into `build/karpenter-kwok/` | `up.sh` |
+| kwok | `v0.8.0` | `kwok-up.sh` |
+| Karpenter (kwok provider) | `v1.14.0`, built with ko `v0.19.1` into `build/karpenter-kwok/` | `kwok-up.sh` |
+| go | `1.26.5` — pinned by karpenter `v1.14.0`'s `go.mod`; any installed go ≥ 1.21 auto-fetches it via the default `GOTOOLCHAIN=auto` | karpenter `go.mod` (consumed by `kwok-up.sh`) |
 
 ## Verification
 
 `up.sh` ends by running `verify.sh`, which asserts: pool nodes advertise
 `nvidia.com/gpu` with the exact conventions taints; VAP v1 is served; a
-policy-compliant probe GPU pod schedules onto a real lendable worker (never a
-kwok node) and becomes Ready; a plain pod lands on the `web` pool; kwok nodes
-advertise no GPU. Probe pods are cleaned up on exit.
+policy-compliant probe GPU pod schedules onto the real lendable worker and
+becomes Ready; a plain pod lands on the `web` pool. Probe pods are cleaned up
+on exit. The kwok cluster is verified by its own suite,
+`tests/kwok/karpenter_test.sh` (which also has an offline `--lint` mode).
 
-On `make integration` failure the cluster is left up for debugging; tear it
-down with `make integration-down` (or `bash tests/kind/down.sh`).
+On `make integration` failure the failing cluster is left up for debugging;
+tear everything down with `make integration-down` (or `bash
+tests/kind/down.sh` / `bash tests/kind/kwok-down.sh` individually).

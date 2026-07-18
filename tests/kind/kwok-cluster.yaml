@@ -1,0 +1,23 @@
+# kwok-cluster.yaml — kind topology for the ISOLATED kwok/Karpenter cluster
+# (kwok-up.sh). A single control-plane node and nothing else: every other node
+# in this cluster is a kwok VIRTUAL node, provisioned at runtime by the
+# Karpenter kwok provider from the test-only kwok-test NodePool
+# (karpenter-kwok.yaml).
+#
+# Why its own cluster (validated live, runs 6-9): a live Karpenter controller
+# garbage-collects the main harness's workers. They carry karpenter.sh/nodepool
+# labels — required so the unmodified Kueue ResourceFlavors bind (KTD2, the
+# labels cannot be removed) — but have no backing instance in Karpenter's
+# cloudprovider list, so leaked-node GC cordons them and kills the scheduling
+# scenarios. One-cluster coexistence is dead; kwok/Karpenter coverage runs
+# here, where every labeled node Karpenter sees is one it provisioned itself.
+#
+# Deliberately minimal: no pool workers, no pool labels/taints, and no DRA
+# feature gate — fake-gpu-operator (the only DRA consumer) is never installed
+# in this cluster. Node image matches cluster.yaml's k8s pin.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: synorg-kwok
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.33.7
