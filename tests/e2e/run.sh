@@ -61,6 +61,17 @@ E2E_VPC="${E2E_VPC:-}"                         # create = stand up the disposabl
 CHEAP_OVERLAY="tests/e2e/cheap-overlay/apply.sh"
 VPC_DIR="${VPC_DIR:-tests/e2e/vpc}"            # disposable-VPC module (E2E_VPC=create only)
 
+# Cheap-run assertion tuning (assertions.sh reads these; both stay
+# env-overridable). PEAK_RPS: the single-replica stand-in render path is a
+# python stub, not a GPU fleet — 4000 RPS would only benchmark the stub.
+# SHARED_STORE: checkpoints land on node-local disk (see
+# stand-ins/checkpoint-pv.yaml), so the 2000 MBps shared-store FLOOR is not a
+# meaningful gate on this stack; assertions announce the override loudly.
+if [ "$E2E_CHEAP" = 1 ]; then
+  export E2E_PEAK_RPS="${E2E_PEAK_RPS:-100}"
+  export E2E_SHARED_STORE_MIN_MBPS="${E2E_SHARED_STORE_MIN_MBPS:-50}"
+fi
+
 # Spot GPU vCPU quota (g5/g6 land here). Runsheet Step 2 names these; --check
 # only DESCRIBES them (read-only) and hints, it never requests an increase.
 SPOT_GVT_QUOTA_CODE="L-3819A6DF"     # "All G and VT Spot Instance Requests" (vCPUs)
@@ -342,7 +353,33 @@ phase_up() {
   kubectl --context "$PILOT_CONTEXT" -n platform-system rollout status \
     deploy/warm-floor-balloon --timeout=600s \
     || fail "up: warm-floor balloon not scheduling — runsheet Step 6 (floor) before testing"
+  standins_up
   echo "UP OK — pilot live; next: --test"
+}
+
+# --- E2E stand-ins (tests/e2e/stand-ins/) ------------------------------------
+# The canonical service images (recommender/ranker, ml/trainer) do not exist,
+# and nothing on a fresh stack occupies the lendable pool — without these the
+# lend physics can never start and the evidence plane has no emitters (see
+# each manifest's header). Idempotent; applied after the platform converges.
+standins_up() {
+  step "up: e2e stand-ins — render path, lendable hold, checkpoint PV, scrape wiring"
+  local img_repo="${E2E_STANDIN_IMAGE_REPO:-$(aws sts get-caller-identity --query Account --output text).dkr.ecr.$REGION.amazonaws.com/platform/inference-stub}"
+  local img_tag="${E2E_STANDIN_IMAGE_TAG:-0.1.0}"
+  helm --kube-context "$PILOT_CONTEXT" upgrade --install inference charts/golden-service \
+    --namespace pilot --create-namespace \
+    -f tests/e2e/stand-ins/inference-values.yaml \
+    --set image.repository="$img_repo" --set image.tag="$img_tag" \
+    --wait --timeout 10m \
+    || fail "up: inference stand-in did not converge (render path unmeasurable without it)"
+  kubectl --context "$PILOT_CONTEXT" apply \
+    -f tests/e2e/stand-ins/checkpoint-pv.yaml \
+    -f tests/e2e/stand-ins/lendable-hold.yaml \
+    -f tests/e2e/stand-ins/monitors.yaml \
+    || fail "up: stand-in manifests did not apply"
+  kubectl --context "$PILOT_CONTEXT" -n platform-system rollout status \
+    deploy/lendable-hold --timeout=600s \
+    || fail "up: lendable-hold not scheduling — no lendable-pool node, the lend assertion cannot start"
 }
 
 phase_test() {

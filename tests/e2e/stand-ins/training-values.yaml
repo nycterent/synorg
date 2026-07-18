@@ -1,0 +1,31 @@
+# E2E stand-in values for the training-job chart (assertions.sh
+# training_submit). The canonical trainer image (registry.synorg.io/ml/trainer)
+# does not exist; services/inference-stub in MODE=trainer implements the KTD12
+# checkpoint contract and emits the game-day passGate metrics
+# (training_checkpoint_lost_seconds, checkpoint_store_write_throughput_mbps on
+# :9100, scraped by monitors.yaml). image.repository/tag are --set by
+# training_submit from the run's ECR. Cheap-sized for a 1-GPU g4dn.xlarge.
+team: ml
+queue: team-ml
+gpu: 1
+workers: 1
+image:
+  repository: OVERRIDE-ME-AT-INSTALL
+  tag: OVERRIDE-ME-AT-INSTALL
+command:
+  - /bin/sh
+  - -c
+  - "MODE=trainer PORT=9100 CHECKPOINT_SIZE_MB=32 exec python3 /server.py"
+checkpoint:
+  dir: /mnt/checkpoints/ml
+  # 60 s interval: max lost work observed stays well under the 300 s gate even
+  # on the compressed rehearsal timeline.
+  intervalSeconds: 60
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+backoffLimit: 12

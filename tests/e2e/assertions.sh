@@ -49,7 +49,9 @@ E2E_SCENARIO_SETTLE="${E2E_SCENARIO_SETTLE:-600}"  # s of storm load before gate
 E2E_SCENARIOS="${E2E_SCENARIOS:-compressed-reclaim storm-all-at-once}"
 E2E_PROM_LOCAL_PORT="${E2E_PROM_LOCAL_PORT:-19090}"
 E2E_PEAK_RPS="${E2E_PEAK_RPS:-4000}"
-E2E_TARGET_URL="${E2E_TARGET_URL:-http://inference.pilot.svc.cluster.local/render}"
+# Release "inference" of the golden-service chart in ns pilot (run.sh
+# standins_up): fullname is <release>-<chart>.
+E2E_TARGET_URL="${E2E_TARGET_URL:-http://inference-golden-service.pilot.svc.cluster.local/render}"
 
 SCHEDULE_ORIG="$E2E_STATE_DIR/schedule-orig.yaml"
 SCRUB_STATE="$E2E_STATE_DIR/scrub-old-identity.txt"
@@ -202,13 +204,23 @@ loadgen_stop() { k -n rehearsal scale deploy/game-day-loadgen --replicas=0 >/dev
 
 # Training workload that borrows onto lent nodes (fills the reclaim with real
 # work — an empty reclaim proves nothing, game-day.md Step 2).
+# Stand-in values (tests/e2e/stand-ins/): the canonical trainer image does not
+# exist, and the ci fixture's 8-vCPU/64Gi requests can never fit a cheap-run
+# g4dn.xlarge. Image repo/tag come from the run's ECR (account-derived, same
+# derivation as run.sh standins_up). -n team-ml: the Job carries no namespace
+# and its Kueue queue label resolves the team-ml LocalQueue in the JOB's own
+# namespace — applied bare it lands in default and is never admitted.
+E2E_TRAINING_VALUES="${E2E_TRAINING_VALUES:-tests/e2e/stand-ins/training-values.yaml}"
+training_render() {
+  local repo="${E2E_STANDIN_IMAGE_REPO:-$(aws sts get-caller-identity --query Account --output text).dkr.ecr.$REGION.amazonaws.com/platform/inference-stub}"
+  helm template e2e-training charts/training-job -f "$E2E_TRAINING_VALUES" \
+    --set image.repository="$repo" --set image.tag="${E2E_STANDIN_IMAGE_TAG:-0.1.0}"
+}
 training_submit() {
-  helm template e2e-training charts/training-job -f charts/training-job/ci/basic-training.yaml \
-    | k apply -f - >/dev/null
+  training_render | k -n team-ml apply -f - >/dev/null
 }
 training_delete() {
-  helm template e2e-training charts/training-job -f charts/training-job/ci/basic-training.yaml \
-    | k delete -f - --ignore-not-found >/dev/null 2>&1 || true
+  training_render | k -n team-ml delete -f - --ignore-not-found >/dev/null 2>&1 || true
 }
 training_pod_on_lent_node() {
   local nodes; nodes="$(lent_nodes)"
@@ -364,10 +376,16 @@ assert_rejoin_under_p95_gate() {
     | yq -r '.parameters.renderStartP95TargetSeconds')"
   [ -n "$target" ] && [ "$target" != "null" ] \
     || { echo "FAIL: rejoin — no renderStartP95TargetSeconds in rehearsal/scenarios.yaml"; return 1; }
-  # Same series as runbooks/game-day.md Step 5 — the reclaim-window-scoped p95.
-  p95="$(Q 'render_start_seconds:p95:reclaim_window')"
+  # Same series as runbooks/game-day.md Step 5 — the reclaim-window-scoped
+  # p95. WORST value since the schedule was driven, not an instant read: the
+  # gated series only has samples while the flag is 1, and by the time this
+  # assertion runs (after the scrub) the window is closed — an instant query
+  # would go stale-empty even on a healthy run. "Held the gate THROUGH reclaim
+  # + rejoin" is exactly max-over-the-window.
+  local range=$(( $(date +%s) - E2E_DRIVE_EPOCH + 300 ))
+  p95="$(Q "max_over_time(render_start_seconds:p95:reclaim_window[${range}s])")"
   if [ -z "$p95" ]; then
-    echo "FAIL: rejoin — render_start_seconds:p95:reclaim_window returned no samples (an unmeasured run has no verdict, game-day.md)"
+    echo "FAIL: rejoin — render_start_seconds:p95:reclaim_window returned no samples over the driven window (an unmeasured run has no verdict, game-day.md)"
     return 1
   fi
   if ! awk -v v="$p95" -v t="$target" 'BEGIN { exit !(v + 0 <= t + 0) }'; then
@@ -387,6 +405,13 @@ run_scenario_once() {  # SCENARIO RUN_NO — one driven run + passGates evaluati
   local metric op param threshold value
   while IFS=$'\t' read -r metric op param; do
     threshold="$(yq -r ".parameters.$param" "$SCENARIOS_INNER")"
+    # Cheap-run override (run.sh sets it): checkpoints land on node-local disk
+    # (stand-ins/checkpoint-pv.yaml), so the shared-store throughput FLOOR is
+    # retuned, LOUDLY — the gate still proves writes happen and are measured.
+    if [ "$param" = "sharedStoreMinThroughputMBps" ] && [ -n "${E2E_SHARED_STORE_MIN_MBPS:-}" ]; then
+      echo "  gate OVERRIDE: $param $threshold -> $E2E_SHARED_STORE_MIN_MBPS (node-local checkpoint stand-in, not the shared store)"
+      threshold="$E2E_SHARED_STORE_MIN_MBPS"
+    fi
     value="$(Q "$metric")"
     if [ -z "$value" ]; then
       echo "  FAIL gate: $metric returned no samples (no vacuous pass)"; rc=1; continue

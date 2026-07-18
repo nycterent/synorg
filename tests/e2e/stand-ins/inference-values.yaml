@@ -1,0 +1,40 @@
+# E2E stand-in values for the golden-service chart: the render path the
+# loadgen and the render_start_seconds evidence chain need, served by
+# services/inference-stub (MODE=render default). Installed by run.sh --up as
+# release "inference" in namespace "pilot" (Service: inference-golden-service);
+# image.repository/tag are --set from the run's ECR (account-derived), so this
+# file stays account-free. Cheap-sized: 1 replica, 1 GPU, fits a g4dn.xlarge.
+team: platform
+workloadClass: inference
+# false: may spill to the lendable pool (tenancy-guard allows non-customer-data
+# inference there) — in this stack that spill is what a reclaim disrupts.
+customerData: false
+replicas: 1
+gpu: 1
+port: 8001
+image:
+  repository: OVERRIDE-ME-AT-INSTALL
+  tag: OVERRIDE-ME-AT-INSTALL
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8001
+probes:
+  liveness:
+    path: /healthz
+    port: 8001
+  readiness:
+    path: /readyz
+    port: 8001
+# No PDB: with 1 replica a minAvailable=1 PDB would wedge a reclaim drain if
+# the scheduler ever placed the stub on the lendable node (warm-floor is a
+# preference, not a requirement).
+pdb:
+  enabled: false

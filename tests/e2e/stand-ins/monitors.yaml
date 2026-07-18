@@ -1,0 +1,41 @@
+# Scrape wiring for the stand-in emitters (kube-prometheus-stack discovers all
+# ServiceMonitors/PodMonitors: *SelectorNilUsesHelmValues=false). Applied by
+# tests/e2e/run.sh --up alongside the stand-ins.
+#
+# render_start_seconds — the inference stub serves /metrics on the same port
+# the golden-service Service already exposes.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: e2e-inference-stub
+  namespace: pilot
+  labels:
+    app.kubernetes.io/name: e2e-inference-stub
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: golden-service
+      app.kubernetes.io/instance: inference
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+---
+# training_checkpoint_lost_seconds / checkpoint_store_write_throughput_mbps —
+# trainer pods have no Service (Job workers), so a PodMonitor hits :9100
+# directly. targetPort because the training-job chart declares no named port.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: e2e-training-stub
+  namespace: team-ml
+  labels:
+    app.kubernetes.io/name: e2e-training-stub
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: training-job
+  podMetricsEndpoints:
+    - targetPort: 9100
+      path: /metrics
+      interval: 15s

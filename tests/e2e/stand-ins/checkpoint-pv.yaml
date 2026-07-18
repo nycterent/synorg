@@ -1,0 +1,42 @@
+# Checkpoint-store stand-in. The training-job chart hard-mounts PVC
+# `training-checkpoints` (per-team convention, runbooks/training-onboarding.md);
+# the real backing is the checkpoint-store S3 bucket via Mountpoint-S3 CSI,
+# which is not installed on the e2e stack (only the EFS CSI driver ships with
+# it, and neither has an IAM story here yet). A statically-bound hostPath PV
+# keeps the KTD12 checkpoint contract executable — interval flush, preStop
+# marker, SIGTERM final checkpoint, measured write throughput — against node-
+# local disk. The shared-store throughput FLOOR is therefore not a meaningful
+# gate on this stack; the harness overrides it loudly (E2E_SHARED_STORE_MIN_MBPS).
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: e2e-training-checkpoints
+  labels:
+    app.kubernetes.io/name: e2e-training-checkpoints
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes: ["ReadWriteMany"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    namespace: team-ml
+    name: training-checkpoints
+  hostPath:
+    path: /var/tmp/synorg-e2e-checkpoints
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: training-checkpoints
+  namespace: team-ml
+  labels:
+    app.kubernetes.io/name: e2e-training-checkpoints
+spec:
+  accessModes: ["ReadWriteMany"]
+  storageClassName: ""
+  volumeName: e2e-training-checkpoints
+  resources:
+    requests:
+      storage: 10Gi

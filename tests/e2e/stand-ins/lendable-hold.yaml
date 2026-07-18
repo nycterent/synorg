@@ -1,0 +1,52 @@
+# Lendable-pool occupancy stand-in. In production the lendable pool is held by
+# organic non-customer-data inference spill; this stack has none, so nothing
+# would ever provision a gpu-lendable node and the lend → reclaim → scrub
+# physics could not start (the controller's borrowingLimit curve follows LENT
+# capacity, so Kueue admission alone can't bootstrap the pool). One low-priority
+# pause pod per held node keeps the pool populated — the same balloon pattern as
+# warm-floor, and its eviction during a reclaim wave is exactly the prod-spill
+# behavior the drain must handle. Applied by tests/e2e/run.sh --up (stand-in,
+# never GitOps-owned).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lendable-hold
+  namespace: platform-system
+  labels:
+    app.kubernetes.io/name: lendable-hold
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lendable-hold
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lendable-hold
+        # require-team-label (Enforce) denies GPU pods without a team; class
+        # inference + no customer-data label keeps the lendable toleration on
+        # the allowed side of tenancy-guard (mirrors warm-floor-balloon).
+        team.synorg.io/name: platform
+        workload.synorg.io/class: inference
+    spec:
+      # Same never-preempt negative priority as the warm-floor balloon: real
+      # workloads (training borrow, inference spill) displace it instantly.
+      priorityClassName: warm-floor-balloon
+      terminationGracePeriodSeconds: 0
+      nodeSelector:
+        pool.synorg.io/name: lendable
+      tolerations:
+        - key: pool.synorg.io/lendable
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+              nvidia.com/gpu: "1"
+            limits:
+              nvidia.com/gpu: "1"

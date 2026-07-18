@@ -23,9 +23,14 @@ spec:
       rules:
         - record: render_start_seconds:p95
           expr: histogram_quantile(0.95, sum by (region, le) (rate(render_start_seconds_bucket[5m])))
-        # Same p95, gated to the reclaim window via the controller-emitted flag
-        # (1 while any reclaim wave is active). on() = match the single flag
-        # series against every region.
+        # 1 while any node carries the lent taint — i.e. lent capacity exists
+        # and a reclaim can be in flight. Derived from kube-state-metrics
+        # (already scraped); the lending controller emits Events, not metrics,
+        # so KSM's view of its taints is the flag's source of truth.
+        - record: lending_reclaim_window_active
+          expr: clamp_max(count(kube_node_spec_taint{key="lending.synorg.io/lent"}) or vector(0), 1)
+        # Same p95, gated to the reclaim window via the flag above. on() =
+        # match the single flag series against every region.
         - record: render_start_seconds:p95:reclaim_window
           expr: render_start_seconds:p95 and on() (lending_reclaim_window_active == 1)
 
