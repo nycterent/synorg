@@ -307,6 +307,16 @@ step_register_spoke() {
     echo "DRY-RUN: wait for warm-floor-balloon (platform-system) + NodePools on the spoke (<=10m)"
     return 0
   fi
+  # DEPLOY_DIRECT_SYNC=1 (e2e/no-remote bootstrap): the ApplicationSets point
+  # at the canonical repo remote; when that remote is unreachable (this repo
+  # is local-only today) the GitOps loop cannot deliver clusters/pilot/. The
+  # e2e's subject is the GPU physics, not the sync plumbing — direct-apply the
+  # same manifests the ApplicationSet would, and say so LOUDLY: with this set,
+  # the ArgoCD sync path itself is NOT being exercised.
+  if [ "${DEPLOY_DIRECT_SYNC:-0}" = 1 ]; then
+    echo "DIRECT-SYNC: applying clusters/pilot/ straight to the spoke — GitOps sync path NOT exercised this run"
+    run kubectl --context "$PILOT_CONTEXT" apply --server-side --force-conflicts -R -f clusters/pilot/
+  fi
   local i ok=0
   for i in $(seq 1 60); do
     if kubectl --context "$PILOT_CONTEXT" -n platform-system get deploy warm-floor-balloon >/dev/null 2>&1 \
