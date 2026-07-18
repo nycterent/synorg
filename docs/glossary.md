@@ -29,3 +29,10 @@ checkpoint bucket.
 region's lendable pool has idle capacity (ADR 0003). The evidence-plane
 metric whose P95 breaching one hour over a rolling week reopens the
 checkpoint-relocation design.
+
+**Utilization-of-held** — GPU-hours allocated ÷ GPU-hours held, per pool
+(ADR 0005). The number that decides whether the held book earns its keep;
+floor target 70% on a rolling month.
+
+**Idle-burn** — $/day of held-but-unallocated capacity at on-demand rates
+(ADR 0005). The premium the lending machine exists to offset.

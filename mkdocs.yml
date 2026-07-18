@@ -62,6 +62,7 @@ nav:
       - "ADR 0002: MultiKueue training arbitrage": adr/0002-training-arbitrage-via-multikueue.md
       - "ADR 0003: sticky checkpoints + trigger": adr/0003-checkpoint-locality-sticky-with-trigger.md
       - "ADR 0004: hub pause + break-glass": adr/0004-hub-intake-pause-with-break-glass.md
+      - "ADR 0005: ODCR economics": adr/0005-odcr-economics-insurance-plus-metrics.md
       - Capability tiers: capability-tiers.md
       - Agent interface: agent-interface.md
       - SLO catalog: slo-catalog.md
