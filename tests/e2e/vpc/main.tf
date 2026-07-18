@@ -16,6 +16,9 @@ locals {
   tags = {
     Name                = "synorg-e2e"
     "synorg.io/purpose" = "e2e-disposable"
+    # EC2NodeClass subnet/SG discovery key (clusters/pilot/karpenter/) — an
+    # externally-provided VPC must carry it or Karpenter finds no subnets.
+    "karpenter.sh/discovery" = "synorg-pilot"
   }
   # EKS control planes require subnets in >= 2 AZs; take the first two
   # available AZs (typically <region>a / <region>b).
@@ -50,6 +53,9 @@ resource "aws_internet_gateway" "e2e" {
 # and public nodes are acceptable for a disposable test VPC whose access is
 # SG-restricted (the EKS modules manage the security groups). Production
 # deploys keep requiring an operator-provided VPC with private subnets.
+# karpenter.sh/discovery: the EC2NodeClasses (clusters/pilot/karpenter/)
+# discover subnets and SGs by this tag; an externally-provided VPC must carry
+# it or Karpenter sees "no subnets found" (found live).
 resource "aws_subnet" "public" {
   count = 2
 
