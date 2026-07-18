@@ -48,6 +48,7 @@ AUTO_APPROVE=0        # -auto-approve for non-ODCR modules only
 KYVERNO_VERSION="v1.18.2"
 KUEUE_VERSION="v0.18.3"
 KARPENTER_VERSION="1.14.0"
+NVDP_VERSION="0.17.4"   # NVIDIA k8s-device-plugin chart
 
 usage() {
   cat <<'EOF'
@@ -342,6 +343,15 @@ step_controllers() {
   run kubectl --context "$PILOT_CONTEXT" apply --server-side --force-conflicts \
     -f "https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml"
   run kubectl --context "$PILOT_CONTEXT" -n kueue-system rollout status deploy/kueue-controller-manager --timeout=300s
+  # NVIDIA device plugin: the accelerated AMI ships the drivers, but the
+  # nvidia.com/gpu resource is only advertised by the plugin DaemonSet —
+  # which nothing installed (found live: GPU node Ready, zero GPUs
+  # allocatable). Tolerations cover the pool taints, mirroring what the kind
+  # harness patches onto the fake operator.
+  run helm --kube-context "$PILOT_CONTEXT" upgrade --install nvidia-device-plugin nvidia-device-plugin \
+    --repo https://nvidia.github.io/k8s-device-plugin --version "$NVDP_VERSION" \
+    --namespace kube-system \
+    --set-json 'tolerations=[{"key":"nvidia.com/gpu","operator":"Exists","effect":"NoSchedule"},{"key":"pool.synorg.io/warm-floor","operator":"Exists","effect":"NoSchedule"},{"key":"pool.synorg.io/lendable","operator":"Exists","effect":"NoSchedule"},{"key":"lending.synorg.io/lent","operator":"Exists","effect":"NoSchedule"}]'
 }
 
 # --- §4.6 Sync clusters/pilot/ onto the spoke + convergence ------------------
