@@ -1,0 +1,66 @@
+docs/residual-review-findings/feat-eks-gpu-platform.md
+  s_93f8bad0fe0b70::t_aba3f80a33a2f0 110-126
+tests/integration/scheduling/workloads/inference-pod.yaml
+  s_93f8bad0fe0b70::t_c7b31c4c7a61ca 8-10
+tests/kind/kwok-down.sh
+  s_93f8bad0fe0b70::t_e0f94d9a41ccd3 1-20
+tests/integration/scheduling/scheduling_test.sh
+  s_93f8bad0fe0b70::t_fbc9c51a39fb05 65
+  s_93f8bad0fe0b70::t_f5d8782de10fab 329
+  s_93f8bad0fe0b70::t_08d73c388f3018 233-235
+  s_93f8bad0fe0b70::t_7c088cb18d64b5 138
+  s_93f8bad0fe0b70::t_cd4abcbae3581a 20-24
+  s_93f8bad0fe0b70::t_50f79217287998 25
+tests/kind/kwok-cluster.yaml
+  s_93f8bad0fe0b70::t_c88581369b499e 1-23
+tests/kind/verify.sh
+  s_93f8bad0fe0b70::t_f254fd69d396d7 10,12-15
+  s_93f8bad0fe0b70::t_38a6fe65616999 136
+tests/kind/up.sh
+  s_93f8bad0fe0b70::t_f24530c3f012f2 7-18,26
+  s_93f8bad0fe0b70::t_134cbab0d07a81 226
+  s_93f8bad0fe0b70::t_cf5a3842f9c8d8 210
+  s_93f8bad0fe0b70::t_44070d8048294c 217
+tests/kind/cluster.yaml
+  s_93f8bad0fe0b70::t_14ff9fbc8dfeb0 12-16
+tests/kind/README.md
+  s_93f8bad0fe0b70::t_f2cf3599246c63 105-107
+  s_93f8bad0fe0b70::t_5293a01824766d 113-120
+  s_93f8bad0fe0b70::t_632742d9996cde 14-19,24-26,28-29,34,36-45,48-52,54,56,58-73
+tests/kind/kwok-up.sh
+  s_93f8bad0fe0b70::t_c5a1c54625f090 1-119
+tests/kwok/karpenter_test.sh
+  s_93f8bad0fe0b70::t_89a90593417d91 1-296
+tests/kwok/workloads/kwok-deployment.yaml
+  s_93f8bad0fe0b70::t_40471c10359c6a 1-44
+docs/explanation/testing.md
+  s_93f8bad0fe0b70::t_4ba02ef888adf7 90-95
+  s_93f8bad0fe0b70::t_6abd507d9346fb 45-70
+  s_93f8bad0fe0b70::t_996d11e3e81e50 112-113
+  s_93f8bad0fe0b70::t_dc9ffe6f0c7fe0 30
+Makefile
+  s_93f8bad0fe0b70::t_393eb5b092201f 18,34-43,45,47
+  s_93f8bad0fe0b70::t_692532f2dd7909 4
+.github/workflows/integration.yaml
+  s_93f8bad0fe0b70::t_d045f7f6a0508c 61-68,70-72,74-76,81-83
+  s_93f8bad0fe0b70::t_c4c33d900a57f7 39-41
+  s_93f8bad0fe0b70::t_9708a80d0c7927 2-5
+tests/integration/scheduling/workloads/training-job.yaml
+  s_93f8bad0fe0b70::t_7c3f72437fff35 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "a4e613142783ed32cfec352b0b60ac7594e439c1",
+  "prompts": {},
+  "sessions": {
+    "s_93f8bad0fe0b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4ed3c05-0c70-446e-9f91-4afad7f420df",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
