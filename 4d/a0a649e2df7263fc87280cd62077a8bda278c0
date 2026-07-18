@@ -1,0 +1,20 @@
+rehearsal/scenarios.yaml
+  s_e175eff4a5c206::t_cd067037ccdb7f 19-25
+  s_e175eff4a5c206::t_8b6edb4149125c 65,68,88,91,110,113,137,140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "4da0a649e2df7263fc87280cd62077a8bda278c0",
+  "prompts": {},
+  "sessions": {
+    "s_e175eff4a5c206": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b03c458-dacc-45e1-9075-0d9fc755d85f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
