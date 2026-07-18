@@ -281,6 +281,8 @@ step_register_spoke() {
     akc="$(mktemp)"
     KUBECONFIG="$HOME/.kube/config" kubectl config view --flatten --minify --context "$MGMT_CONTEXT" > "$akc"
     KUBECONFIG="$HOME/.kube/config:$akc" kubectl config view --flatten > "$akc.merged" && mv "$akc.merged" "$akc"
+    # Core mode reads argocd-cm from the context's namespace — pin it.
+    kubectl --kubeconfig "$akc" config set-context "$MGMT_CONTEXT" --namespace argocd >/dev/null
     kubectl --kubeconfig "$akc" config use-context "$MGMT_CONTEXT" >/dev/null
     acore=(--core)
   fi
