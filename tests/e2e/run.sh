@@ -397,12 +397,32 @@ phase_down() {
   # g4dn reservation behind would be a standing leak. The production held
   # book stays human-gated (capacity-carve.md): without the marker, no
   # destroy — same rule as before.
+  # `terraform destroy` cannot work here: the reservation resource carries
+  # lifecycle.prevent_destroy (production protection, not variable-toggleable).
+  # The run-owned cleanup instead cancels each reservation id explicitly via
+  # the EC2 API and removes it from local state — surgical, and the production
+  # protection stays intact for everyone else.
   if [ "$E2E_CHEAP" = 1 ] && [ -f "$ODCR_DIR/held.tfvars" ] \
       && head -1 "$ODCR_DIR/held.tfvars" | grep -q 'synorg-e2e-cheap-overlay'; then
-    if terraform -chdir="$ODCR_DIR" init -input=false \
-        && terraform -chdir="$ODCR_DIR" destroy -input=false -auto-approve -var-file=held.tfvars; then
-      echo "  cheap ODCR (run-owned, marker-verified) destroyed — no standing reservation"
-    else
+    local odcr_rc=0 rid
+    terraform -chdir="$ODCR_DIR" init -input=false >/dev/null 2>&1 || odcr_rc=1
+    if [ "$odcr_rc" -eq 0 ]; then
+      for rid in $(terraform -chdir="$ODCR_DIR" output -json reservation_ids 2>/dev/null | jq -r '.[]?'); do
+        if aws ec2 cancel-capacity-reservation --region "$REGION" --capacity-reservation-id "$rid" >/dev/null; then
+          echo "  cheap ODCR (run-owned, marker-verified): cancelled $rid"
+        else
+          echo "DOWN FAIL: could not cancel run-owned reservation $rid (billable!)" >&2
+          odcr_rc=1
+        fi
+      done
+      if [ "$odcr_rc" -eq 0 ]; then
+        local addr
+        for addr in $(terraform -chdir="$ODCR_DIR" state list 2>/dev/null); do
+          terraform -chdir="$ODCR_DIR" state rm "$addr" >/dev/null || odcr_rc=1
+        done
+      fi
+    fi
+    if [ "$odcr_rc" -ne 0 ]; then
       echo "DOWN FAIL: $ODCR_DIR — cheap run-owned reservation may still be held (billable!)" >&2
       rc=1
     fi

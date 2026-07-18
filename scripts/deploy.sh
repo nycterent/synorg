@@ -159,10 +159,25 @@ guard_zero_net_release() {
     echo "guard: no held reservations in state — nothing to verify"
     return 0
   fi
+  # held == declared encodes the CARVE scenario: instances already running
+  # inside the reservation (capacity-carve.md verify-before-terminate). A
+  # marker-verified cheap-mode reservation is created FRESH by the run —
+  # nothing consumes it until Karpenter launches — so held is legitimately 0
+  # at bootstrap; for that case the secured-capacity assertion is total ==
+  # declared, and held is reported informationally.
+  local cheap_fresh=0
+  if [ "${E2E_CHEAP:-0}" = 1 ] && [ -f "$ODCR_DIR/held.tfvars" ] \
+      && head -1 "$ODCR_DIR/held.tfvars" | grep -q 'synorg-e2e-cheap-overlay'; then
+    cheap_fresh=1
+  fi
   while read -r k id expected total held; do
     [ "$total" -eq "$expected" ] || fail "zero-net-release: $k ($id) total=$total != declared=$expected — capacity changed; STOP, do not proceed (capacity-carve.md)"
-    [ "$held" -eq "$expected" ] || fail "zero-net-release: $k ($id) holds $held of $expected declared — reservation not fully held; STOP, do not proceed (capacity-carve.md)"
-    echo "guard: $k ($id) total=$total held=$held == declared — capacity held"
+    if [ "$cheap_fresh" = 1 ]; then
+      echo "guard: $k ($id) total=$total == declared — capacity secured (cheap fresh reservation; held=$held informational)"
+    else
+      [ "$held" -eq "$expected" ] || fail "zero-net-release: $k ($id) holds $held of $expected declared — reservation not fully held; STOP, do not proceed (capacity-carve.md)"
+      echo "guard: $k ($id) total=$total held=$held == declared — capacity held"
+    fi
   done <<<"$lines"
   echo "guard: record the utilization snapshot in docs/capacity-transition.md"
 }
