@@ -1,0 +1,40 @@
+controllers/lending/reconcile.sh
+  s_67e5a4b20e7672::t_0adb0405bb9e1c 25-28
+  s_67e5a4b20e7672::t_35b12006ea5ccb 19-23
+  s_67e5a4b20e7672::t_d48480b677edfe 556
+  s_67e5a4b20e7672::t_d47d91fe5f24e9 392-469
+controllers/lending/README.md
+  s_67e5a4b20e7672::t_340fba6edc97ae 139-140
+controllers/lending/Dockerfile
+  s_67e5a4b20e7672::t_340fba6edc97ae 8-9
+clusters/pilot/lending/lending-controller.yaml
+  s_67e5a4b20e7672::t_1fe0398f9bc241 77-85
+  s_67e5a4b20e7672::t_7b3f272dce0dc9 198
+docs/adr/0008-kueue-reclaim-keeps-borrowers-admitted.md
+  s_67e5a4b20e7672::t_6a59bb81d47bd7 3-4
+controllers/lending/test.sh
+  s_67e5a4b20e7672::t_f14fa78a7c935c 90-91
+  s_67e5a4b20e7672::t_b6e8a246d0a1eb 116-117
+  s_67e5a4b20e7672::t_2c944478b5be75 134
+tests/e2e/assertions.sh
+  s_67e5a4b20e7672::t_b7a588b8e24ee7 258,316,380,412,551
+  s_67e5a4b20e7672::t_112dc899722a48 683-686,693,696
+  s_67e5a4b20e7672::t_1ef055d78ace46 5,18-21,26,28,30-32
+  s_67e5a4b20e7672::t_6d422a7c465389 468-529,531
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "85d3f7ae5d8231f98e577c31cd4be3db4b9e48d3",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
