@@ -1,0 +1,21 @@
+tests/e2e/run.sh
+  s_67e5a4b20e7672::t_5d1390e7047e99 375-385
+clusters/pilot/kueue/localqueue-team-example.yaml
+  s_67e5a4b20e7672::t_803db0daf9d971 7-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "424e10fd681f43a23cbf294668d9991a0b51d1b9",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
