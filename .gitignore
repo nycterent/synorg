@@ -6,3 +6,8 @@ site/
 .DS_Store
 __pycache__/
 *.pyc
+
+# Local agent machinery (own conventions live in AGENTS.md + docs/agents/)
+.agents/
+.claude/
+skills-lock.json
