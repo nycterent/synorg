@@ -1,0 +1,20 @@
+mkdocs.yml
+  s_67e5a4b20e7672::t_fa07632c8f4c97 67-69
+  s_67e5a4b20e7672::t_d98564fb222332 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "eb95521f4ab0538be6a8ff355ca1840529a9b6c5",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
