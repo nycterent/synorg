@@ -173,7 +173,7 @@ hhmm_plus() {
 drive_schedule_now() {
   local ramp_min="$1" close_min="$E2E_CLOSE_MINUTES" tz sched w1 w2 w3
   sched="$(live_schedule)" || return 1
-  [ -f "$SCHEDULE_ORIG" ] || printf '%s\n' "$sched" > "$SCHEDULE_ORIG"
+  [ -f "$SCHEDULE_ORIG" ] || { printf '%s\n' "$sched" > "$SCHEDULE_ORIG"; lending_sync_detach; }
   tz="$(yq -r '.timezone' <<<"$sched")"
   read -r w1 w2 w3 <<<"$E2E_WAVE_OFFSETS"
   if [ "$w3" -ge "$ramp_min" ] || [ "$close_min" -le "$ramp_min" ]; then
@@ -204,7 +204,35 @@ restore_schedule() {
   k -n lending create configmap lending-schedule \
       --from-file=schedule.yaml="$SCHEDULE_ORIG" \
       --dry-run=client -o yaml | k replace -f - >/dev/null || return 1
+  lending_sync_reattach
   echo "  schedule restored to the git-controlled original"
+}
+
+# --- pilot-lending sync detach (rehearsal-only, mirrors cheap-overlay) -------
+# The driven schedule is a direct ConfigMap replace, and pilot-lending syncs
+# with selfHeal — on the working GitOps path ArgoCD reverts the rehearsal
+# schedule within seconds and the controller never sees a window (found live
+# on the first synced run: every tick logged window_open=0 while the driver
+# thought the window was open). Detach that ONE Application's automated sync
+# for the rehearsal, exactly as the cheap overlay does for the sizing surface;
+# re-attach on restore. Without a hub (or before the appsets exist) both are
+# no-ops and direct replaces stick on their own.
+kh() { kubectl --context "${MGMT_CONTEXT:-synorg-mgmt}" "$@"; }
+
+lending_sync_detach() {
+  kh -n argocd get application pilot-lending >/dev/null 2>&1 || return 0
+  kh -n argocd patch applicationset regions --type=merge -p \
+    '{"spec":{"ignoreApplicationDifferences":[{"jsonPointers":["/spec/syncPolicy"]}]}}' >/dev/null 2>&1 || true
+  kh -n argocd patch application pilot-lending --type=merge -p \
+    '{"spec":{"syncPolicy":{"automated":null}}}' >/dev/null 2>&1 || true
+  echo "  automated sync (selfHeal) OFF for pilot-lending — driven schedule holds for the rehearsal"
+}
+
+lending_sync_reattach() {
+  kh -n argocd get application pilot-lending >/dev/null 2>&1 || return 0
+  kh -n argocd patch application pilot-lending --type=merge -p \
+    '{"spec":{"syncPolicy":{"automated":{"selfHeal":true,"prune":true}}}}' >/dev/null 2>&1 || true
+  echo "  automated sync (selfHeal) restored for pilot-lending"
 }
 
 # Synthetic inference ramp — the game-day loadgen (runbooks/game-day.md Step 1/3).
