@@ -1,0 +1,19 @@
+tests/e2e/cheap-overlay/apply.sh
+  s_67e5a4b20e7672::t_05d3636e160cb4 293-303
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "974bfea8fc70b4a9c916b01055d13b51e7fa217f",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
