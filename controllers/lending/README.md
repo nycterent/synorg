@@ -136,8 +136,8 @@ harness's job) so the selector finds them.
 ## Build and deploy
 
 ```sh
-docker build -t ghcr.io/nycterent/synorg/lending-controller:0.2.0 controllers/lending
-kind load docker-image ghcr.io/nycterent/synorg/lending-controller:0.2.0 --name <cluster>
+docker build -t ghcr.io/nycterent/synorg/lending-controller:0.2.1 controllers/lending
+kind load docker-image ghcr.io/nycterent/synorg/lending-controller:0.2.1 --name <cluster>
 kubectl apply -f clusters/pilot/lending/
 ```
 

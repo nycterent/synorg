@@ -195,7 +195,7 @@ spec:
           # from ghcr (ADR 0007). Digest-pinned: the tag is the human label,
           # the digest is the contract — this is the exact image the 6/6
           # walking-skeleton run executed.
-          image: ghcr.io/nycterent/synorg/lending-controller:0.2.0@sha256:918560b68e76b155b5a1da4162a92da7bb909fcbb77c10f47b4e2e42556ac99f
+          image: ghcr.io/nycterent/synorg/lending-controller:0.2.1@sha256:41aa4307e0ab7d23660bce0df375c4b98ed8866e5a1600ea8545de32757f462d
           # v0 note: the shell loop is configured by env, not flags. Leader
           # election is deferred to the real operator (the Role keeps the
           # lease verbs for it); replicas: 1 + strategy Recreate is the v0

@@ -308,7 +308,11 @@ reconcile_taints() {
       'any(.items[]; (.spec.taints // [] | any(.key == $k)) and .spec.unschedulable != true)' >/dev/null; then
     # Close transition with still-lent, un-cordoned nodes: the reclaim path
     # needs to know whether Karpenter (the scrub boundary) is available.
-    if kc api-versions | grep -q '^karpenter.sh/'; then karpenter=1; fi
+    # grep reads to EOF (no -q): a -q early-exit SIGPIPEs kubectl and under
+  # pipefail the whole pipeline "fails" — the controller then intermittently
+  # concluded no-Karpenter ON EKS and logged waves as intent-only while real
+  # reclaim fell to the window close (observed live: 28s past the ramp).
+  if kc api-versions | grep '^karpenter.sh/' >/dev/null; then karpenter=1; fi
     if [ "$karpenter" = "1" ]; then nodeclaims_json="$(kc get nodeclaims -o json)"; fi
   fi
   while IFS= read -r node; do
@@ -490,7 +494,11 @@ reconcile_waves() {
   today="$(TZ="$tz" date +%F)"
   n="$(yq -r '.reclaimWaves // [] | length' "$SCHEDULE_FILE")"
   [ "$n" -gt 0 ] || return 0
-  if kc api-versions | grep -q '^karpenter.sh/'; then karpenter=1; fi
+  # grep reads to EOF (no -q): a -q early-exit SIGPIPEs kubectl and under
+  # pipefail the whole pipeline "fails" — the controller then intermittently
+  # concluded no-Karpenter ON EKS and logged waves as intent-only while real
+  # reclaim fell to the window close (observed live: 28s past the ramp).
+  if kc api-versions | grep '^karpenter.sh/' >/dev/null; then karpenter=1; fi
   for (( i=0; i<n; i++ )); do
     starts="$(yq -r ".reclaimWaves[$i].startsAt" "$SCHEDULE_FILE")"
     fraction="$(yq -r ".reclaimWaves[$i].reclaimFraction" "$SCHEDULE_FILE")"
