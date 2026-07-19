@@ -11,3 +11,4 @@ __pycache__/
 .agents/
 .claude/
 skills-lock.json
+infra/terraform/regions/pilot/odcr/held.tfvars
