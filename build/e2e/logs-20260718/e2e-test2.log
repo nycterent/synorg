@@ -1,0 +1,48 @@
+e2e/run.sh: phase=test region=us-east-1 state=build/e2e (runbooks/e2e-gpu-run.md)
+
+==> test: physics + game-day assertions (tests/e2e/assertions.sh)
+
+==> assert 1/6: lend — lendable node tainted lent + training borrows onto it
+  schedule driven: window open now, waves +5/+8/+11m, ramp +15m, close +20m (orig saved)
+  timeout: 900s elapsed waiting for: a gpu-lendable node carrying lending.synorg.io/lent
+FAIL: lend — no node from pool 'gpu-lendable' was tainted lent within 900s
+
+==> assert 2/6: reclaim-ahead-of-ramp — waves finish before the synthetic ramp needs capacity
+FAIL: reclaim — nothing is lent, so there is nothing to reclaim (no vacuous pass)
+
+==> assert 3/6: scrub — reclaimed nodeclaim deleted, replacement is a genuinely NEW EC2 instance
+FAIL: scrub — no recorded old identity (lend assertion must pass first)
+
+==> assert 4/6: rejoin — render_start p95 holds the gate through reclaim + rejoin
+FAIL: rejoin — render_start_seconds:p95:reclaim_window returned no samples (an unmeasured run has no verdict, game-day.md)
+
+==> assert 5/6: game-day storm — scenarios from rehearsal/scenarios.yaml pass their gates
+  scenario 'compressed-reclaim' run 1: driving reclaim + storm load (600s settle)
+  schedule driven: window open now, waves +5/+8/+11m, ramp +15m, close +20m (orig saved)
+Error from server (NotFound): error when creating "rehearsal/scenarios.yaml": namespaces "rehearsal" not found
+Error from server (NotFound): error when creating "rehearsal/loadgen.yaml": namespaces "rehearsal" not found
+Error from server (NotFound): error when creating "rehearsal/loadgen.yaml": namespaces "rehearsal" not found
+Error from server (NotFound): namespaces "rehearsal" not found
+Error from server (NotFound): namespaces "rehearsal" not found
+  scenario 'storm-all-at-once' run 1: driving reclaim + storm load (600s settle)
+  schedule driven: window open now, waves +5/+8/+11m, ramp +15m, close +20m (orig saved)
+Error from server (NotFound): error when creating "rehearsal/scenarios.yaml": namespaces "rehearsal" not found
+Error from server (NotFound): error when creating "rehearsal/loadgen.yaml": namespaces "rehearsal" not found
+Error from server (NotFound): error when creating "rehearsal/loadgen.yaml": namespaces "rehearsal" not found
+Error from server (NotFound): namespaces "rehearsal" not found
+Error from server (NotFound): namespaces "rehearsal" not found
+FAIL: game-day storm — at least one scenario gate breached (see gate lines above)
+
+==> assert 6/6: ledger — zero net capacity release (capacity-carve.md invariant)
+--- build/e2e/ledger-entry.txt	2026-07-18 13:48:20.200210205 +0200
++++ build/e2e/ledger-test.txt	2026-07-18 16:41:21.924704668 +0200
+@@ -1 +1 @@
+-fresh-state: no reservations (ODCR module state empty)
++g4dn-xlarge-a cr-0633c70ffdc185ab8 1 1 1
+FAIL: ledger — reservation totals/held drifted during the run (capacity released or lost)
+
+==> assertions cleanup (loadgen, training workload, schedule, port-forward)
+  schedule restored to the git-controlled original
+
+ASSERTIONS: 6 of 6 FAILED
+E2E FAIL: one or more assertions failed (see FAIL lines above)

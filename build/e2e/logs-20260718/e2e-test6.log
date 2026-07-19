@@ -1,0 +1,59 @@
+e2e/run.sh: phase=test region=us-east-1 state=build/e2e (runbooks/e2e-gpu-run.md)
+
+==> test: physics + game-day assertions (tests/e2e/assertions.sh)
+
+==> assert 1/6: lend — lendable node tainted lent + training borrows onto it
+  schedule driven: window open now, waves +5/+8/+11m, ramp +15m, close +20m (orig saved)
+  lent nodes:
+    ip-10-42-1-171.ec2.internal
+  pool entry snapshot: 2 instance id(s) recorded
+PASS: lend — ip-10-42-0-98.ec2.internal lent and borrowed onto (old identity recorded: i-00dac1074ac20a37c)
+
+==> assert 2/6: reclaim-ahead-of-ramp — waves finish before the synthetic ramp needs capacity
+  wave evidence: 3 wave firing(s), 3 wave-driven NodeClaim deletion(s) before closesAt
+PASS: reclaim-ahead-of-ramp — completed 59s before the ramp deadline, wave-driven
+
+==> assert 3/6: scrub — reclaimed nodeclaim deleted, replacement is a genuinely NEW EC2 instance
+  entry set:    2 lend-time instance id(s)
+  old instance: i-00dac1074ac20a37c  (node ip-10-42-0-98.ec2.internal, nodeclaim gpu-lendable-5h774)
+  new instance: i-092f885449a90d4d5  (outside the lend-time set)
+PASS: scrub — instance discarded and recovered on a genuinely new instance (outside the entry set, old != new)
+
+==> assert 4/6: rejoin — render_start p95 holds the gate through reclaim + rejoin
+PASS: rejoin — render-start p95 0.04750000000000001s <= 2.0s gate
+
+==> assert 5/6: game-day storm — scenarios from rehearsal/scenarios.yaml pass their gates
+  scenario 'compressed-reclaim' run 1: driving reclaim + storm load (600s settle)
+  schedule driven: window open now, waves +5/+8/+11m, ramp +15m, close +20m (orig saved)
+  gate OK:   render_start_seconds:p95:reclaim_window = 0.0475 <= 2.0 (renderStartP95TargetSeconds)
+  gate OK:   max(training_checkpoint_lost_seconds) = 54.5 <= 300 (trainingLostWorkMaxSeconds)
+  gate OVERRIDE: sharedStoreMinThroughputMBps 2000 -> 50 (node-local checkpoint stand-in, not the shared store)
+  gate OK:   min(checkpoint_store_write_throughput_mbps) = 255.5 >= 50 (sharedStoreMinThroughputMBps)
+  scenario 'compressed-reclaim' run 2: driving reclaim + storm load (600s settle)
+  schedule driven: window open now, waves +5/+8/+11m, ramp +15m, close +20m (orig saved)
+  gate OK:   render_start_seconds:p95:reclaim_window = 0.0475 <= 2.0 (renderStartP95TargetSeconds)
+  gate OK:   max(training_checkpoint_lost_seconds) = 10.8 <= 300 (trainingLostWorkMaxSeconds)
+  gate OVERRIDE: sharedStoreMinThroughputMBps 2000 -> 50 (node-local checkpoint stand-in, not the shared store)
+  gate OK:   min(checkpoint_store_write_throughput_mbps) = 570.9 >= 50 (sharedStoreMinThroughputMBps)
+  scenario 'compressed-reclaim' run 3: driving reclaim + storm load (600s settle)
+  schedule driven: window open now, waves +5/+8/+11m, ramp +15m, close +20m (orig saved)
+  gate OK:   render_start_seconds:p95:reclaim_window = 0.0475 <= 2.0 (renderStartP95TargetSeconds)
+  gate OK:   max(training_checkpoint_lost_seconds) = 1.3 <= 300 (trainingLostWorkMaxSeconds)
+  gate OVERRIDE: sharedStoreMinThroughputMBps 2000 -> 50 (node-local checkpoint stand-in, not the shared store)
+  gate OK:   min(checkpoint_store_write_throughput_mbps) = 711 >= 50 (sharedStoreMinThroughputMBps)
+  scenario 'storm-all-at-once' run 1: driving reclaim + storm load (600s settle)
+  schedule driven: window open now, waves +5/+8/+11m, ramp +15m, close +20m (orig saved)
+  gate OK:   render_start_seconds:p95:reclaim_window = 0.0475 <= 2.0 (renderStartP95TargetSeconds)
+  FAIL gate: max(training_checkpoint_lost_seconds) returned no samples (no vacuous pass)
+  gate OVERRIDE: sharedStoreMinThroughputMBps 2000 -> 50 (node-local checkpoint stand-in, not the shared store)
+  FAIL gate: min(checkpoint_store_write_throughput_mbps) returned no samples (no vacuous pass)
+FAIL: game-day storm — at least one scenario gate breached (see gate lines above)
+
+==> assert 6/6: ledger — zero net capacity release (capacity-carve.md invariant)
+PASS: ledger — reservation totals/held identical to the test-start snapshot
+
+==> assertions cleanup (loadgen, training workload, schedule, port-forward)
+  schedule restored to the git-controlled original
+
+ASSERTIONS: 1 of 6 FAILED
+E2E FAIL: one or more assertions failed (see FAIL lines above)

@@ -1,0 +1,71 @@
+e2e/run.sh: phase=test region=us-east-1 state=build/e2e (runbooks/e2e-gpu-run.md)
+
+==> test: physics + game-day assertions (tests/e2e/assertions.sh)
+
+==> assert 1/6: lend — lendable node tainted lent + training borrows onto it
+  schedule driven: window open now, waves +5/+8/+11m, ramp +15m, close +20m (orig saved)
+  lent nodes:
+    ip-10-42-0-111.ec2.internal
+  pool entry snapshot: 2 instance id(s) recorded
+PASS: lend — ip-10-42-0-111.ec2.internal lent and borrowed onto (old identity recorded: i-011ef8ec26e0ec868)
+
+==> assert 2/6: reclaim-ahead-of-ramp — waves finish before the synthetic ramp needs capacity
+  timeout: 1200s elapsed waiting for: entry lent set reclaimed (waves complete)
+FAIL: reclaim — entry-set lent nodes remain after ramp + grace
+
+==> assert 3/6: scrub — reclaimed nodeclaim deleted, replacement is a genuinely NEW EC2 instance
+  entry set:    2 lend-time instance id(s)
+  old instance: i-011ef8ec26e0ec868  (node ip-10-42-0-111.ec2.internal, nodeclaim gpu-lendable-gq9qz)
+  new instance: i-0ef05ed79f3dce81f  (outside the lend-time set)
+PASS: scrub — instance discarded and recovered on a genuinely new instance (outside the entry set, old != new)
+
+==> assert 4/6: rejoin — render_start p95 holds the gate through reclaim + rejoin
+PASS: rejoin — render-start p95 0.04750000000000001s <= 2.0s gate
+
+==> assert 5/6: game-day storm — scenarios from rehearsal/scenarios.yaml pass their gates
+  scenario 'compressed-reclaim' run 1: driving reclaim + storm load (600s settle)
+  schedule driven: window open now, waves +5/+8/+11m, ramp +15m, close +20m (orig saved)
+  gate OK:   render_start_seconds:p95:reclaim_window = 0.047499999999999994 <= 2.0 (renderStartP95TargetSeconds)
+  gate OK:   max(training_checkpoint_lost_seconds) = 41.9 <= 300 (trainingLostWorkMaxSeconds)
+  gate OVERRIDE: sharedStoreMinThroughputMBps 2000 -> 50 (node-local checkpoint stand-in, not the shared store)
+  gate OK:   min(checkpoint_store_write_throughput_mbps) = 706.7 >= 50 (sharedStoreMinThroughputMBps)
+  scenario 'compressed-reclaim' run 2: driving reclaim + storm load (600s settle)
+  schedule driven: window open now, waves +5/+8/+11m, ramp +15m, close +20m (orig saved)
+  gate OK:   render_start_seconds:p95:reclaim_window = 0.047499999999999994 <= 2.0 (renderStartP95TargetSeconds)
+  gate OK:   max(training_checkpoint_lost_seconds) = 29.1 <= 300 (trainingLostWorkMaxSeconds)
+  gate OVERRIDE: sharedStoreMinThroughputMBps 2000 -> 50 (node-local checkpoint stand-in, not the shared store)
+  gate OK:   min(checkpoint_store_write_throughput_mbps) = 600.1 >= 50 (sharedStoreMinThroughputMBps)
+  scenario 'compressed-reclaim' run 3: driving reclaim + storm load (600s settle)
+  schedule driven: window open now, waves +5/+8/+11m, ramp +15m, close +20m (orig saved)
+  gate OK:   render_start_seconds:p95:reclaim_window = 0.0475 <= 2.0 (renderStartP95TargetSeconds)
+  gate OK:   max(training_checkpoint_lost_seconds) = 11.6 <= 300 (trainingLostWorkMaxSeconds)
+  gate OVERRIDE: sharedStoreMinThroughputMBps 2000 -> 50 (node-local checkpoint stand-in, not the shared store)
+  gate OK:   min(checkpoint_store_write_throughput_mbps) = 629.7 >= 50 (sharedStoreMinThroughputMBps)
+  scenario 'storm-all-at-once' run 1: driving reclaim + storm load (600s settle)
+  schedule driven: window open now, waves +5/+8/+11m, ramp +15m, close +20m (orig saved)
+  gate OK:   render_start_seconds:p95:reclaim_window = 0.04750000000000001 <= 2.0 (renderStartP95TargetSeconds)
+  gate OK:   max(training_checkpoint_lost_seconds) = 49.2 <= 300 (trainingLostWorkMaxSeconds)
+  gate OVERRIDE: sharedStoreMinThroughputMBps 2000 -> 50 (node-local checkpoint stand-in, not the shared store)
+  gate OK:   min(checkpoint_store_write_throughput_mbps) = 862.7 >= 50 (sharedStoreMinThroughputMBps)
+  scenario 'storm-all-at-once' run 2: driving reclaim + storm load (600s settle)
+  schedule driven: window open now, waves +5/+8/+11m, ramp +15m, close +20m (orig saved)
+  gate OK:   render_start_seconds:p95:reclaim_window = 0.0475 <= 2.0 (renderStartP95TargetSeconds)
+  gate OK:   max(training_checkpoint_lost_seconds) = 17.5 <= 300 (trainingLostWorkMaxSeconds)
+  gate OVERRIDE: sharedStoreMinThroughputMBps 2000 -> 50 (node-local checkpoint stand-in, not the shared store)
+  gate OK:   min(checkpoint_store_write_throughput_mbps) = 951.4 >= 50 (sharedStoreMinThroughputMBps)
+  scenario 'storm-all-at-once' run 3: driving reclaim + storm load (600s settle)
+  schedule driven: window open now, waves +5/+8/+11m, ramp +15m, close +20m (orig saved)
+  gate OK:   render_start_seconds:p95:reclaim_window = 0.0475 <= 2.0 (renderStartP95TargetSeconds)
+  gate OK:   max(training_checkpoint_lost_seconds) = 53.2 <= 300 (trainingLostWorkMaxSeconds)
+  gate OVERRIDE: sharedStoreMinThroughputMBps 2000 -> 50 (node-local checkpoint stand-in, not the shared store)
+  gate OK:   min(checkpoint_store_write_throughput_mbps) = 656.5 >= 50 (sharedStoreMinThroughputMBps)
+PASS: game-day storm — scenarios [compressed-reclaim storm-all-at-once] held every passGate across 3 run(s)
+
+==> assert 6/6: ledger — zero net capacity release (capacity-carve.md invariant)
+PASS: ledger — reservation totals/held identical to the test-start snapshot
+
+==> assertions cleanup (loadgen, training workload, schedule, port-forward)
+  schedule restored to the git-controlled original
+
+ASSERTIONS: 1 of 6 FAILED
+E2E FAIL: one or more assertions failed (see FAIL lines above)

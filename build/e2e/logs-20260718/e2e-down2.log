@@ -1,0 +1,427 @@
+e2e/run.sh: phase=down region=us-east-1 state=build/e2e (runbooks/e2e-gpu-run.md)
+
+==> down: teardown in reverse order (ckpt -> pilot -> mgmt; ODCR kept)
+DOWN WARN: cannot read tests/e2e/vpc outputs — cluster destroys may lack TF_VAR_vpc_id/subnet_ids
+
+[0m[1mInitializing the backend...[0m
+
+[0m[1mInitializing provider plugins...[0m
+- Reusing previous version of hashicorp/aws from the dependency lock file
+- Using previously-installed hashicorp/aws v5.100.0
+
+[0m[1m[32mTerraform has been successfully initialized![0m[32m[0m
+[0m[32m
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.[0m
+
+[0m[1m[32mNo changes.[0m[1m No objects need to be destroyed.[0m
+
+[0mEither you have not created any objects yet or the existing objects were
+already deleted outside of Terraform.
+[0m[1m[32m
+Destroy complete! Resources: 0 destroyed.
+[0m
+[0m[1mInitializing the backend...[0m
+[0m[1mInitializing modules...[0m
+
+[0m[1mInitializing provider plugins...[0m
+- Reusing previous version of hashicorp/null from the dependency lock file
+- Reusing previous version of hashicorp/aws from the dependency lock file
+- Reusing previous version of hashicorp/tls from the dependency lock file
+- Reusing previous version of hashicorp/time from the dependency lock file
+- Reusing previous version of hashicorp/cloudinit from the dependency lock file
+- Using previously-installed hashicorp/tls v4.3.0
+- Using previously-installed hashicorp/time v0.14.0
+- Using previously-installed hashicorp/cloudinit v2.4.0
+- Using previously-installed hashicorp/null v3.3.0
+- Using previously-installed hashicorp/aws v5.100.0
+
+[0m[1m[32mTerraform has been successfully initialized![0m[32m[0m
+[0m[32m
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mNo value for required variable[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  on variables.tf line 25:
+[31m│[0m [0m  25: [4mvariable "vpc_id"[0m {[0m
+[31m│[0m [0m
+[31m│[0m [0mThe root module input variable "vpc_id" is not set, and has no default
+[31m│[0m [0mvalue. Use a -var or -var-file command line argument to provide a value for
+[31m│[0m [0mthis variable.
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mNo value for required variable[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  on variables.tf line 30:
+[31m│[0m [0m  30: [4mvariable "subnet_ids"[0m {[0m
+[31m│[0m [0m
+[31m│[0m [0mThe root module input variable "subnet_ids" is not set, and has no default
+[31m│[0m [0mvalue. Use a -var or -var-file command line argument to provide a value for
+[31m│[0m [0mthis variable.
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mNo value for required variable[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  on variables.tf line 35:
+[31m│[0m [0m  35: [4mvariable "control_plane_subnet_ids"[0m {[0m
+[31m│[0m [0m
+[31m│[0m [0mThe root module input variable "control_plane_subnet_ids" is not set, and
+[31m│[0m [0mhas no default value. Use a -var or -var-file command line argument to
+[31m│[0m [0mprovide a value for this variable.
+[31m╵[0m[0m
+DOWN FAIL: infra/terraform/regions/pilot — init/destroy failed; module may still hold billable resources
+
+[0m[1mInitializing the backend...[0m
+[0m[1mInitializing modules...[0m
+
+[0m[1mInitializing provider plugins...[0m
+- Reusing previous version of hashicorp/null from the dependency lock file
+- Reusing previous version of hashicorp/aws from the dependency lock file
+- Reusing previous version of hashicorp/tls from the dependency lock file
+- Reusing previous version of hashicorp/time from the dependency lock file
+- Reusing previous version of hashicorp/cloudinit from the dependency lock file
+- Using previously-installed hashicorp/time v0.14.0
+- Using previously-installed hashicorp/cloudinit v2.4.0
+- Using previously-installed hashicorp/null v3.3.0
+- Using previously-installed hashicorp/aws v5.100.0
+- Using previously-installed hashicorp/tls v4.3.0
+
+[0m[1m[32mTerraform has been successfully initialized![0m[32m[0m
+[0m[32m
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mNo value for required variable[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  on variables.tf line 22:
+[31m│[0m [0m  22: [4mvariable "vpc_id"[0m {[0m
+[31m│[0m [0m
+[31m│[0m [0mThe root module input variable "vpc_id" is not set, and has no default
+[31m│[0m [0mvalue. Use a -var or -var-file command line argument to provide a value for
+[31m│[0m [0mthis variable.
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mNo value for required variable[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  on variables.tf line 27:
+[31m│[0m [0m  27: [4mvariable "subnet_ids"[0m {[0m
+[31m│[0m [0m
+[31m│[0m [0mThe root module input variable "subnet_ids" is not set, and has no default
+[31m│[0m [0mvalue. Use a -var or -var-file command line argument to provide a value for
+[31m│[0m [0mthis variable.
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mNo value for required variable[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  on variables.tf line 32:
+[31m│[0m [0m  32: [4mvariable "control_plane_subnet_ids"[0m {[0m
+[31m│[0m [0m
+[31m│[0m [0mThe root module input variable "control_plane_subnet_ids" is not set, and
+[31m│[0m [0mhas no default value. Use a -var or -var-file command line argument to
+[31m│[0m [0mprovide a value for this variable.
+[31m╵[0m[0m
+DOWN FAIL: infra/terraform/mgmt — init/destroy failed; module may still hold billable resources
+
+[0m[1mInitializing the backend...[0m
+
+[0m[1mInitializing provider plugins...[0m
+- Reusing previous version of hashicorp/aws from the dependency lock file
+- Using previously-installed hashicorp/aws v5.100.0
+
+[0m[1m[32mTerraform has been successfully initialized![0m[32m[0m
+[0m[32m
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.[0m
+[0m[1mdata.aws_availability_zones.available: Reading...[0m[0m
+[0m[1maws_vpc.e2e: Refreshing state... [id=vpc-0bc628aa2eaa3a48a][0m
+[0m[1mdata.aws_availability_zones.available: Read complete after 1s [id=us-east-1][0m
+[0m[1maws_internet_gateway.e2e: Refreshing state... [id=igw-01ae41b1869cb0c39][0m
+[0m[1maws_subnet.public[0]: Refreshing state... [id=subnet-04959cd507cd5bb31][0m
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  [31m-[0m destroy[0m
+
+Terraform will perform the following actions:
+
+[1m  # aws_internet_gateway.e2e[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "aws_internet_gateway" "e2e" {
+      [31m-[0m[0m arn      = "arn:aws:ec2:us-east-1:634206566836:internet-gateway/igw-01ae41b1869cb0c39" [90m-> null[0m[0m
+      [31m-[0m[0m id       = "igw-01ae41b1869cb0c39" [90m-> null[0m[0m
+      [31m-[0m[0m owner_id = "634206566836" [90m-> null[0m[0m
+      [31m-[0m[0m tags     = {
+          [31m-[0m[0m "Name"                   = "synorg-e2e"
+          [31m-[0m[0m "karpenter.sh/discovery" = "synorg-pilot"
+          [31m-[0m[0m "synorg.io/purpose"      = "e2e-disposable"
+        } [90m-> null[0m[0m
+      [31m-[0m[0m tags_all = {
+          [31m-[0m[0m "Name"                   = "synorg-e2e"
+          [31m-[0m[0m "karpenter.sh/discovery" = "synorg-pilot"
+          [31m-[0m[0m "synorg.io/purpose"      = "e2e-disposable"
+        } [90m-> null[0m[0m
+      [31m-[0m[0m vpc_id   = "vpc-0bc628aa2eaa3a48a" [90m-> null[0m[0m
+    }
+
+[1m  # aws_subnet.public[0][0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "aws_subnet" "public" {
+      [31m-[0m[0m arn                                            = "arn:aws:ec2:us-east-1:634206566836:subnet/subnet-04959cd507cd5bb31" [90m-> null[0m[0m
+      [31m-[0m[0m assign_ipv6_address_on_creation                = false [90m-> null[0m[0m
+      [31m-[0m[0m availability_zone                              = "us-east-1a" [90m-> null[0m[0m
+      [31m-[0m[0m availability_zone_id                           = "use1-az6" [90m-> null[0m[0m
+      [31m-[0m[0m cidr_block                                     = "10.42.0.0/24" [90m-> null[0m[0m
+      [31m-[0m[0m enable_dns64                                   = false [90m-> null[0m[0m
+      [31m-[0m[0m enable_lni_at_device_index                     = 0 [90m-> null[0m[0m
+      [31m-[0m[0m enable_resource_name_dns_a_record_on_launch    = false [90m-> null[0m[0m
+      [31m-[0m[0m enable_resource_name_dns_aaaa_record_on_launch = false [90m-> null[0m[0m
+      [31m-[0m[0m id                                             = "subnet-04959cd507cd5bb31" [90m-> null[0m[0m
+      [31m-[0m[0m ipv6_native                                    = false [90m-> null[0m[0m
+      [31m-[0m[0m map_customer_owned_ip_on_launch                = false [90m-> null[0m[0m
+      [31m-[0m[0m map_public_ip_on_launch                        = true [90m-> null[0m[0m
+      [31m-[0m[0m owner_id                                       = "634206566836" [90m-> null[0m[0m
+      [31m-[0m[0m private_dns_hostname_type_on_launch            = "ip-name" [90m-> null[0m[0m
+      [31m-[0m[0m tags                                           = {
+          [31m-[0m[0m "Name"                   = "synorg-e2e"
+          [31m-[0m[0m "karpenter.sh/discovery" = "synorg-pilot"
+          [31m-[0m[0m "synorg.io/purpose"      = "e2e-disposable"
+        } [90m-> null[0m[0m
+      [31m-[0m[0m tags_all                                       = {
+          [31m-[0m[0m "Name"                   = "synorg-e2e"
+          [31m-[0m[0m "karpenter.sh/discovery" = "synorg-pilot"
+          [31m-[0m[0m "synorg.io/purpose"      = "e2e-disposable"
+        } [90m-> null[0m[0m
+      [31m-[0m[0m vpc_id                                         = "vpc-0bc628aa2eaa3a48a" [90m-> null[0m[0m
+    }
+
+[1m  # aws_vpc.e2e[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "aws_vpc" "e2e" {
+      [31m-[0m[0m arn                                  = "arn:aws:ec2:us-east-1:634206566836:vpc/vpc-0bc628aa2eaa3a48a" [90m-> null[0m[0m
+      [31m-[0m[0m assign_generated_ipv6_cidr_block     = false [90m-> null[0m[0m
+      [31m-[0m[0m cidr_block                           = "10.42.0.0/16" [90m-> null[0m[0m
+      [31m-[0m[0m default_network_acl_id               = "acl-0452115f97ca0bf96" [90m-> null[0m[0m
+      [31m-[0m[0m default_route_table_id               = "rtb-0eda0697fc2611256" [90m-> null[0m[0m
+      [31m-[0m[0m default_security_group_id            = "sg-0a62fb58e19fc1c20" [90m-> null[0m[0m
+      [31m-[0m[0m dhcp_options_id                      = "dopt-f3f3928a" [90m-> null[0m[0m
+      [31m-[0m[0m enable_dns_hostnames                 = true [90m-> null[0m[0m
+      [31m-[0m[0m enable_dns_support                   = true [90m-> null[0m[0m
+      [31m-[0m[0m enable_network_address_usage_metrics = false [90m-> null[0m[0m
+      [31m-[0m[0m id                                   = "vpc-0bc628aa2eaa3a48a" [90m-> null[0m[0m
+      [31m-[0m[0m instance_tenancy                     = "default" [90m-> null[0m[0m
+      [31m-[0m[0m ipv6_netmask_length                  = 0 [90m-> null[0m[0m
+      [31m-[0m[0m main_route_table_id                  = "rtb-0eda0697fc2611256" [90m-> null[0m[0m
+      [31m-[0m[0m owner_id                             = "634206566836" [90m-> null[0m[0m
+      [31m-[0m[0m tags                                 = {
+          [31m-[0m[0m "Name"                   = "synorg-e2e"
+          [31m-[0m[0m "karpenter.sh/discovery" = "synorg-pilot"
+          [31m-[0m[0m "synorg.io/purpose"      = "e2e-disposable"
+        } [90m-> null[0m[0m
+      [31m-[0m[0m tags_all                             = {
+          [31m-[0m[0m "Name"                   = "synorg-e2e"
+          [31m-[0m[0m "karpenter.sh/discovery" = "synorg-pilot"
+          [31m-[0m[0m "synorg.io/purpose"      = "e2e-disposable"
+        } [90m-> null[0m[0m
+    }
+
+[1mPlan:[0m 0 to add, 0 to change, 3 to destroy.
+[0m
+Changes to Outputs:
+  [31m-[0m[0m vpc_id = "vpc-0bc628aa2eaa3a48a" [90m-> null[0m[0m
+[0m[1maws_internet_gateway.e2e: Destroying... [id=igw-01ae41b1869cb0c39][0m[0m
+[0m[1maws_subnet.public[0]: Destroying... [id=subnet-04959cd507cd5bb31][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 10s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 10s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 20s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 20s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 30s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 30s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 40s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 40s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 50s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 50s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 1m0s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 1m0s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 1m10s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 1m10s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 1m20s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 1m20s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 1m30s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 1m30s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 1m40s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 1m40s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 1m50s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 1m50s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 2m0s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 2m0s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 2m10s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 2m10s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 2m20s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 2m20s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 2m30s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 2m30s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 2m40s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 2m40s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 2m50s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 2m50s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 3m0s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 3m0s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 3m10s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 3m10s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 3m20s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 3m20s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 3m30s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 3m30s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 3m40s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 3m40s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Still destroying... [id=subnet-04959cd507cd5bb31, 3m50s elapsed][0m[0m
+[0m[1maws_internet_gateway.e2e: Still destroying... [id=igw-01ae41b1869cb0c39, 3m50s elapsed][0m[0m
+[0m[1maws_subnet.public[0]: Destruction complete after 3m51s[0m
+[0m[1maws_internet_gateway.e2e: Destruction complete after 3m51s[0m
+[0m[1maws_vpc.e2e: Destroying... [id=vpc-0bc628aa2eaa3a48a][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 10s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 20s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 30s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 40s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 1m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 1m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 1m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 1m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 1m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 1m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 2m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 2m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 2m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 2m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 2m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 2m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 3m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 3m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 3m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 3m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 3m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 3m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 4m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 4m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 4m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 4m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 4m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 4m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 5m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 5m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 5m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 5m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 5m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 5m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 6m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 6m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 6m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 6m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 6m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 6m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 7m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 7m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 7m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 7m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 7m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 7m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 8m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 8m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 8m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 8m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 8m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 8m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 9m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 9m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 9m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 9m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 9m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 9m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 10m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 10m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 10m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 10m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 10m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 10m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 11m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 11m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 11m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 11m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 11m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 11m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 12m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 12m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 12m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 12m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 12m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 12m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 13m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 13m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 13m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 13m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 13m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 13m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 14m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 14m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 14m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 14m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 14m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 14m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 15m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 15m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 15m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 15m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 15m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 15m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 16m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 16m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 16m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 16m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 16m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 16m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 17m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 17m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 17m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 17m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 17m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 17m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 18m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 18m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 18m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 18m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 18m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 18m51s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 19m1s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 19m11s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 19m21s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 19m31s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 19m41s elapsed][0m[0m
+[0m[1maws_vpc.e2e: Still destroying... [id=vpc-0bc628aa2eaa3a48a, 19m51s elapsed][0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mdeleting EC2 VPC (vpc-0bc628aa2eaa3a48a): operation error EC2: DeleteVpc, https response error StatusCode: 400, RequestID: 4c2cfeb9-c75b-41af-9551-07e0de2d6df4, api error DependencyViolation: The vpc 'vpc-0bc628aa2eaa3a48a' has dependencies and cannot be deleted.[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m
+[31m╵[0m[0m
+DOWN FAIL: tests/e2e/vpc — init/destroy failed; the disposable VPC may still exist
+
+==> cheap-overlay: clean: remove the cheap-overlay held.tfvars (no trace after teardown)
+  nothing to remove (infra/terraform/regions/pilot/odcr/held.tfvars absent or not cheap-overlay-marked) — no-op
