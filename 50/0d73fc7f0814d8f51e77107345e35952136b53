@@ -1,0 +1,23 @@
+docs/adr/0008-kueue-reclaim-keeps-borrowers-admitted.md
+  s_67e5a4b20e7672::t_72a4a9fe117602 19-25
+docs/agents/domain.md
+  s_67e5a4b20e7672::t_c46fc4788f30d0 7-9
+docs/glossary.md
+  s_67e5a4b20e7672::t_06d1c9aa1a45cf 39-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "500d73fc7f0814d8f51e77107345e35952136b53",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
