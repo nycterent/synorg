@@ -2,7 +2,7 @@
 # assertions.sh — e2e physics + game-day assertions (U7, R3). Sourced by
 # tests/e2e/run.sh --test; not executable on its own.
 #
-# Six assertions, each a function with bounded timeouts and an explicit
+# Eight assertions, each a function with bounded timeouts and an explicit
 # PASS/FAIL line. None can pass vacuously (plan R6): an empty query result, a
 # missing node, or an absent metric is a FAIL, never a skip —
 #   1. lend                 — a lendable-pool node carries the lent taint and a
@@ -15,16 +15,21 @@
 #                             wave-firing + NodeClaim-deletion log lines are
 #                             required as positive evidence — a dead wave
 #                             schedule cannot be bailed out by the close path
-#   3. scrub                — the reclaimed node's nodeclaim is deleted and a
+#   3. borrower-drain       — inside the reclaim phase every borrowing
+#                             Workload is deactivated and drained-annotated
+#                             (ADR 0008: no tail-chase)
+#   4. scrub                — the reclaimed node's nodeclaim is deleted and a
 #                             replacement carries an EC2 instance-id OUTSIDE
 #                             the lend-time pool snapshot (genuinely NEW
 #                             instance — a pre-existing sibling never counts;
 #                             equal id = VRAM not reset, node-scrub.md)
-#   4. rejoin-under-p95     — render_start_seconds:p95:reclaim_window holds the
+#   5. rejoin-under-p95     — render_start_seconds:p95:reclaim_window holds the
 #                             gate while the node returns (runbooks/game-day.md)
-#   5. game-day-storm       — the storm scenarios from rehearsal/scenarios.yaml
+#   6. game-day-storm       — the storm scenarios from rehearsal/scenarios.yaml
 #                             pass their passGates, repeatRuns times
-#   6. ledger               — zero net capacity release (entry snapshot ==
+#   7. borrower-reactivation— after the window close exactly the drained
+#                             Workloads are unmarked and reactivated
+#   8. ledger               — zero net capacity release (entry snapshot ==
 #                             exit reading; capacity-carve.md)
 #
 # Schedule driving: the lend/reclaim clock is driven by patching the LIVE
@@ -283,7 +288,7 @@ training_pod_on_lent_node() {
 
 # --- 1. lend -----------------------------------------------------------------
 assert_lend() {
-  step "assert 1/6: lend — lendable node tainted lent + training borrows onto it"
+  step "assert 1/8: lend — lendable node tainted lent + training borrows onto it"
   load_schedule_targets || { echo "FAIL: lend — cannot read live lending-schedule targets"; return 1; }
   # Quiescence gate: a previous run's restored schedule can leave the
   # controller mid-close-reclaim; driving a new window over leftover lent
@@ -341,7 +346,7 @@ controller_logs_since_drive() {
   k -n lending logs deploy/lending-controller --since="${since}s" --tail=5000
 }
 assert_reclaim_ahead_of_ramp() {
-  step "assert 2/6: reclaim-ahead-of-ramp — waves finish before the synthetic ramp needs capacity"
+  step "assert 2/8: reclaim-ahead-of-ramp — waves finish before the synthetic ramp needs capacity"
   [ -n "$LENDABLE_POOL" ] || { echo "FAIL: reclaim — schedule targets not loaded (did lend run?)"; return 1; }
   has_lent_node || { echo "FAIL: reclaim — nothing is lent, so there is nothing to reclaim (no vacuous pass)"; return 1; }
   # Scope the verdict to the nodes lent NOW (see none_of_set_lent): the waves
@@ -405,7 +410,7 @@ fresh_pool_node() {
           ] | length > 0' >/dev/null
 }
 assert_scrub_new_instance() {
-  step "assert 3/6: scrub — reclaimed nodeclaim deleted, replacement is a genuinely NEW EC2 instance"
+  step "assert 4/8: scrub — reclaimed nodeclaim deleted, replacement is a genuinely NEW EC2 instance"
   [ -s "$SCRUB_STATE" ] || { echo "FAIL: scrub — no recorded old identity (lend assertion must pass first)"; return 1; }
   [ -s "$POOL_ENTRY_IDS" ] || { echo "FAIL: scrub — no lend-time pool snapshot (lend assertion must pass first)"; return 1; }
   local node old_instance old_nodeclaim entry_ids entry_size
@@ -437,7 +442,7 @@ assert_scrub_new_instance() {
 
 # --- 4. rejoin under the render-start p95 gate -------------------------------
 assert_rejoin_under_p95_gate() {
-  step "assert 4/6: rejoin — render_start p95 holds the gate through reclaim + rejoin"
+  step "assert 5/8: rejoin — render_start p95 holds the gate through reclaim + rejoin"
   local target p95
   target="$(yq -r '.data["scenarios.yaml"]' rehearsal/scenarios.yaml \
     | yq -r '.parameters.renderStartP95TargetSeconds')"
@@ -493,8 +498,70 @@ run_scenario_once() {  # SCENARIO RUN_NO — one driven run + passGates evaluati
   loadgen_stop
   return "$rc"
 }
+# --- borrower drain (ADR 0008) -----------------------------------------------
+# The training Workload submitted by assert_lend borrows through the team-ml
+# LocalQueue. Once the reclaim phase is in force (first wave fired — which
+# assert_reclaim just proved), the controller must have deactivated it and
+# stamped the drained annotation. Workload-level evidence, not pod-level:
+# reclaim already killed the pods either way; drain is what stops them
+# re-pending into the tail-chase.
+borrowing_workloads_json() { k -n team-ml get workloads.kueue.x-k8s.io -o json; }
+
+all_borrowers_drained() {
+  borrowing_workloads_json | jq -e '
+    [.items[] | select(.spec.queueName == "team-ml")] as $b
+    | ($b | length) > 0 and ([$b[] | select(.spec.active == false and .metadata.annotations["lending.synorg.io/drained"] == "true")] | length) == ($b | length)' >/dev/null
+}
+
+no_borrowers_marked_drained() {
+  borrowing_workloads_json | jq -e '
+    [.items[] | select(.metadata.annotations["lending.synorg.io/drained"] == "true")] | length == 0' >/dev/null
+}
+
+assert_borrower_drain() {
+  step "assert 3/8: borrower drain — reclaim phase deactivates every borrowing Workload"
+  local n
+  n="$(borrowing_workloads_json | jq '[.items[] | select(.spec.queueName == "team-ml")] | length')"
+  [ "${n:-0}" -ge 1 ] || { echo "FAIL: borrower-drain — no borrowing Workloads exist, nothing to drain (no vacuous pass)"; return 1; }
+  # Two controller ticks + margin: drain is level-triggered, not instant.
+  wait_until "borrowing Workloads deactivated + drained-annotated" 180 all_borrowers_drained \
+    || { echo "FAIL: borrower-drain — borrowing Workloads still active (or unmarked) inside the reclaim phase"; return 1; }
+  local logs
+  if ! logs="$(controller_logs_since_drive)"; then
+    echo "FAIL: borrower-drain — cannot read controller logs — drain evidence unavailable, no verdict"
+    return 1
+  fi
+  grep -q 'action=borrower_drained' <<<"$logs" \
+    || { echo "FAIL: borrower-drain — no action=borrower_drained in controller logs (state may predate the phase)"; return 1; }
+  echo "PASS: borrower drain — $n borrowing Workload(s) deactivated and marked during the reclaim phase"
+}
+
+# --- borrower reactivation (ADR 0008) ----------------------------------------
+# After the driven window's close the phase is over: exactly the Workloads the
+# controller marked must come back (annotation removed, spec.active no longer
+# false). They then pend against the shrunk quota — re-admission is Kueue's
+# business, not this gate's.
+assert_borrower_reactivation() {
+  step "assert 7/8: borrower reactivation — phase exit unmarks and reactivates drained Workloads"
+  # The last storm scenario drove close at +$E2E_CLOSE_MINUTES from its drive
+  # epoch; wait out the remainder plus two ticks.
+  local deadline=$(( E2E_DRIVE_EPOCH + E2E_CLOSE_MINUTES * 60 + 180 )) now
+  now="$(date +%s)"
+  local budget=$(( deadline - now )); [ "$budget" -gt 60 ] || budget=180
+  wait_until "drained annotations cleared after window close" "$budget" no_borrowers_marked_drained \
+    || { echo "FAIL: borrower-reactivation — Workloads still marked drained after the window closed (stuck drain)"; return 1; }
+  local logs
+  if ! logs="$(controller_logs_since_drive)"; then
+    echo "FAIL: borrower-reactivation — cannot read controller logs — reactivation evidence unavailable, no verdict"
+    return 1
+  fi
+  grep -q 'action=borrower_reactivated' <<<"$logs" \
+    || { echo "FAIL: borrower-reactivation — no action=borrower_reactivated in controller logs"; return 1; }
+  echo "PASS: borrower reactivation — drained set emptied and reactivation logged after phase exit"
+}
+
 assert_game_day_storm() {
-  step "assert 5/6: game-day storm — scenarios from rehearsal/scenarios.yaml pass their gates"
+  step "assert 6/8: game-day storm — scenarios from rehearsal/scenarios.yaml pass their gates"
   yq -r '.data["scenarios.yaml"]' rehearsal/scenarios.yaml > "$SCENARIOS_INNER" \
     || { echo "FAIL: game-day — cannot extract scenarios from rehearsal/scenarios.yaml"; return 1; }
   local repeat_runs; repeat_runs="${E2E_REPEAT_RUNS:-$(yq -r '.parameters.repeatRuns' "$SCENARIOS_INNER")}"
@@ -514,7 +581,7 @@ assert_game_day_storm() {
 
 # --- 6. ledger: zero net capacity release ------------------------------------
 assert_ledger_zero_net_release() {
-  step "assert 6/6: ledger — zero net capacity release (capacity-carve.md invariant)"
+  step "assert 8/8: ledger — zero net capacity release (capacity-carve.md invariant)"
   # Baseline is the TEST-START snapshot (taken in e2e_assert_all), not the
   # run-entry one: --up legitimately creates the run-owned cheap ODCR after
   # the run-entry snapshot, so comparing against run-entry would flag every
@@ -649,16 +716,18 @@ e2e_assert_all() {
     e2e_restore_traps
     return 1
   fi
-  for a in assert_lend assert_reclaim_ahead_of_ramp assert_scrub_new_instance \
-           assert_rejoin_under_p95_gate assert_game_day_storm assert_ledger_zero_net_release; do
+  for a in assert_lend assert_reclaim_ahead_of_ramp assert_borrower_drain \
+           assert_scrub_new_instance assert_rejoin_under_p95_gate \
+           assert_game_day_storm assert_borrower_reactivation \
+           assert_ledger_zero_net_release; do
     "$a" || failed=$(( failed + 1 ))
   done
   e2e_cleanup
   e2e_restore_traps
   echo
   if [ "$failed" -gt 0 ]; then
-    echo "ASSERTIONS: $failed of 6 FAILED"
+    echo "ASSERTIONS: $failed of 8 FAILED"
     return 1
   fi
-  echo "ASSERTIONS: 6 of 6 PASSED"
+  echo "ASSERTIONS: 8 of 8 PASSED"
 }

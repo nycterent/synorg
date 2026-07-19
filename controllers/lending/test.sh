@@ -87,6 +87,8 @@ normalize_resource() {
   case "$1" in
     node|nodes) echo nodes ;;
     clusterqueue|clusterqueues|clusterqueues.kueue.x-k8s.io) echo clusterqueues ;;
+    localqueue|localqueues|localqueues.kueue.x-k8s.io) echo localqueues ;;
+    workload|workloads|workloads.kueue.x-k8s.io) echo workloads ;;
     nodeclaim|nodeclaims|nodeclaims.karpenter.sh) echo nodeclaims ;;
     pod|pods) echo pods ;;
     *) echo "$1" ;;
@@ -111,6 +113,8 @@ required_rules() {
         case "$res" in
           nodes)         printf '%s\n' "|nodes|get" "|nodes|list" ;;
           clusterqueues) printf '%s\n' "kueue.x-k8s.io|clusterqueues|get" "kueue.x-k8s.io|clusterqueues|list" ;;
+          localqueues)   printf '%s\n' "kueue.x-k8s.io|localqueues|get" "kueue.x-k8s.io|localqueues|list" ;;
+          workloads)     printf '%s\n' "kueue.x-k8s.io|workloads|get" "kueue.x-k8s.io|workloads|list" ;;
           nodeclaims)    printf '%s\n' "karpenter.sh|nodeclaims|get" "karpenter.sh|nodeclaims|list" ;;
           pods)          printf '%s\n' "|pods|get" "|pods|list" ;;
           *) fail "RBAC check: unmapped 'kc get $res' in reconcile.sh" ;;
@@ -127,6 +131,7 @@ required_rules() {
         res="$(normalize_resource "${2:-}")"
         case "$res" in
           clusterqueues) printf '%s\n' "kueue.x-k8s.io|clusterqueues|patch" ;;
+          workloads)     printf '%s\n' "kueue.x-k8s.io|workloads|patch" ;;
           nodes)         printf '%s\n' "|nodes|patch" ;;
           *) fail "RBAC check: unmapped 'kc patch $res' in reconcile.sh" ;;
         esac ;;
