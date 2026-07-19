@@ -12,7 +12,7 @@ This is the KTD8 hybrid: stateless field rules run as ValidatingAdmissionPolicy
 Kyverno ClusterPolicies. Both back the "never" tier at admission; the merge gate
 backs the "autonomous" and "human-by-exception" tiers.
 
-![Decision flow for a change (PR): cross-tenant reference or secret material is denied at admission (never); a prod topology, quota, or NodePool change needs a branch-protection review (human-by-exception); a namespace-scoped non-prod change, or a values-only prod change post game-day, whose policies all pass, auto-merges through make validate (autonomous)](assets/diagrams/capability-tiers.svg){ .diagram }
+![Decision flow for a change (PR): cross-tenant reference or secret material is denied at admission (never); a prod topology, quota, or NodePool change needs a branch-protection review (human-by-exception); a namespace-scoped non-prod change, or a values-only prod change post game-day, whose policies all pass, auto-merges through make validate (autonomous)](assets/diagrams/capability-tiers.svg)
 
 ## Tiers
 

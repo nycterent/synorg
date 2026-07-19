@@ -3,7 +3,7 @@ hide:
   - toc
 ---
 
-# The test ladder { .tufte }
+# The test ladder
 
 Why the platform's verification is shaped as a ladder — `make validate` →
 `make integration` → `make smoke` → `make e2e` — and what each rung can and

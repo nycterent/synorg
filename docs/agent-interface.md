@@ -14,7 +14,7 @@ the agent alone:
 3. **Observe** — read live behavior from the SLO read-API.
 4. **Correct** — the error message alone is enough to fix and retry.
 
-![The agent loop as a four-stage cycle: propose (edit a values file, open a PR to the monorepo), validate (make validate returns pass/fail with a named error), observe (read the SLO read-API in slo-definitions.yaml), correct (the error message alone drives the fix and next PR), then back to propose — closed by the agent with no human translator](assets/diagrams/agent-loop.svg){ .diagram }
+![The agent loop as a four-stage cycle: propose (edit a values file, open a PR to the monorepo), validate (make validate returns pass/fail with a named error), observe (read the SLO read-API in slo-definitions.yaml), correct (the error message alone drives the fix and next PR), then back to propose — closed by the agent with no human translator](assets/diagrams/agent-loop.svg)
 
 ## Repo layout
 

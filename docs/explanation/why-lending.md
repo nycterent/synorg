@@ -3,7 +3,7 @@ hide:
   - toc
 ---
 
-# Why the platform lends GPUs { .tufte }
+# Why the platform lends GPUs
 
 This is a discussion of the problem the platform exists to solve and the idea at
 its heart. It explains; it does not instruct. To run anything, see the
@@ -62,7 +62,7 @@ utilization nor the safety. The way out is not to compromise on the axis but to
 
 Three separations carry the design, and each maps to a concrete mechanism.
 
-![A 24-hour timeline of one node: a lendable node serves prod by day, goes idle in the evening, is lent to training overnight, drains through staged reclaim waves before the morning ramp, scrubs, and returns to prod; below it, the warm floor serves prod all day and never lends](../assets/diagrams/why-lending-day.svg){ .diagram }
+![A 24-hour timeline of one node: a lendable node serves prod by day, goes idle in the evening, is lent to training overnight, drains through staged reclaim waves before the morning ramp, scrubs, and returns to prod; below it, the warm floor serves prod all day and never lends](../assets/diagrams/why-lending-day.svg)
 
 <div class="md-has-sidebar" markdown>
 <main markdown>

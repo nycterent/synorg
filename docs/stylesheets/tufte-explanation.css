@@ -7,7 +7,7 @@
  * carries the `tufte` class. Explanation pages opt in from markdown via
  * attr_list on their title:
  *
- *     # The test ladder { .tufte }
+ *     # The test ladder  (class hook removed 2026-07-19 — GitHub renders attr_list literally; re-key on page paths if tufte styling returns)
  *
  * which Material renders as `<h1 class="tufte" id="...">` as a direct child
  * of `<article class="md-content__inner md-typeset">`. Pages without the

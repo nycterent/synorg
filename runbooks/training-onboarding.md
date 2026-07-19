@@ -152,7 +152,7 @@ Net lost work: **≤ one checkpoint interval (≤5 min)**. If you are losing mor
 that, your entrypoint is not resuming from the latest checkpoint — fix that first;
 tightening cadence below the interval is not the answer (KTD12).
 
-![Preemption timeline of a training job: node A checkpoints every 5 minutes until a preemption (SIGTERM); a 120 s grace flushes a final checkpoint; after Kueue re-admits, the job resumes on a fresh node B from the last checkpoint, losing at most one interval (≤5 min)](../docs/assets/diagrams/preemption-timeline.svg){ .diagram }
+![Preemption timeline of a training job: node A checkpoints every 5 minutes until a preemption (SIGTERM); a 120 s grace flushes a final checkpoint; after Kueue re-admits, the job resumes on a fresh node B from the last checkpoint, losing at most one interval (≤5 min)](../docs/assets/diagrams/preemption-timeline.svg)
 
 ## Guardrails you cannot opt out of
 

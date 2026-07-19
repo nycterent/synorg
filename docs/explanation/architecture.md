@@ -3,7 +3,7 @@ hide:
   - toc
 ---
 
-# Architecture { .tufte }
+# Architecture
 
 This is the map an infrastructure engineer needs before touching the system:
 what the pieces are, how they fit, and where control and data flow. It explains
@@ -22,7 +22,7 @@ lend/reclaim lifecycle, Kyverno + ValidatingAdmissionPolicy for the policy
 plane, and Prometheus for the evidence plane. Nothing is applied to a cluster by
 hand.
 
-![Hub-spoke topology: the git monorepo (the only write API) feeds the ArgoCD hub, which syncs each region spoke; inside a spoke Karpenter provisions the warm-floor, lendable, and web NodePools while Kueue, the lending controller, Kyverno + VAP, and Prometheus run alongside](../assets/diagrams/architecture-topology.svg){ .diagram }
+![Hub-spoke topology: the git monorepo (the only write API) feeds the ArgoCD hub, which syncs each region spoke; inside a spoke Karpenter provisions the warm-floor, lendable, and web NodePools while Kueue, the lending controller, Kyverno + VAP, and Prometheus run alongside](../assets/diagrams/architecture-topology.svg)
 
 ## Anatomy of the estate
 
@@ -110,7 +110,7 @@ lendable — same physics, ~$5–10 a run
 
 ### What runs where
 
-![The two clusters and their namespaces: synorg-mgmt runs only the argocd namespace (ArgoCD, ApplicationSets, team AppProjects); synorg-pilot runs karpenter, kueue, lending, platform-system, observability, and team namespaces, drawing on the held ODCRs and the S3 checkpoint store](../assets/diagrams/cluster-anatomy.svg){ .diagram }
+![The two clusters and their namespaces: synorg-mgmt runs only the argocd namespace (ArgoCD, ApplicationSets, team AppProjects); synorg-pilot runs karpenter, kueue, lending, platform-system, observability, and team namespaces, drawing on the held ODCRs and the S3 checkpoint store](../assets/diagrams/cluster-anatomy.svg)
 
 On the hub everything lives in `argocd`: ArgoCD itself (Helm chart `argo-cd`
 7.7.0, installed once, self-managed thereafter), the `regions` and `services`
@@ -147,7 +147,7 @@ any of it touches AWS.
 The system is easier to reason about as four planes than as a pile of
 components. Each answers one question.
 
-![The four planes stacked: a change (PR) flows top-to-bottom through the Contract plane (git monorepo), the Actuation plane (ArgoCD + Karpenter), the Policy plane (Kyverno + ValidatingAdmissionPolicy), and the Evidence plane (Prometheus + DCGM); evidence flows back up to inform the next change](../assets/diagrams/architecture-planes.svg){ .diagram }
+![The four planes stacked: a change (PR) flows top-to-bottom through the Contract plane (git monorepo), the Actuation plane (ArgoCD + Karpenter), the Policy plane (Kyverno + ValidatingAdmissionPolicy), and the Evidence plane (Prometheus + DCGM); evidence flows back up to inform the next change](../assets/diagrams/architecture-planes.svg)
 
 - **Contract plane — "what is the desired state?"** The git monorepo. Base
   manifests plus per-region overlays; one golden Helm chart whose
@@ -218,7 +218,7 @@ The states a node moves through under this cycle — the machine the lending
 controller drives — are the same ones the [operations runbook](../../runbooks/operations.md)
 maps its on-call tasks to:
 
-![Node lend/reclaim lifecycle: ProdServing to Idle to Lent to Reclaiming to Scrubbing back to ProdServing, with a Quarantined branch off Lent](../assets/diagrams/node-lifecycle.svg){ .diagram }
+![Node lend/reclaim lifecycle: ProdServing to Idle to Lent to Reclaiming to Scrubbing back to ProdServing, with a Quarantined branch off Lent](../assets/diagrams/node-lifecycle.svg)
 
 The reclaim mechanism — why serving never queues and demand enters Kueue as a
 scheduled quota curve — has its own discussion in the reclaim model *(planned:
