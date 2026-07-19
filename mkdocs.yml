@@ -13,6 +13,7 @@ exclude_docs: |
   plans/
   residual-review-findings/
   TODO-docs.md
+  agents/
 
 theme:
   name: material
@@ -63,6 +64,9 @@ nav:
       - "ADR 0003: sticky checkpoints + trigger": adr/0003-checkpoint-locality-sticky-with-trigger.md
       - "ADR 0004: hub pause + break-glass": adr/0004-hub-intake-pause-with-break-glass.md
       - "ADR 0005: ODCR economics": adr/0005-odcr-economics-insurance-plus-metrics.md
+      - "ADR 0006: GitOps remote, direct-sync retires": adr/0006-gitops-remote-and-direct-sync-retirement.md
+      - "ADR 0007: ghcr canonical registry": adr/0007-registry-ghcr-canonical.md
+      - "ADR 0008: Kueue reclaim tail-chase": adr/0008-kueue-reclaim-keeps-borrowers-admitted.md
       - Capability tiers: capability-tiers.md
       - Agent interface: agent-interface.md
       - SLO catalog: slo-catalog.md
