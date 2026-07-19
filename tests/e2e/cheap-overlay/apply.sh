@@ -290,6 +290,17 @@ mode_apply() {
   [ -n "$ns" ] || fail "apply: warm-floor-balloon Deployment not found in any namespace — did the deploy converge?"
   k -n "$ns" get deploy warm-floor-balloon -o json | jq_balloon > "$d/balloon.json"
   k replace -f "$d/balloon.json" >/dev/null
+  # The ClusterQueues arrive via the pilot-kueue Application, which converges
+  # on its own clock — deploy.sh's 4.6 gate only proves balloon/NodePools
+  # (karpenter app). Racing it lost live: 'clusterqueues "platform-lendable"
+  # not found' seconds after a fast 4.6. Bounded wait, loud fail.
+  local cq deadline=$(( $(date +%s) + 600 ))
+  for cq in platform-lendable training-borrow; do
+    until k get clusterqueue "$cq" >/dev/null 2>&1; do
+      [ "$(date +%s)" -lt "$deadline" ] || fail "apply: ClusterQueue $cq never arrived (pilot-kueue not converged)"
+      sleep 10
+    done
+  done
   k get clusterqueue platform-lendable -o json | jq_cq_lendable > "$d/cq-lendable.json"
   k replace -f "$d/cq-lendable.json" >/dev/null
   k get clusterqueue training-borrow -o json   | jq_cq_borrow   > "$d/cq-borrow.json"
