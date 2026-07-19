@@ -1,0 +1,26 @@
+controllers/lending/README.md
+  s_e175eff4a5c206::t_a24656395c1dec 18-23
+  s_e175eff4a5c206::t_7bd0b77b1d0b2c 97-99
+rehearsal/README.md
+  s_e175eff4a5c206::t_5b09baa503e0ce 38
+runbooks/e2e-gpu-run.md
+  s_e175eff4a5c206::t_71862e83f50b60 374-381
+  s_e175eff4a5c206::t_eabeb2d67c13c4 187-195
+  s_e175eff4a5c206::t_c5c05d6a4ed3f5 237-241,244-248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "77ae9d04ddd9e424a71919eb4ee23e44fd893dbd",
+  "prompts": {},
+  "sessions": {
+    "s_e175eff4a5c206": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b03c458-dacc-45e1-9075-0d9fc755d85f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
