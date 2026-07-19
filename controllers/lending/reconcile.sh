@@ -16,11 +16,16 @@
 #      routes through the same reclaim path the waves use (reclaim_node) and
 #      is untainted only on the explicitly logged degraded paths,
 #   3. patches the training ClusterQueue borrowingLimit to the curve value for
-#      the current time (gpuLimitPct x current lendable GPU capacity).
+#      the current time (gpuLimitPct x current lendable GPU capacity),
+#   4. enforces borrower drain (ADR 0008): while the reclaim phase is in
+#      force (open window past its first wave's startsAt) every Workload
+#      feeding the borrowing ClusterQueue is deactivated and annotation-
+#      marked; outside the phase exactly the marked ones are reactivated.
 #
-# WRITE SURFACE (drift trap, plan-001 U8): Node objects and the training
-# ClusterQueue only. NEVER NodePool templates — Karpenter drift-detects a
-# template change and replaces the whole pool at every window transition.
+# WRITE SURFACE (drift trap, plan-001 U8): Node objects, the training
+# ClusterQueue, and borrowing Workloads (spec.active + drained annotation)
+# only. NEVER NodePool templates — Karpenter drift-detects a template change
+# and replaces the whole pool at every window transition.
 #
 # Region-local by construction: everything here talks to the local API server
 # via the mounted ServiceAccount; there is no hub/ArgoCD dependency at tick
@@ -384,6 +389,84 @@ reconcile_borrow_limit() {
   fi
 }
 
+# drain_phase_active TZ — 0 iff the reclaim phase is in force: an open lending
+# window whose first reclaim wave's startsAt has passed (offsets measured from
+# the window's opensAt, so cross-midnight windows compare correctly). With no
+# reclaimWaves configured there is no phase and this never fires.
+drain_phase_active() {
+  local tz="$1" now_min day prev_day n i opens closes days o c dow
+  local wn wi wstart first_off=99999 off pos
+  wn="$(yq -r '.reclaimWaves // [] | length' "$SCHEDULE_FILE")"
+  [ "$wn" -gt 0 ] || return 1
+  now_min="$(hm_to_min "$(TZ="$tz" date +%H:%M)")"
+  day="$(TZ="$tz" date +%a)"
+  dow="$(TZ="$tz" date +%w)"
+  local names=(Sun Mon Tue Wed Thu Fri Sat)
+  prev_day="${names[$(( (dow + 6) % 7 ))]}"
+  n="$(yq -r '.windows | length' "$SCHEDULE_FILE")"
+  for (( i=0; i<n; i++ )); do
+    opens="$(yq -r ".windows[$i].opensAt" "$SCHEDULE_FILE")"
+    closes="$(yq -r ".windows[$i].closesAt" "$SCHEDULE_FILE")"
+    days="$(yq -r ".windows[$i].days | join(\",\")" "$SCHEDULE_FILE")"
+    o="$(hm_to_min "$opens")"; c="$(hm_to_min "$closes")"
+    local in_window=1
+    if [ "$o" -le "$c" ]; then
+      case ",$days," in *",$day,"*)
+        [ "$now_min" -ge "$o" ] && [ "$now_min" -lt "$c" ] && in_window=0 ;; esac
+    else
+      case ",$days," in *",$day,"*)
+        [ "$now_min" -ge "$o" ] && in_window=0 ;; esac
+      case ",$days," in *",$prev_day,"*)
+        [ "$now_min" -lt "$c" ] && in_window=0 ;; esac
+    fi
+    [ "$in_window" -eq 0 ] || continue
+    for (( wi=0; wi<wn; wi++ )); do
+      wstart="$(yq -r ".reclaimWaves[$wi].startsAt" "$SCHEDULE_FILE")"
+      off="$(minutes_since "$(hm_to_min "$wstart")" "$o")"
+      [ "$off" -lt "$first_off" ] && first_off="$off"
+    done
+    pos="$(minutes_since "$now_min" "$o")"
+    [ "$pos" -ge "$first_off" ] && return 0
+  done
+  return 1
+}
+
+# reconcile_borrower_drain TZ QUEUE — borrower drain (ADR 0008, glossary).
+# Level-triggered against the reclaim phase: while the phase is in force,
+# every Workload feeding the borrowing ClusterQueue is deactivated
+# (spec.active=false) and marked with the lending.synorg.io/drained
+# annotation; outside the phase, exactly the marked Workloads are
+# reactivated and unmarked. Only annotated Workloads are ever reactivated —
+# a Workload a human deactivated is not ours to resurrect. Borrower set =
+# Workloads whose spec.queueName is a LocalQueue targeting QUEUE; queue-wide
+# by decision (taints pin training to the lendable pool — if training ever
+# gains a second pool, ADR 0008 reopens).
+reconcile_borrower_drain() {
+  local tz="$1" queue="$2"
+  local phase=1 lqs wl_json targets name ns
+  drain_phase_active "$tz" && phase=0
+  lqs="$(kc get localqueues -A -o json | jq -c --arg q "$queue" '[.items[] | select(.spec.clusterQueue == $q) | {ns: .metadata.namespace, name: .metadata.name}]')"
+  [ "$(echo "$lqs" | jq 'length')" -gt 0 ] || return 0
+  wl_json="$(kc get workloads -A -o json)"
+  if [ "$phase" -eq 0 ]; then
+    targets="$(echo "$wl_json" | jq -r --argjson lqs "$lqs" '.items[] | . as $w | select([$lqs[] | select(.ns == $w.metadata.namespace and .name == $w.spec.queueName)] | length > 0) | select(.spec.active != false) | "\(.metadata.namespace) \(.metadata.name)"')"
+    while IFS=' ' read -r ns name; do
+      [ -n "$name" ] || continue
+      kc patch workloads -n "$ns" "$name" --type=merge -p '{"spec":{"active":false},"metadata":{"annotations":{"lending.synorg.io/drained":"true"}}}' >/dev/null
+      log info action=borrower_drained workload="$ns/$name" queue="$queue" reason=BorrowerDrained
+      emit_event BorrowerDrained Workload "$name" "reclaim phase: deactivated borrowing Workload $ns/$name (queue $queue)"
+    done <<< "$targets"
+  else
+    targets="$(echo "$wl_json" | jq -r '.items[] | select(.metadata.annotations["lending.synorg.io/drained"] == "true") | "\(.metadata.namespace) \(.metadata.name)"')"
+    while IFS=' ' read -r ns name; do
+      [ -n "$name" ] || continue
+      kc patch workloads -n "$ns" "$name" --type=merge -p '{"spec":{"active":true},"metadata":{"annotations":{"lending.synorg.io/drained":null}}}' >/dev/null
+      log info action=borrower_reactivated workload="$ns/$name" queue="$queue" reason=BorrowerReactivated
+      emit_event BorrowerReactivated Workload "$name" "reclaim phase over: reactivated Workload $ns/$name"
+    done <<< "$targets"
+  fi
+}
+
 # reconcile_waves TZ POOL TAINT — fire any due reclaim wave, at most ONCE per
 # scheduled occurrence: a marker file under $KUBECTL_CACHE_DIR/fired-waves/
 # (<YYYY-MM-DD>-w<index>-<startsAt>, schedule-local date) records each firing,
@@ -470,6 +553,7 @@ tick() {
   reconcile_waves "$tz" "$pool" "$taint" || log warn action=tick msg="wave reconcile failed, continuing"
   reconcile_taints "$open" "$pool" "$taint" || log warn action=tick msg="taint reconcile failed, continuing"
   reconcile_borrow_limit "$tz" "$pool" "$queue" || log warn action=tick msg="borrow-limit reconcile failed, continuing"
+  reconcile_borrower_drain "$tz" "$queue" || log warn action=tick msg="borrower-drain reconcile failed, continuing"
 }
 
 main() {

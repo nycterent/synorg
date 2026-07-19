@@ -5,8 +5,8 @@
 # mounted at /tmp.
 #
 # Build + load into the U1 kind harness:
-#   docker build -t ghcr.io/nycterent/synorg/lending-controller:0.1.3 controllers/lending
-#   kind load docker-image ghcr.io/nycterent/synorg/lending-controller:0.1.3 --name <cluster>
+#   docker build -t ghcr.io/nycterent/synorg/lending-controller:0.2.0 controllers/lending
+#   kind load docker-image ghcr.io/nycterent/synorg/lending-controller:0.2.0 --name <cluster>
 FROM alpine:3.20
 
 # Pin kubectl to K8S_VERSION in scripts/validate.sh so client and validation

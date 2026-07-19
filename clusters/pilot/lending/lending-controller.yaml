@@ -74,6 +74,15 @@ rules:
   - apiGroups: ["kueue.x-k8s.io"]
     resources: ["clusterqueues"]
     verbs: ["get", "list", "watch", "patch", "update"]
+  # Borrower drain (ADR 0008): map LocalQueues to the borrowing ClusterQueue
+  # and flip spec.active (+ the drained annotation) on borrowing Workloads
+  # during the reclaim phase. Workload spec/status stay Kueue's otherwise.
+  - apiGroups: ["kueue.x-k8s.io"]
+    resources: ["localqueues"]
+    verbs: ["get", "list"]
+  - apiGroups: ["kueue.x-k8s.io"]
+    resources: ["workloads"]
+    verbs: ["get", "list", "patch"]
   # Emit the lifecycle Events above (cluster-scoped so it can annotate Node and
   # ClusterQueue objects, which live outside the controller namespace).
   - apiGroups: [""]
@@ -186,7 +195,7 @@ spec:
           # from ghcr (ADR 0007). Digest-pinned: the tag is the human label,
           # the digest is the contract — this is the exact image the 6/6
           # walking-skeleton run executed.
-          image: ghcr.io/nycterent/synorg/lending-controller:0.1.3@sha256:3b35a478d0dd6fe2362eacf8aa755446d4232ba634d73fd9db37d56744e2d33e
+          image: ghcr.io/nycterent/synorg/lending-controller:0.2.0@sha256:918560b68e76b155b5a1da4162a92da7bb909fcbb77c10f47b4e2e42556ac99f
           # v0 note: the shell loop is configured by env, not flags. Leader
           # election is deferred to the real operator (the Role keeps the
           # lease verbs for it); replicas: 1 + strategy Recreate is the v0

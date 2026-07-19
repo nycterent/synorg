@@ -1,6 +1,7 @@
 # ADR 0008 — Kueue reclaim tail-chase: documented limit, deferred fix
 
-- **Status:** accepted (grilling session, 2026-07-19)
+- **Status:** accepted (grilling session, 2026-07-19); borrower drain
+  implemented same day (controller 0.2.0) — gate: e2e assertions 3/8 + 7/8
 - **Context:** When the lending controller shrinks `borrowingLimit` at
   reclaim-window open, Kueue by design keeps already-admitted borrowing
   Workloads admitted — quota changes gate future admission, they do not
