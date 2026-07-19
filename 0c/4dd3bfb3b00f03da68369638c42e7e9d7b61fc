@@ -1,0 +1,21 @@
+runbooks/training-onboarding.md
+  s_67e5a4b20e7672::t_cac5fa1ef2406b 119
+runbooks/e2e-gpu-run.md
+  s_67e5a4b20e7672::t_cac5fa1ef2406b 126,143,193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "0c4dd3bfb3b00f03da68369638c42e7e9d7b61fc",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
