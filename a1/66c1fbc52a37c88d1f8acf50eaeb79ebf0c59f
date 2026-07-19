@@ -1,0 +1,25 @@
+docs/agents/issue-tracker.md
+  s_67e5a4b20e7672::t_6f60dbc19179e9 1-30
+docs/agents/domain.md
+  s_67e5a4b20e7672::t_35e92dd157ab85 1-51
+AGENTS.md
+  s_67e5a4b20e7672::t_fcbda167d1c73d 1-11
+.gitignore
+  s_67e5a4b20e7672::t_31ac3114dfb300 9-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "a166c1fbc52a37c88d1f8acf50eaeb79ebf0c59f",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
