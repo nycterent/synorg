@@ -1,6 +1,6 @@
 # synorg platform monorepo
 Multi-region GPU compute platform on EKS. Git is the only write API; ArgoCD reconciles; policy verdicts replace approval queues. See `docs/plans/2026-07-17-001-feat-eks-gpu-platform-plan.md` for the plan and `eks-platform.prd` for product intent.
-## {==Proven==}{>>proven or non-disproven? ;)<<}{id="c1" by="user" at="2026-07-19T19:36:02.038Z"} end-to-end
+## Proven end-to-end
 Two live milestones on real EKS GPUs (us-east-1, g4dn):
 
 - **2026-07-18 — walking skeleton, 6/6.** Capacity lend → wave-driven reclaim (198 s ahead of the ramp deadline) → node scrub onto a genuinely new instance → service rejoin (p95 0.047 s) → game-day storm, 2 scenarios × 3 runs, 18/18 gates → lending ledger zero-net-release. Run record: `build/e2e/logs-20260718/`.
