@@ -420,7 +420,18 @@ assert_scrub_new_instance() {
   wait_until "nodeclaim $old_nodeclaim deleted (instance terminated)" "$E2E_SCRUB_TIMEOUT" \
     nodeclaim_gone "$old_nodeclaim" \
     || { echo "FAIL: scrub — nodeclaim '$old_nodeclaim' still exists; the reclaimed node was never scrubbed"; return 1; }
+  # Borrower drain (assert 3) removed the demand that used to summon the
+  # replacement: drained training cannot re-pend, and by window close the
+  # borrow curve is 0 — nothing ever asks Karpenter for a fresh lendable node
+  # (found live: this wait starved for its full 1200s). Un-park the
+  # lendable-hold stand-in for exactly this wait — provisioning demand is its
+  # whole job — then park it again so reclaim/storm timing stays clean.
+  k -n platform-system scale deploy/lendable-hold --replicas=1 >/dev/null 2>&1 || true
+  local scrub_rc=0
   wait_until "a Ready $LENDABLE_POOL node outside the lend-time entry set" "$E2E_SCRUB_TIMEOUT" fresh_pool_node \
+    || scrub_rc=1
+  k -n platform-system scale deploy/lendable-hold --replicas=0 >/dev/null 2>&1 || true
+  [ "$scrub_rc" -eq 0 ] \
     || { echo "FAIL: scrub — every Ready pool node's instance-id is inside the lend-time entry set ($entry_size id(s)); no genuinely new EC2 instance within ${E2E_SCRUB_TIMEOUT}s (a pre-existing sibling does not count)"; return 1; }
   local new_instance
   new_instance="$(k get nodes -l "karpenter.sh/nodepool=$LENDABLE_POOL" -o json \
