@@ -1,0 +1,51 @@
+tests/e2e/assertions.sh
+  s_67e5a4b20e7672::t_e97446c1d1049f 230
+charts/golden-service/ci/web.yaml
+  s_67e5a4b20e7672::t_b9971814f16a70 7
+tests/e2e/stand-ins/training-values.yaml
+  s_67e5a4b20e7672::t_b9971814f16a70 2
+tests/e2e/run.sh
+  s_67e5a4b20e7672::t_e97446c1d1049f 367
+clusters/pilot/lending/lending-controller.yaml
+  s_67e5a4b20e7672::t_5722663ffe9917 186-189
+controllers/lending/Dockerfile
+  s_67e5a4b20e7672::t_9a02da90d139e5 8-9
+clusters/mgmt/appsets/regions.yaml
+  s_67e5a4b20e7672::t_b9971814f16a70 41,55
+clusters/mgmt/appsets/services.yaml
+  s_67e5a4b20e7672::t_b9971814f16a70 35,49,52
+charts/training-job/ci/basic-training.yaml
+  s_67e5a4b20e7672::t_b9971814f16a70 8
+clusters/mgmt/argocd/appproject-example.yaml
+  s_67e5a4b20e7672::t_b9971814f16a70 15
+services/inference-stub/server.py
+  s_67e5a4b20e7672::t_9a02da90d139e5 7,13
+clusters/pilot/services/example-inference.yaml
+  s_67e5a4b20e7672::t_b9971814f16a70 15
+charts/training-job/values.schema.json
+  s_67e5a4b20e7672::t_21d5e565bc0baa 37
+controllers/lending/README.md
+  s_67e5a4b20e7672::t_9a02da90d139e5 139-140,145
+scripts/deploy.sh
+  s_67e5a4b20e7672::t_a309a46cf61ab0 392-395
+charts/golden-service/ci/gpu-inference.yaml
+  s_67e5a4b20e7672::t_b9971814f16a70 10
+charts/golden-service/values.schema.json
+  s_67e5a4b20e7672::t_21d5e565bc0baa 59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "8e97a9868f2332eb25e1839b53bc8a3a2ca70b72",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
