@@ -9,6 +9,14 @@ site_dir: site
 # runbooks/ (the how-to quadrant) lives at the repo root and is pulled into the
 # build via the docs/runbooks symlink; MkDocs follows it. Everything the site
 # needs therefore sits under docs/.
+# Cross-tree links (docs <-> runbooks) are written for the GitHub file view —
+# the canonical read surface for this repo. They cross the docs/ boundary, so
+# MkDocs flags them as unrecognized; that is expected, not breakage.
+validation:
+  links:
+    not_found: info
+    unrecognized_links: info
+
 exclude_docs: |
   plans/
   residual-review-findings/

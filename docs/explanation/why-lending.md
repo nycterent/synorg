@@ -7,7 +7,7 @@ hide:
 
 This is a discussion of the problem the platform exists to solve and the idea at
 its heart. It explains; it does not instruct. To run anything, see the
-[tutorials](../tutorials/first-validation.md) or the [runbooks](../runbooks/service-migration.md);
+[tutorials](../tutorials/first-validation.md) or the [runbooks](../../runbooks/service-migration.md);
 to look a name up, see [conventions](../conventions.md).
 
 ## Paying twice for the same silicon
@@ -137,4 +137,4 @@ buried.
 - The names, pools, taints, and priority classes referenced above are pinned in
   [conventions](../conventions.md).
 - The operations that carry out reclaim, scrub, and capture are the
-  [runbooks](../runbooks/service-migration.md).
+  [runbooks](../../runbooks/service-migration.md).

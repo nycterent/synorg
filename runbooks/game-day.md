@@ -8,7 +8,7 @@ the morning-ramp preemption storm and decides the R2 pass/fail that gates Phase
 **Never run on the auto lane and never against a region carrying real traffic** —
 this drives real preemption. Pilot cluster only.
 
-![Staged-reclaim game-day: inference load ramps to peak while training borrow drains to zero in three scheduled waves (05:30, 06:00, 06:30) ahead of the 07:00 ramp; the render-start p95 line stays under its 2.0 s target across the window, clearing the pass gate](../assets/diagrams/game-day-timeline.svg){ .diagram }
+![Staged-reclaim game-day: inference load ramps to peak while training borrow drains to zero in three scheduled waves (05:30, 06:00, 06:30) ahead of the 07:00 ramp; the render-start p95 line stays under its 2.0 s target across the window, clearing the pass gate](../docs/assets/diagrams/game-day-timeline.svg){ .diagram }
 
 ## Variables
 

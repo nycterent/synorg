@@ -2,7 +2,7 @@
 
 Day-2 how-to for the platform team: the recurring and on-call tasks of keeping
 the fleet healthy after it is [deployed](deploy-platform.md). Each section is a
-task with a trigger and steps. It assumes the [architecture](../explanation/architecture.md).
+task with a trigger and steps. It assumes the [architecture](../docs/explanation/architecture.md).
 
 Everything that changes desired state goes through a PR to the monorepo — git is
 the only write API. The `kubectl` reads below are for observation; the writes
@@ -48,7 +48,7 @@ or NodePools silently fall back to on-demand.
 The states a GPU node moves through — the machine the lending controller drives,
 and the map for the on-call tasks below:
 
-![Node lend/reclaim lifecycle: ProdServing to Idle to Lent to Reclaiming to Scrubbing back to ProdServing, with a Quarantined branch off Lent](../assets/diagrams/node-lifecycle.svg){ .diagram }
+![Node lend/reclaim lifecycle: ProdServing to Idle to Lent to Reclaiming to Scrubbing back to ProdServing, with a Quarantined branch off Lent](../docs/assets/diagrams/node-lifecycle.svg){ .diagram }
 
 ### Preemption storm at morning ramp
 

@@ -10,9 +10,9 @@ right now, not the topic.
   that start from zero. Begin with [Validate on your
   laptop](tutorials/first-validation.md).
 
-- **[How-to (runbooks)](runbooks/deploy-platform.md)** — *A task.* Executable
-  playbooks for operators: [deploy the platform](runbooks/deploy-platform.md),
-  [operate & maintain it](runbooks/operations.md), migrate a service, scrub a
+- **[How-to (runbooks)](../runbooks/deploy-platform.md)** — *A task.* Executable
+  playbooks for operators: [deploy the platform](../runbooks/deploy-platform.md),
+  [operate & maintain it](../runbooks/operations.md), migrate a service, scrub a
   node, run a game-day.
 
 - **[Reference](conventions.md)** — *A fact.* The pinned names, schemas, tiers,

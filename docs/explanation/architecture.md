@@ -8,8 +8,8 @@ hide:
 This is the map an infrastructure engineer needs before touching the system:
 what the pieces are, how they fit, and where control and data flow. It explains
 the shape; it does not deploy it (that is [deploy the
-platform](../runbooks/deploy-platform.md)) or operate it (that is
-[operations](../runbooks/operations.md)). For *why* the platform lends GPUs at
+platform](../../runbooks/deploy-platform.md)) or operate it (that is
+[operations](../../runbooks/operations.md)). For *why* the platform lends GPUs at
 all, read [why-lending](why-lending.md) first — this doc assumes it.
 
 ## The shape in one paragraph
@@ -138,7 +138,7 @@ ApplicationSet maps each `clusters/pilot/<dir>` to an Application named
 The policy plane is cluster-scoped: five Kyverno ClusterPolicies applied from
 `policies/kyverno/` (deploy step 5). The Kyverno controller install is
 likewise not yet pinned in the repo. The [deploy
-runbook](../runbooks/deploy-platform.md) brings this estate up from zero in
+runbook](../../runbooks/deploy-platform.md) brings this estate up from zero in
 seven steps; the [test ladder](testing.md) proves it at increasing cost before
 any of it touches AWS.
 
@@ -215,7 +215,7 @@ job:
   lossy fallback beneath the planned path.
 
 The states a node moves through under this cycle — the machine the lending
-controller drives — are the same ones the [operations runbook](../runbooks/operations.md)
+controller drives — are the same ones the [operations runbook](../../runbooks/operations.md)
 maps its on-call tasks to:
 
 ![Node lend/reclaim lifecycle: ProdServing to Idle to Lent to Reclaiming to Scrubbing back to ProdServing, with a Quarantined branch off Lent](../assets/diagrams/node-lifecycle.svg){ .diagram }
@@ -251,4 +251,4 @@ rationale in the plan, `docs/plans/`):
 - **Everything offline-provable stops at the cluster edge.** Chart rendering,
   schema, and policy composition are checkable on a laptop; lending, preemption,
   and sync require a real cluster (see the [deploy
-  guide](../runbooks/deploy-platform.md)).
+  guide](../../runbooks/deploy-platform.md)).

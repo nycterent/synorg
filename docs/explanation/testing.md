@@ -9,7 +9,7 @@ Why the platform's verification is shaped as a ladder — `make validate` →
 `make integration` → `make smoke` → `make e2e` — and what each rung can and
 cannot see. This explains the design; it does not run it. To run the first
 rung, start with the [first-validation tutorial](../tutorials/first-validation.md);
-to run the last, follow the [e2e runsheet](../runbooks/e2e-gpu-run.md). For the
+to run the last, follow the [e2e runsheet](../../runbooks/e2e-gpu-run.md). For the
 system the ladder tests, read [architecture](architecture.md).
 
 ## Why a ladder at all
@@ -145,7 +145,7 @@ credentials, and touches held capacity whose reservations must never be
 released from CI. So `make e2e` is credential-gated, its workflow is
 `workflow_dispatch` only, and it has prerequisites (spot quota, the Karpenter
 ReservedCapacity feature gate) that must be arranged ahead of time — the
-[runsheet](../runbooks/e2e-gpu-run.md) carries them as first-class steps. A
+[runsheet](../../runbooks/e2e-gpu-run.md) carries them as first-class steps. A
 scheduled-CI e2e against an ephemeral GPU account is deliberately deferred:
 until then, an unattended cron run would either fail on missing prerequisites
 or, worse, prove the wrong thing quietly.
