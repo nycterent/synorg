@@ -1,0 +1,29 @@
+docs/adr/0001-multi-region-is-availability-arbitrage.md
+  s_67e5a4b20e7672::t_fa59512a6140af 8
+README.md
+  s_67e5a4b20e7672::t_42168fb3d25198 8
+runbooks/operations.md
+  s_67e5a4b20e7672::t_f0915b29b71c09 19
+docs/adr/0002-training-arbitrage-via-multikueue.md
+  s_67e5a4b20e7672::t_fa59512a6140af 5
+runbooks/game-day.md
+  s_67e5a4b20e7672::t_f0915b29b71c09 29
+runbooks/e2e-gpu-run.md
+  s_67e5a4b20e7672::t_f0915b29b71c09 200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "a0356c2c64c2b3d17092d56c07f2dc4fccd1c247",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
