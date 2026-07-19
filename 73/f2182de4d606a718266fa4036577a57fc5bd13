@@ -1,0 +1,43 @@
+runbooks/deploy-platform.md
+  s_67e5a4b20e7672::t_96b7328b1ddd44 6,14
+docs/explanation/architecture.md
+  s_67e5a4b20e7672::t_96b7328b1ddd44 11-12,141,218,254
+docs/explanation/testing.md
+  s_67e5a4b20e7672::t_96b7328b1ddd44 12,148
+docs/tutorials/first-validation.md
+  s_67e5a4b20e7672::t_96b7328b1ddd44 10,107
+runbooks/training-onboarding.md
+  s_67e5a4b20e7672::t_96b7328b1ddd44 155
+mkdocs.yml
+  s_67e5a4b20e7672::t_66c1b890d3d341 12-19
+runbooks/capacity-carve.md
+  s_67e5a4b20e7672::t_96b7328b1ddd44 8
+runbooks/game-day.md
+  s_67e5a4b20e7672::t_96b7328b1ddd44 11
+docs/explanation/why-lending.md
+  s_67e5a4b20e7672::t_96b7328b1ddd44 10,140
+docs/index.md
+  s_67e5a4b20e7672::t_96b7328b1ddd44 13-15
+runbooks/operations.md
+  s_67e5a4b20e7672::t_96b7328b1ddd44 5,51
+runbooks/service-migration.md
+  s_67e5a4b20e7672::t_96b7328b1ddd44 15
+README.md
+  s_67e5a4b20e7672::t_8e52116b0ecf57 2-3,6-9,14,25,32,34-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "73f2182de4d606a718266fa4036577a57fc5bd13",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
