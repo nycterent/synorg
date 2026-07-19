@@ -116,7 +116,7 @@ queue: team-ml
 gpu: 1
 workers: 2
 image:
-  repository: registry.synorg.io/ml/trainer
+  repository: ghcr.io/nycterent/synorg/ml/trainer
   tag: "2026-07-17-def456"
 checkpoint:
   dir: /mnt/checkpoints/ml

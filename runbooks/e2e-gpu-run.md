@@ -123,7 +123,7 @@ The scrub and attribution evidence joins DCGM GPU series to Node objects by
 node name. The DCGM exporter's ServiceMonitor must **relabel the exporter's
 instance/pod labels onto the `node` label**, or every per-node PromQL join in
 the assertions returns empty (which is a FAIL, not a skip). In
-`clusters/pilot/observability/prometheus-stack.yaml`, the DCGM ServiceMonitor
+`clusters/mgmt/appsets/observability.yaml` (the dcgm-exporter ApplicationSet values), the DCGM ServiceMonitor
 needs:
 
 ```yaml
@@ -140,7 +140,7 @@ Verify: `DCGM_FI_DEV_GPU_UTIL` carries a `node` label matching
 
 Per-team GPU-hour attribution joins pod labels × node lifecycle. KSM drops
 pod labels unless allowlisted — without this, the attribution series exist
-but are unattributable. In the kube-prometheus-stack values:
+but are unattributable. In the kube-prometheus-stack values (same ApplicationSet file):
 
 ```yaml
 kube-state-metrics:
@@ -190,7 +190,7 @@ path (golden-service release `inference` in ns `pilot`, stub image from the
 run's ECR), the lendable-hold balloon that seeds the otherwise-empty lendable
 pool, a statically-bound checkpoint PV, and the Service/PodMonitors for the
 stand-in metric emitters. The canonical service images
-(`registry.synorg.io/...`) do not exist yet — without the stand-ins the lend
+(`ghcr.io/nycterent/synorg/<team>/...`) do not exist yet — without the stand-ins the lend
 physics cannot start and the evidence plane has no emitters.
 
 ## Step 9 — Verify before testing
