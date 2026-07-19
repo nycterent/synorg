@@ -405,7 +405,7 @@ else
   FIRED="$(echo "$ONCE_OUT" | grep -c 'reclaiming=' || true)"
   [ "$FIRED" -eq 1 ] || fail "wave-once: expected exactly 1 wave firing across 3 ticks, got $FIRED: $ONCE_OUT"
   echo "$ONCE_OUT" | grep -q 'action=reclaim_intent' || fail "wave-once: the single firing logged no reclaim_intent: $ONCE_OUT"
-  [ -n "$(find "$TMPDIR_T/cache-once/fired-waves" -name '*-w0' -print -quit 2>/dev/null)" ] \
+  [ -n "$(find "$TMPDIR_T/cache-once/fired-waves" -name '*-w0-*' -print -quit 2>/dev/null)" ] \
     || fail "wave-once: fired-waves marker file missing"
   pass "wave-once: single firing across 3 ticks, marker file present"
 fi
