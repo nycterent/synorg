@@ -4,6 +4,19 @@
 # borrows from the same lendable pool while Kueue attributes usage per team.
 # This is the example/pilot team; each onboarded team ships one of these (see
 # runbooks/training-onboarding.md).
+#
+# The team namespace ships WITH its queue: ArgoCD's CreateNamespace only makes
+# each Application's destination namespace, so a team namespace referenced but
+# never declared exists only on the retired direct-sync path (which pre-created
+# every namespace it grepped — first GitOps run proved the gap).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-ml
+  labels:
+    app.kubernetes.io/part-of: synorg-platform
+    team.synorg.io/name: team-ml
+---
 apiVersion: kueue.x-k8s.io/v1beta1
 kind: LocalQueue
 metadata:

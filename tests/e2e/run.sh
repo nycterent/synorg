@@ -372,6 +372,17 @@ standins_up() {
     --set image.repository="$img_repo" --set image.tag="$img_tag" \
     --wait --timeout 10m \
     || fail "up: inference stand-in did not converge (render path unmeasurable without it)"
+  # The evidence plane converges via the pilot-observability Application now
+  # (not a synchronous helm install), so its monitoring CRDs can lag this
+  # step — bound the wait, then apply. An absent CRD after the wait is a real
+  # deploy failure, not something to skip past.
+  local crd deadline=$(( $(date +%s) + 600 ))
+  for crd in servicemonitors.monitoring.coreos.com podmonitors.monitoring.coreos.com; do
+    until kubectl --context "$PILOT_CONTEXT" get crd "$crd" >/dev/null 2>&1; do
+      [ "$(date +%s)" -lt "$deadline" ] || fail "up: monitoring CRD $crd never arrived (pilot-observability not converged)"
+      sleep 10
+    done
+  done
   kubectl --context "$PILOT_CONTEXT" apply \
     -f tests/e2e/stand-ins/checkpoint-pv.yaml \
     -f tests/e2e/stand-ins/lendable-hold.yaml \
