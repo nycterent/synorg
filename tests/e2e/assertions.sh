@@ -227,7 +227,7 @@ loadgen_stop() { k -n rehearsal scale deploy/game-day-loadgen --replicas=0 >/dev
 # namespace — applied bare it lands in default and is never admitted.
 E2E_TRAINING_VALUES="${E2E_TRAINING_VALUES:-tests/e2e/stand-ins/training-values.yaml}"
 training_render() {
-  local repo="${E2E_STANDIN_IMAGE_REPO:-$(aws sts get-caller-identity --query Account --output text).dkr.ecr.$REGION.amazonaws.com/platform/inference-stub}"
+  local repo="${E2E_STANDIN_IMAGE_REPO:-ghcr.io/nycterent/synorg/inference-stub}"
   helm template e2e-training charts/training-job -f "$E2E_TRAINING_VALUES" \
     --set image.repository="$repo" --set image.tag="${E2E_STANDIN_IMAGE_TAG:-0.1.0}"
 }

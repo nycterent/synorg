@@ -7,7 +7,7 @@ replicas: 2
 gpu: 1
 port: 8000
 image:
-  repository: registry.synorg.io/vision/inference
+  repository: ghcr.io/nycterent/synorg/vision/inference
   tag: "2026-07-17-abc123"
 resources:
   requests:

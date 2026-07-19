@@ -4,13 +4,13 @@
 One image, two modes (MODE env):
 
   render (default) — stands in for the golden-service inference container
-    (registry.synorg.io/recommender/ranker has no real image yet). Serves:
+    (ghcr.io/nycterent/synorg/recommender/ranker has no real image yet). Serves:
       /render   simulated render (RENDER_SLEEP_MS), observed into the
                 render_start_seconds histogram (recording-rules.yaml source)
       /healthz, /readyz   liveness/readiness (golden-service chart probes)
       /metrics  Prometheus text format
 
-  trainer — stands in for the training image (registry.synorg.io/ml/trainer).
+  trainer — stands in for the training image (ghcr.io/nycterent/synorg/ml/trainer).
     Implements the KTD12 checkpoint contract shape: writes a checkpoint of
     CHECKPOINT_SIZE_MB to CHECKPOINT_DIR every CHECKPOINT_INTERVAL_SECONDS,
     resumes from the newest checkpoint at start, flushes a final checkpoint on

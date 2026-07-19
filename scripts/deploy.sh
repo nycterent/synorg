@@ -389,10 +389,10 @@ step_sync() {
     for d in karpenter kueue lending; do
       run kubectl --context "$PILOT_CONTEXT" apply --server-side --force-conflicts -R -f "clusters/pilot/$d/"
     done
-    # The lending-controller manifest pins the canonical registry.synorg.io
-    # image, which is not pushed anywhere yet — a direct-sync run must supply
-    # the image it actually built (e.g. the run's ECR push) or the deploy
-    # ends in ImagePullBackOff.
+    # The lending-controller manifest digest-pins the public ghcr image
+    # (ADR 0007), so the manifest deploys as-is. DEPLOY_LENDING_IMAGE remains
+    # for runs that must test a locally-built candidate before it is pushed;
+    # it dies with the direct-sync path (ADR 0006).
     if [ -n "${DEPLOY_LENDING_IMAGE:-}" ]; then
       run kubectl --context "$PILOT_CONTEXT" -n lending set image \
         deploy/lending-controller "controller=$DEPLOY_LENDING_IMAGE"

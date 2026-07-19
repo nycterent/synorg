@@ -56,7 +56,7 @@
         "repository": {
           "type": "string",
           "minLength": 1,
-          "description": "Image repository, e.g. registry.synorg.io/team/service."
+          "description": "Image repository, e.g. ghcr.io/nycterent/synorg/team/service."
         },
         "tag": {
           "type": "string",

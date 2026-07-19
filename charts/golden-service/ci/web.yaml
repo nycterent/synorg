@@ -4,7 +4,7 @@ workloadClass: web
 replicas: 3
 port: 8080
 image:
-  repository: registry.synorg.io/payments/web
+  repository: ghcr.io/nycterent/synorg/payments/web
   tag: "1.4.2"
 service:
   type: ClusterIP

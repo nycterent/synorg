@@ -32,7 +32,7 @@ spec:
                 matchLabels:
                   synorg.io/role: spoke
           - git:
-              repoURL: https://github.com/synorg/synorg.git
+              repoURL: https://github.com/nycterent/synorg.git
               revision: HEAD
               # One Application per values file; file contents become params.
               files:
@@ -46,10 +46,10 @@ spec:
       sources:
         # Bare ref: carries the git tree so the chart source can read the
         # service's values file out of it as $values.
-        - repoURL: https://github.com/synorg/synorg.git
+        - repoURL: https://github.com/nycterent/synorg.git
           targetRevision: HEAD
           ref: values
-        - repoURL: https://github.com/synorg/synorg.git
+        - repoURL: https://github.com/nycterent/synorg.git
           targetRevision: HEAD
           path: charts/golden-service
           helm:

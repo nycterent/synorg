@@ -12,7 +12,7 @@ replicas: 2
 gpu: 1
 port: 8001
 image:
-  repository: registry.synorg.io/recommender/ranker
+  repository: ghcr.io/nycterent/synorg/recommender/ranker
   tag: 2026-07-16-9f3c1a
 resources:
   requests:

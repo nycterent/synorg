@@ -12,7 +12,7 @@ spec:
   description: "Example team project — deploys only its own overlays to its own namespaces."
   # Only this monorepo is a permitted source (single write API).
   sourceRepos:
-    - https://github.com/synorg/synorg.git
+    - https://github.com/nycterent/synorg.git
   # Destinations are scoped to the team namespace across all spoke clusters.
   # `*` server = any registered spoke; the namespace lock is the tenancy guard.
   destinations:

@@ -136,13 +136,13 @@ harness's job) so the selector finds them.
 ## Build and deploy
 
 ```sh
-docker build -t registry.synorg.io/platform/lending-controller:0.1.0 controllers/lending
-kind load docker-image registry.synorg.io/platform/lending-controller:0.1.0 --name <cluster>
+docker build -t ghcr.io/nycterent/synorg/lending-controller:0.1.3 controllers/lending
+kind load docker-image ghcr.io/nycterent/synorg/lending-controller:0.1.3 --name <cluster>
 kubectl apply -f clusters/pilot/lending/
 ```
 
 The image follows the org registry convention
-(`registry.synorg.io/<domain>/<name>`, platform domain) — never a bare Docker
+(`ghcr.io/nycterent/synorg/<domain>/<name>`, platform domain) — never a bare Docker
 Hub ref: the `synorg/` namespace on docker.io is not org-controlled. The kind
 harness path builds and `kind load`s this exact tag locally; on EKS the kubelet
 pulls it from the registry. Pin by digest in `lending-controller.yaml` once the

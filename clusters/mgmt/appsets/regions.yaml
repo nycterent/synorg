@@ -38,7 +38,7 @@ spec:
                   synorg.io/role: spoke
           # Each spoke's own overlay directories: clusters/<name>/<component>.
           - git:
-              repoURL: https://github.com/synorg/synorg.git
+              repoURL: https://github.com/nycterent/synorg.git
               revision: HEAD
               directories:
                 - path: "clusters/{{.name}}/*"
@@ -52,7 +52,7 @@ spec:
     spec:
       project: default
       source:
-        repoURL: https://github.com/synorg/synorg.git
+        repoURL: https://github.com/nycterent/synorg.git
         targetRevision: HEAD
         path: "{{.path.path}}"
       destination:

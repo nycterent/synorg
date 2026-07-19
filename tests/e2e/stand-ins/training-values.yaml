@@ -1,5 +1,5 @@
 # E2E stand-in values for the training-job chart (assertions.sh
-# training_submit). The canonical trainer image (registry.synorg.io/ml/trainer)
+# training_submit). The canonical trainer image (ghcr.io/nycterent/synorg/ml/trainer)
 # does not exist; services/inference-stub in MODE=trainer implements the KTD12
 # checkpoint contract and emits the game-day passGate metrics
 # (training_checkpoint_lost_seconds, checkpoint_store_write_throughput_mbps on

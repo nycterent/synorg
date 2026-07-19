@@ -34,7 +34,7 @@
         "repository": {
           "type": "string",
           "minLength": 1,
-          "description": "Image repository, e.g. registry.synorg.io/team/trainer. The entrypoint MUST resume from the latest checkpoint under CHECKPOINT_DIR."
+          "description": "Image repository, e.g. ghcr.io/nycterent/synorg/team/trainer. The entrypoint MUST resume from the latest checkpoint under CHECKPOINT_DIR."
         },
         "tag": {
           "type": "string",

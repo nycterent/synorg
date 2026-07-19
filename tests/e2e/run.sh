@@ -364,7 +364,7 @@ phase_up() {
 # each manifest's header). Idempotent; applied after the platform converges.
 standins_up() {
   step "up: e2e stand-ins — render path, lendable hold, checkpoint PV, scrape wiring"
-  local img_repo="${E2E_STANDIN_IMAGE_REPO:-$(aws sts get-caller-identity --query Account --output text).dkr.ecr.$REGION.amazonaws.com/platform/inference-stub}"
+  local img_repo="${E2E_STANDIN_IMAGE_REPO:-ghcr.io/nycterent/synorg/inference-stub}"
   local img_tag="${E2E_STANDIN_IMAGE_TAG:-0.1.0}"
   helm --kube-context "$PILOT_CONTEXT" upgrade --install inference charts/golden-service \
     --namespace pilot --create-namespace \
