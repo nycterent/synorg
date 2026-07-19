@@ -21,6 +21,22 @@ module "eks" {
 
   enable_cluster_creator_admin_permissions = true
 
+  # Hub → spoke GitOps reachability. In-VPC clients resolve the API endpoint
+  # to its private ENI, and the EKS-managed cluster SG admits only this
+  # cluster's own nodes — so the hub's ArgoCD dial times out and every
+  # pilot-* Application sits at SYNC Unknown (found live, first GitOps run
+  # 2026-07-19). Admit 443 from the shared VPC so the hub can reconcile.
+  cluster_security_group_additional_rules = {
+    hub_argocd_https = {
+      description = "ArgoCD hub (same VPC) to spoke API server"
+      protocol    = "tcp"
+      from_port   = 443
+      to_port     = 443
+      type        = "ingress"
+      cidr_blocks = [var.hub_ingress_cidr]
+    }
+  }
+
   # Karpenter discovers this cluster's node security group by tag; subnets are
   # tagged with the same key at the VPC layer.
   node_security_group_tags = {

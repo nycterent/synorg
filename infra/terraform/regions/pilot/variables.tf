@@ -77,3 +77,13 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# The hub (mgmt cluster) shares the VPC with each spoke; its ArgoCD must reach
+# the spoke API server's private endpoint on 443 (see the eks module's
+# cluster_security_group_additional_rules). Scope this to the hub's actual
+# CIDR — the e2e disposable VPC uses its whole 10.42.0.0/16.
+variable "hub_ingress_cidr" {
+  description = "CIDR admitted to the spoke API server on 443 for hub ArgoCD reconciliation."
+  type        = string
+  default     = "10.42.0.0/16"
+}
