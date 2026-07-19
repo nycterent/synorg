@@ -26,7 +26,7 @@ export PROM='http://prometheus.observability.svc:9090'   # in-cluster read-API
 - Evidence plane up (U9): `render_start_seconds:p95` and the passGate series
   resolve in Prometheus **right now** (query them once — empty result ⇒ abort,
   you cannot judge a run you cannot measure).
-- No unrelated reclaim window currently open (check the schedule clock).
+- No unrelated reclaim phase currently in force (check the schedule clock).
 
 ```bash
 # Confirm the read-API answers before starting.

@@ -5,7 +5,7 @@ Two live milestones on real EKS GPUs (us-east-1, g4dn):
 
 - **2026-07-18 — walking skeleton, 6/6.** Capacity lend → wave-driven reclaim (198 s ahead of the ramp deadline) → node scrub onto a genuinely new instance → service rejoin (p95 0.047 s) → game-day storm, 2 scenarios × 3 runs, 18/18 gates → lending ledger zero-net-release. Run record: `build/e2e/logs-20260718/`.
   
-- **2026-07-19 — GitOps path + borrower drain, 8/8 from zero.** The same physics re-proven on a full clean cycle where ArgoCD ApplicationSets pulling this repository (and public ghcr images, digest-pinned) did every deploy — the direct-sync bootstrap was deleted the same day (ADR 0006). Two new assertions passed first try: borrower drain and reactivation (ADR 0008 — the Kueue tail-chase fix, controller 0.2.1). Exercising the sync path for the first time surfaced seven latent defects, each fixed and committed the same day. Run record: `build/e2e/logs-20260719/`.
+- **2026-07-19 — GitOps path + borrower drain, 8/8 from zero.** The same physics re-proven on a full clean cycle where ArgoCD ApplicationSets pulling this repository (and public ghcr images, the controller digest-pinned) did every deploy — the direct-sync bootstrap was deleted the same day (ADR 0006). Two new assertions passed first try: borrower drain and reactivation (ADR 0008 — the Kueue tail-chase fix, controller 0.2.1). Exercising the sync path for the first time surfaced seven latent defects, each fixed and committed the same day. Run record: `build/e2e/logs-20260719/`.
   
 
 Harness and procedure: `tests/e2e/run.sh` and `runbooks/e2e-gpu-run.md`.

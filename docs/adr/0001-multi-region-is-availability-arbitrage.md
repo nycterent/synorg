@@ -5,7 +5,7 @@
   The plans defer "multi-region" as a later increment, which reads as if
   additional regions were a resilience feature to bolt on.
 - **Decision:** Multi-region is a core capability driver, not disaster
-  recovery. The system is *supposed to leverage differences in GPU
+  recovery. The system is *supposed to exploit differences in GPU
   availability between regions* — capacity, instance-family presence, and
   spot/reservation dynamics differ per region, and the platform's value
   includes placing GPU work where availability is. A single-region deployment

@@ -2,7 +2,7 @@
 
 - **Status:** accepted (grilling session, 2026-07-18)
 - **Context:** ADR 0001 establishes multi-region as the product mechanism —
-  the platform leverages GPU availability differences between regions.
+  the platform arbitrages GPU availability differences between regions.
   That needs an actor and a verb: what observes availability, and what moves.
   Karpenter is region-local and cannot see across regions. The repo's Kueue
   version already ships the MultiKueue CRDs (`MultiKueueCluster`,

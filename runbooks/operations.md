@@ -16,7 +16,7 @@ are break-glass, called out where they apply.
 more never-lent headroom (Assumption 5). **Do:** edit the warm-floor NodePool /
 balloon replica count in `clusters/<region>/karpenter/` by PR; size from the
 region's *measured* morning-peak demand in the evidence plane, not a copy of
-another region. Watch render-start p95 across the next reclaim window.
+another region. Watch render-start p95 across the next reclaim phase.
 
 ### Quarterly held-fleet review
 

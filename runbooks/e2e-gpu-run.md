@@ -197,7 +197,7 @@ physics cannot start and the evidence plane has no emitters.
 
 Per `runbooks/game-day.md` preconditions: evidence plane answering
 (`render_start_seconds:p95` resolves), lending controller running and reading
-the schedule, no unrelated reclaim window open. An unmeasured run has no
+the schedule, no unrelated reclaim phase in force. An unmeasured run has no
 verdict — abort here rather than discover it mid-assertion.
 
 ## Step 10 — Physics + game-day assertions: `make e2e ARGS=--test`
