@@ -1,6 +1,8 @@
 # ADR 0007 — ghcr.io is the canonical registry; registry.synorg.io retires
 
-- **Status:** accepted (grilling session, 2026-07-19)
+- **Status:** accepted (grilling session, 2026-07-19); VALIDATED same day —
+  EKS nodes pulled every image from public ghcr through the full 8/8
+  clean-cycle run; ECR retired as required.
 - **Context:** Manifests pin images to `registry.synorg.io/platform/*`, a
   registry that has never existed (`synorg.io` is not even registered). Real
   images live in a private ECR (`platform/lending-controller:0.1.3`,

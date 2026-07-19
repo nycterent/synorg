@@ -1,6 +1,11 @@
 # ADR 0006 — Real GitOps remote; direct-sync is a retiring workaround
 
-- **Status:** accepted (grilling session, 2026-07-19)
+- **Status:** accepted (grilling session, 2026-07-19); VALIDATED same day —
+  full clean-cycle e2e from zero passed 8/8 on the ApplicationSet path alone,
+  and direct-sync was deleted as this ADR required. The gate also surfaced
+  and fixed four latent GitOps-path defects direct-sync had masked (spoke API
+  security group, team namespace delivery, hub-side observability
+  Applications, selfHeal-vs-rehearsal interplay).
 - **Context:** ApplicationSets have pointed at `github.com/synorg/synorg.git`
   since the hub design landed — a URL that hosted nothing. The e2e walking
   skeleton worked around the dark evidence plane with a direct-sync path

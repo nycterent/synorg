@@ -366,71 +366,12 @@ step_sync() {
     echo "DRY-RUN: wait for warm-floor-balloon (platform-system) + NodePools on the spoke (<=10m)"
     return 0
   fi
-  # DEPLOY_DIRECT_SYNC=1 (e2e/no-remote bootstrap): the ApplicationSets point
-  # at the canonical repo remote; when that remote is unreachable (this repo
-  # is local-only today) the GitOps loop cannot deliver clusters/pilot/. The
-  # e2e's subject is the GPU physics, not the sync plumbing — direct-apply the
-  # same manifests the ApplicationSet would, and say so LOUDLY: with this set,
-  # the ArgoCD sync path itself is NOT being exercised.
-  if [ "${DEPLOY_DIRECT_SYNC:-0}" = 1 ]; then
-    echo "DIRECT-SYNC: applying clusters/pilot/ straight to the spoke — GitOps sync path NOT exercised this run"
-    # ArgoCD's CreateNamespace=true sync option makes namespaces; a bare
-    # kubectl apply does not — pre-create every namespace the manifests
-    # declare (derived from the manifests, not a hand list).
-    local ns
-    for ns in $(grep -rh 'namespace:' clusters/pilot/ | awk '{print $2}' | sort -u); do
-      kubectl --context "$PILOT_CONTEXT" get namespace "$ns" >/dev/null 2>&1 \
-        || run kubectl --context "$PILOT_CONTEXT" create namespace "$ns"
-    done
-    # Curated, not blind -R: services/ holds helm VALUES files (not
-    # manifests), and observability/prometheus-stack.yaml holds hub-side
-    # ArgoCD Application CRs whose sync source is the (absent) git remote.
-    local d
-    for d in karpenter kueue lending; do
-      run kubectl --context "$PILOT_CONTEXT" apply --server-side --force-conflicts -R -f "clusters/pilot/$d/"
-    done
-    # The lending-controller manifest digest-pins the public ghcr image
-    # (ADR 0007), so the manifest deploys as-is. DEPLOY_LENDING_IMAGE remains
-    # for runs that must test a locally-built candidate before it is pushed;
-    # it dies with the direct-sync path (ADR 0006).
-    if [ -n "${DEPLOY_LENDING_IMAGE:-}" ]; then
-      run kubectl --context "$PILOT_CONTEXT" -n lending set image \
-        deploy/lending-controller "controller=$DEPLOY_LENDING_IMAGE"
-    fi
-    # Observability: install the same charts the Application CRs pin —
-    # specs yq-extracted from the CRs so nothing drifts from git.
-    local doc chart repo ver vals
-    for doc in 0 1; do
-      chart="$(yq "select(document_index == $doc) | .spec.source.chart" clusters/pilot/observability/prometheus-stack.yaml)"
-      repo="$(yq "select(document_index == $doc) | .spec.source.repoURL" clusters/pilot/observability/prometheus-stack.yaml)"
-      ver="$(yq "select(document_index == $doc) | .spec.source.targetRevision" clusters/pilot/observability/prometheus-stack.yaml)"
-      vals="$(mktemp)"
-      # helm.values is a raw YAML STRING, helm.valuesObject a structured map —
-      # these CRs use `values`; extracting only valuesObject silently installed
-      # the stack with NO values (retention, open rule/monitor selectors and
-      # the dcgm scrape config all dropped). Accept either field.
-      if [ "$(yq "select(document_index == $doc) | .spec.source.helm | has(\"values\")" clusters/pilot/observability/prometheus-stack.yaml)" = "true" ]; then
-        yq -r "select(document_index == $doc) | .spec.source.helm.values" clusters/pilot/observability/prometheus-stack.yaml > "$vals"
-      else
-        yq "select(document_index == $doc) | .spec.source.helm.valuesObject // {}" clusters/pilot/observability/prometheus-stack.yaml > "$vals"
-      fi
-      # dcgm-exporter is a GPU-node DaemonSet: it cannot be Ready before the
-      # first GPU node exists (the balloon provisions it AFTER this step), so
-      # only the prometheus stack itself is waited on.
-      local wait_args=(--wait --timeout 10m)
-      [ "$chart" = "dcgm-exporter" ] && wait_args=()
-      run helm --kube-context "$PILOT_CONTEXT" upgrade --install "pilot-$chart" "$chart" \
-        --repo "$repo" --version "$ver" --namespace observability --create-namespace \
-        -f "$vals" ${wait_args[0]+"${wait_args[@]}"}
-      rm -f "$vals"
-    done
-    # PrometheusRule CRs (recording rules / SLOs) need the operator CRDs
-    # from the stack above — apply after it.
-    run kubectl --context "$PILOT_CONTEXT" apply --server-side --force-conflicts \
-      -f clusters/pilot/observability/recording-rules.yaml \
-      -f clusters/pilot/observability/slo-definitions.yaml
-    echo "DIRECT-SYNC: services/ skipped (helm values for the golden chart — GitOps-only surface)"
-  fi
+  # GitOps is the only sync path (ADR 0006). The direct-sync workaround that
+  # lived here — kubectl-applying clusters/pilot/ and helm-installing the
+  # observability charts by hand while the git remote was fictional — was
+  # deleted the day the ApplicationSet path passed a full clean-cycle e2e
+  # from zero (8/8, 2026-07-19). The convergence wait below IS the deploy
+  # verdict on that path.
   local i ok=0
   for i in $(seq 1 60); do
     if kubectl --context "$PILOT_CONTEXT" -n platform-system get deploy warm-floor-balloon >/dev/null 2>&1 \

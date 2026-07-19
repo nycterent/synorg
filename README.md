@@ -7,14 +7,23 @@ reconciles; policy verdicts replace approval queues. See
 
 ## Proven end-to-end
 
-The walking skeleton passed 6/6 live on real EKS GPUs (us-east-1, g4dn)
-on 2026-07-18: capacity lend → wave-driven reclaim (198 s ahead of the ramp
-deadline) → node scrub onto a genuinely new instance → service rejoin
-(p95 0.047 s) → game-day storm, 2 scenarios × 3 runs, 18/18 gates →
-lending ledger zero-net-release. The full run record — six `--test` runs
-from 0/6 to 6/6 plus both teardown passes — is archived verbatim in
-`build/e2e/logs-20260718/`; the harness and procedure are
-`tests/e2e/run.sh` and `runbooks/e2e-gpu-run.md`.
+Two live milestones on real EKS GPUs (us-east-1, g4dn):
+
+- **2026-07-18 — walking skeleton, 6/6.** Capacity lend → wave-driven
+  reclaim (198 s ahead of the ramp deadline) → node scrub onto a genuinely
+  new instance → service rejoin (p95 0.047 s) → game-day storm, 2 scenarios
+  × 3 runs, 18/18 gates → lending ledger zero-net-release. Run record:
+  `build/e2e/logs-20260718/`.
+- **2026-07-19 — GitOps path + borrower drain, 8/8 from zero.** The same
+  physics re-proven on a full clean cycle where ArgoCD ApplicationSets
+  pulling this repository (and public ghcr images, digest-pinned) did every
+  deploy — the direct-sync bootstrap was deleted the same day (ADR 0006).
+  Two new assertions passed first try: borrower drain and reactivation
+  (ADR 0008 — the Kueue tail-chase fix, controller 0.2.1). Exercising the
+  sync path for the first time surfaced seven latent defects, each fixed
+  and committed the same day. Run record: `build/e2e/logs-20260719/`.
+
+Harness and procedure: `tests/e2e/run.sh` and `runbooks/e2e-gpu-run.md`.
 
 ## Layout
 
@@ -49,15 +58,18 @@ Conventions (pool names, taints, priority classes, required labels):
 
 ## Roadmap
 
-Post-skeleton work, each with its decision record:
-
-- Validate the real GitOps remote end-to-end, then delete the direct-sync
-  workaround — ADR 0006 (`docs/adr/0006-gitops-remote-and-direct-sync-retirement.md`)
-- Migrate images to ghcr.io as the canonical registry; retire ECR and the
-  `registry.synorg.io` placeholder — ADR 0007 (`docs/adr/0007-registry-ghcr-canonical.md`)
-- Deactivate/requeue borrowing Workloads during reclaim windows to end the
-  admit/re-pend tail-chase — ADR 0008 (`docs/adr/0008-kueue-reclaim-keeps-borrowers-admitted.md`)
-- Full clean-cycle e2e from zero (no `E2E_KEEP`) as the gate for the two
-  migrations above
-- Regional spot quota unlock (three regions currently at spot=0) to exercise
-  multi-region arbitrage — ADR 0001/0002 become live rather than latent
+- ~~Validate the real GitOps remote end-to-end, then delete the direct-sync
+  workaround — ADR 0006~~ **done 2026-07-19** (8/8 clean cycle)
+- ~~Migrate images to ghcr.io as canonical registry; retire ECR and the
+  `registry.synorg.io` placeholder — ADR 0007~~ **done 2026-07-19**
+- ~~Borrower drain: deactivate/requeue borrowing Workloads during the
+  reclaim phase — ADR 0008~~ **done 2026-07-19** (controller 0.2.1)
+- Teardown hardening: sweep EKS-created security groups and stray
+  Karpenter instances inside `phase_down` (three manual interventions on
+  2026-07-19 prove the need), and rename the
+  `lending_reclaim_window_active` misnomer (see `docs/glossary.md`)
+- Prod-hardening for borrower drain: deactivated-borrower metric + alert
+  for stuck-drain detection (ADR 0008 consequence)
+- Regional spot quota unlock (three regions currently at spot=0) to
+  exercise multi-region arbitrage — ADR 0001/0002 become live rather than
+  latent
