@@ -35,7 +35,7 @@ preemption on the pilot cluster). Outline:
 
 ```bash
 # 1. Apply the harness to the pilot cluster.
-kubectl apply -f rehearsal/scenarios.yaml -f rehearsal/loadgen.yaml
+kubectl apply -f rehearsal/namespace.yaml -f rehearsal/scenarios.yaml -f rehearsal/loadgen.yaml
 
 # 2. Pick a scenario and wire the loadgen env from its loadProfile.
 SCENARIO=staged-reclaim-normal

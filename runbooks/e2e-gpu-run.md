@@ -184,6 +184,15 @@ pilot+checkpoint-store → spoke → policy → scheduling → evidence) and wai
 Ready nodes + the balloon floor. The zero-net-release guard runs inside the
 deploy after every capacity-touching step.
 
+After the platform converges, `--up` installs the **e2e stand-ins**
+(`tests/e2e/stand-ins/`, see each manifest's header): the inference render
+path (golden-service release `inference` in ns `pilot`, stub image from the
+run's ECR), the lendable-hold balloon that seeds the otherwise-empty lendable
+pool, a statically-bound checkpoint PV, and the Service/PodMonitors for the
+stand-in metric emitters. The canonical service images
+(`registry.synorg.io/...`) do not exist yet — without the stand-ins the lend
+physics cannot start and the evidence plane has no emitters.
+
 ## Step 9 — Verify before testing
 
 Per `runbooks/game-day.md` preconditions: evidence plane answering
@@ -225,10 +234,18 @@ at +20 min adds no material runtime — the reclaim verdict lands before the
 make e2e ARGS=--down
 ```
 
-Destroys checkpoint-store → pilot → mgmt in reverse order. The ODCR capture is
+First terminates every Karpenter-provisioned pilot node (matched by the
+`kubernetes.io/cluster/<pilot>` ownership tag AND a `karpenter.sh/nodepool`
+tag) — Karpenter nodes are not terraform-managed, and their ENIs otherwise
+pin the disposable VPC's subnets until the destroy times out. Then destroys
+checkpoint-store → pilot → mgmt in reverse order. The ODCR capture is
 **never destroyed here** — releasing held capacity is irreversible and
 human-gated (`runbooks/capacity-carve.md`); returning fleet slots to the
-reservation is exactly what keeps the ledger totals constant. (The full-cycle
+reservation is exactly what keeps the ledger totals constant. If the VPC
+destroy still reports `DependencyViolation`, check for EKS-created security
+groups (`eks-cluster-sg-*`) that outlive the cluster: revoke their rules,
+delete them, re-run `--down` — and verify absence with `describe-vpcs`
+directly (a terraform "Destroy complete" with an empty state is not proof). (The full-cycle
 `make e2e` runs Steps 8-11 in one go, teardown trap-guarded: a failed
 assertion still tears down unless `E2E_KEEP=1`.)
 
@@ -353,6 +370,14 @@ these):
 - The **spot lendable pool is a test-only liberty** — production lendable is
   `reserved`/`on-demand`; spot interruptions during a cheap run are noise the
   production profile does not have.
+
+Cheap mode also retunes two assertion knobs (both env-overridable, both
+announced loudly in the run log): `E2E_PEAK_RPS` defaults to 100 (the
+single-replica render stand-in is a stub, not a GPU fleet — 4000 RPS would
+only benchmark the stub) and `E2E_SHARED_STORE_MIN_MBPS` defaults to 50 (the
+checkpoint stand-in writes node-local disk, so the 2000 MBps shared-store
+floor is not a meaningful gate on this stack; the gate still proves writes
+happen and are measured).
 
 ## Abort / invariant semantics
 

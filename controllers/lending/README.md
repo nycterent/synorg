@@ -15,9 +15,12 @@ wave's `startsAt` (wave-3 `06:30` == `closesAt 06:30`, which `window_open`
 reads as closed) still sees the lent taints the wave selection keys on:
 
 1. **Reclaim waves** — a wave is due for `WAVE_FIRE_WINDOW_SECONDS` after its
-   `startsAt`, and fires **at most once per wave per local day**: a marker
-   file (`KUBECTL_CACHE_DIR/fired-waves/<YYYY-MM-DD>-w<index>`) records each
-   firing and is pruned after 2 days. Markers live on the `/tmp` emptyDir, so
+   `startsAt`, and fires **at most once per scheduled occurrence**: a marker
+   file (`KUBECTL_CACHE_DIR/fired-waves/<YYYY-MM-DD>-w<index>-<startsAt>`)
+   records each firing and is pruned after 2 days. Keying on the occurrence
+   (not just the day) matters for game-day rehearsals, which re-drive the
+   same wave names onto new times several times a day — each re-drive must
+   fire again. Markers live on the `/tmp` emptyDir, so
    they survive container restarts but not pod replacement — a replaced pod
    can allow one re-fire (accepted v0 caveat). Selection is
    `ceil(reclaimFraction x currently-lent)` where currently-lent **excludes
@@ -91,8 +94,9 @@ evictions via drain.
 ## Events / logs (evidence contract, plan-001 U8)
 
 Every action emits a structured log line (`ts= level= action= ...`) and, with
-`EMIT_EVENTS=true`, a Kubernetes Event in the `lending` namespace bound to the
-Node or ClusterQueue: `LendWindowOpened`, `NodeLent`, `NodeReturnedToProd`,
+`EMIT_EVENTS=true`, a Kubernetes Event in the `default` namespace bound to the
+Node or ClusterQueue (both are cluster-scoped, and the API requires an Event
+on a cluster-scoped object to live in `default`): `LendWindowOpened`, `NodeLent`, `NodeReturnedToProd`,
 `BorrowLimitPatched`, `ReclaimWaveStarted`, `NodeDraining`, `NodeScrubStarted`.
 The remaining state-machine reasons (`NodeScrubbed`, `NodeQuarantined`,
 `ScrubRotated`) require scrub verification and DCGM health — real-operator
