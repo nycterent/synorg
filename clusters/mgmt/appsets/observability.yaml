@@ -1,0 +1,148 @@
+# Evidence-plane data source (U9), hub-hosted. These Applications install helm
+# charts INTO each spoke, so they are hub-side objects: an Application CR only
+# means something where an ArgoCD runs, and the spokes run none. Shipping them
+# inside clusters/pilot/observability/ (the old shape) synced them onto the
+# spoke itself, where the Application CRD does not exist — every sync retried
+# forever and the prometheus stack never installed. First live GitOps run
+# (2026-07-19) surfaced it; the retired direct-sync path had papered over it by
+# helm-installing the same charts synchronously (and skipping dcgm entirely —
+# the "dcgm scrape targets down" residual traces to exactly this).
+#
+# One Application per (spoke × chart), destination = the spoke's server. The
+# spoke-native pieces (recording rules, SLO definitions) stay in
+# clusters/pilot/observability/ and reach the spoke via the regions
+# ApplicationSet once the stack's CRDs exist.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: observability-prometheus-stack
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            synorg.io/role: spoke
+  template:
+    metadata:
+      name: "{{.name}}-kube-prometheus-stack"
+      labels:
+        app.kubernetes.io/name: kube-prometheus-stack
+      # Let the store come up before rules/exporters that depend on the CRDs.
+      annotations:
+        argocd.argoproj.io/sync-wave: "0"
+    spec:
+      project: default
+      source:
+        repoURL: https://prometheus-community.github.io/helm-charts
+        chart: kube-prometheus-stack
+        # targetRevision pinned to a digest in a follow-up (scaffold: track a
+        # chart minor here, not floating latest).
+        targetRevision: "65.x"
+        helm:
+          values: |
+            # --- Prometheus -------------------------------------------------
+            prometheus:
+              prometheusSpec:
+                retention: 30d
+                # Discover every PrometheusRule/ServiceMonitor in the cluster,
+                # including recording-rules.yaml in the spoke overlay. Open
+                # selectors so the git-managed rule CRs are picked up without
+                # per-rule wiring.
+                ruleSelectorNilUsesHelmValues: false
+                serviceMonitorSelectorNilUsesHelmValues: false
+                podMonitorSelectorNilUsesHelmValues: false
+                # Scrape the DCGM exporter (separate ApplicationSet below) for
+                # GPU kernel-util and health series (Assumption 2's revisit
+                # trigger).
+                additionalScrapeConfigs:
+                  - job_name: dcgm-exporter
+                    kubernetes_sd_configs:
+                      - role: endpoints
+                    relabel_configs:
+                      - source_labels: [__meta_kubernetes_service_label_app]
+                        regex: dcgm-exporter
+                        action: keep
+            # --- Grafana: dashboards are secondary; agents read
+            #     slo-definitions.yaml, not dashboards (U9). Kept minimal.
+            grafana:
+              enabled: true
+              defaultDashboardsEnabled: false
+      destination:
+        server: "{{.server}}"
+        namespace: observability
+      syncPolicy:
+        automated:
+          selfHeal: true
+          prune: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true   # kube-prometheus-stack CRDs are large
+---
+# NVIDIA DCGM exporter — per-GPU kernel utilization and health (XID/ECC), the
+# signal that separates allocation-idle from kernel-idle (Assumption 2) and
+# feeds the quarantine runbook (U8). DaemonSet on every spoke's GPU nodes.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: observability-dcgm-exporter
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            synorg.io/role: spoke
+  template:
+    metadata:
+      name: "{{.name}}-dcgm-exporter"
+      labels:
+        app.kubernetes.io/name: dcgm-exporter
+      annotations:
+        # After the stack so the ServiceMonitor CRD exists.
+        argocd.argoproj.io/sync-wave: "1"
+    spec:
+      project: default
+      source:
+        repoURL: https://nvidia.github.io/dcgm-exporter/helm-charts
+        chart: dcgm-exporter
+        targetRevision: "3.x"
+        helm:
+          values: |
+            # Only GPU nodes (both warm-floor and lendable pools carry GPUs).
+            nodeSelector:
+              nvidia.com/gpu.present: "true"
+            # Tolerate every GPU pool taint so the exporter lands on floor,
+            # lendable, lent, and quarantined nodes alike (health must be
+            # observed everywhere).
+            tolerations:
+              - key: pool.synorg.io/warm-floor
+                operator: Exists
+                effect: NoSchedule
+              - key: pool.synorg.io/lendable
+                operator: Exists
+                effect: NoSchedule
+              - key: lending.synorg.io/lent
+                operator: Exists
+                effect: NoSchedule
+              - key: gpu.synorg.io/quarantine
+                operator: Exists
+                effect: NoSchedule
+            # Emit the ServiceMonitor the stack discovers (label
+            # app=dcgm-exporter matches the additionalScrapeConfigs relabel
+            # above).
+            serviceMonitor:
+              enabled: true
+      destination:
+        server: "{{.server}}"
+        namespace: observability
+      syncPolicy:
+        automated:
+          selfHeal: true
+          prune: true
+        syncOptions:
+          - CreateNamespace=true
