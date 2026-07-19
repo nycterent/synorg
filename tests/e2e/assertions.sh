@@ -173,7 +173,12 @@ hhmm_plus() {
 drive_schedule_now() {
   local ramp_min="$1" close_min="$E2E_CLOSE_MINUTES" tz sched w1 w2 w3
   sched="$(live_schedule)" || return 1
-  [ -f "$SCHEDULE_ORIG" ] || { printf '%s\n' "$sched" > "$SCHEDULE_ORIG"; lending_sync_detach; }
+  [ -f "$SCHEDULE_ORIG" ] || printf '%s\n' "$sched" > "$SCHEDULE_ORIG"
+  # Unconditional and idempotent: gating this on the orig-save skipped the
+  # detach whenever a PRIOR run's schedule-orig.yaml survived in
+  # $E2E_STATE_DIR (found live: second fixed run still failed lend because
+  # the stale file made the first-drive guard a no-op).
+  lending_sync_detach
   tz="$(yq -r '.timezone' <<<"$sched")"
   read -r w1 w2 w3 <<<"$E2E_WAVE_OFFSETS"
   if [ "$w3" -ge "$ramp_min" ] || [ "$close_min" -le "$ramp_min" ]; then
@@ -629,6 +634,9 @@ e2e_assert_all() {
   # Test-start ledger baseline for assert 6 (see its comment): captured before
   # any assertion touches the cluster. An unreadable ledger fails HERE — a run
   # that can't prove its capacity baseline has no verdict.
+  # A prior run's saved original must not leak into this one: the first
+  # drive_schedule_now of THIS run owns the save.
+  rm -f "$SCHEDULE_ORIG"
   LEDGER_TEST_ENTRY_FILE="$E2E_STATE_DIR/ledger-test-entry.txt"
   if ! ledger_read > "$LEDGER_TEST_ENTRY_FILE"; then
     echo "FAIL: ledger — cannot read reservation state at test start (no baseline, no verdict)"
