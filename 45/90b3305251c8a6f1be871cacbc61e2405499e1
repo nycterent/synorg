@@ -1,0 +1,33 @@
+build/e2e/logs-20260718/e2e-down1.log
+  s_e175eff4a5c206::t_f01196f793afde 1-4149
+build/e2e/logs-20260718/e2e-down2.log
+  s_e175eff4a5c206::t_6780a47911dbb6 1-427
+build/e2e/logs-20260718/e2e-test2.log
+  s_e175eff4a5c206::t_de03f86e03cfc6 1-48
+build/e2e/logs-20260718/e2e-test3.log
+  s_e175eff4a5c206::t_5311789523afd5 1-58
+build/e2e/logs-20260718/e2e-test4.log
+  s_e175eff4a5c206::t_e2a7822d38f1d8 1-71
+build/e2e/logs-20260718/e2e-test5.log
+  s_e175eff4a5c206::t_91428be71e21da 1-71
+build/e2e/logs-20260718/e2e-test6.log
+  s_e175eff4a5c206::t_5bd3f792ae447e 1-59
+build/e2e/logs-20260718/e2e-test7.log
+  s_e175eff4a5c206::t_ee534e0103b588 1-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "4590b3305251c8a6f1be871cacbc61e2405499e1",
+  "prompts": {},
+  "sessions": {
+    "s_e175eff4a5c206": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b03c458-dacc-45e1-9075-0d9fc755d85f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
