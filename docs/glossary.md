@@ -36,3 +36,31 @@ floor target 70% on a rolling month.
 
 **Idle-burn** — $/day of held-but-unallocated capacity at on-demand rates
 (ADR 0005). The premium the lending machine exists to offset.
+
+**Lending window** — the scheduled interval (`opensAt`→`closesAt` in the
+lending schedule) during which the lendable pool may carry training. Opening
+flips the `lent` marker on across lendable nodes; closing is the deadline by
+which every reclaim wave must have returned capacity.
+
+**Reclaim wave** — one staged capacity-return leg inside a lending window,
+its lead time measured back from the window's close. Waves drain and scrub
+lent nodes ahead of the inference ramp.
+
+**Reclaim phase** — the tail of a lending window, from the first reclaim
+wave's start until the window closes. Borrower drain is in force for the
+whole phase. (The recording rule `lending_reclaim_window_active` predates
+this vocabulary and is a known misnomer: its expression flags "some node is
+currently lent", i.e. lending-active, not reclaim-in-progress. Rename
+pending; readers of dashboards should translate.)
+
+**Borrower drain** — during the reclaim phase, the lending controller
+deactivates every borrowing Workload in the borrowing ClusterQueue
+(ADR 0008); on phase exit they are reactivated and pend until the next
+window's quota admits them. Scope is the whole queue, not just Workloads on
+reclaimed nodes — sound only while taints pin training to the lendable pool.
+
+**Tail-chase** — the pathology borrower drain eliminates: without it,
+admitted borrowers survive the borrowing-limit shrink, lose their nodes to
+reclaim, re-pend, and re-admit the moment the window reopens — the same
+workload churning across every window instead of draining to the lender
+(ADR 0008).

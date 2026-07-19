@@ -16,10 +16,13 @@
   - Skeleton verdict: reclaim SLO is met by node termination alone (198s
     ahead of ramp deadline in the 6/6 run); the tail-chase wastes scheduler
     cycles but does not break the lending contract.
-  - Production design (unimplemented): at window-open the controller sets
-    `spec.active=false` on borrowing Workloads in the affected ClusterQueue
-    (deactivate → requeue), and re-activates at window-close. This drains
-    borrowers for the window's duration instead of letting them thrash.
+  - Production design (unimplemented): for the whole reclaim phase — first
+    reclaim wave's start until the lending window closes — the controller
+    sets `spec.active=false` on every borrowing Workload in the borrowing
+    ClusterQueue (borrower drain, see glossary), re-activating on phase
+    exit; reactivated Workloads pend until the next window's quota admits
+    them. Queue-wide scope is sound only while taints pin training to the
+    lendable pool — if training ever gains a second pool, this reopens.
   - Rejected: carrying a Kueue fork or preemption-config contortions to make
     demand-driven preemption fire on a timer.
 - **Consequences:**
