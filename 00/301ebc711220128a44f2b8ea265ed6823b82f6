@@ -1,0 +1,26 @@
+docs/adr/0008-kueue-reclaim-keeps-borrowers-admitted.md
+  s_67e5a4b20e7672::t_fb0e6b00be4614 1-32
+README.md
+  s_67e5a4b20e7672::t_294b81346265e9 49-63
+  s_67e5a4b20e7672::t_c9a9341c19d470 8-18
+docs/adr/0007-registry-ghcr-canonical.md
+  s_67e5a4b20e7672::t_046ec1da7f861e 1-27
+docs/adr/0006-gitops-remote-and-direct-sync-retirement.md
+  s_67e5a4b20e7672::t_5dd7f9f1227e35 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "00301ebc711220128a44f2b8ea265ed6823b82f6",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
