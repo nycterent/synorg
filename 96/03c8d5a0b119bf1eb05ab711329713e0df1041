@@ -1,0 +1,30 @@
+docs/adr/0007-registry-ghcr-canonical.md
+  s_67e5a4b20e7672::t_351613e9d1a0e9 3-5
+docs/adr/0006-gitops-remote-and-direct-sync-retirement.md
+  s_67e5a4b20e7672::t_36ae50b099b267 3-8
+docs/adr/0008-kueue-reclaim-keeps-borrowers-admitted.md
+  s_67e5a4b20e7672::t_7cf7687c4a45f6 4-6
+README.md
+  s_67e5a4b20e7672::t_f1af8175f0d917 61-75
+  s_67e5a4b20e7672::t_a214a77f30b6bf 10-26
+scripts/deploy.sh
+  s_67e5a4b20e7672::t_533ac4ee3b95a7 369-374
+build/e2e/logs-20260719/e2e-gate3-8of8.log
+  s_67e5a4b20e7672::t_17abda3dce13f0 1-9070
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "9603c8d5a0b119bf1eb05ab711329713e0df1041",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
