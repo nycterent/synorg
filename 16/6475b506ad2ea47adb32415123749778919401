@@ -1,0 +1,27 @@
+clusters/pilot/lending/lending-controller.yaml
+  s_67e5a4b20e7672::t_ab02dbeecbdaf0 198
+controllers/lending/reconcile.sh
+  s_67e5a4b20e7672::t_4017906bc29638 311-315,497-501
+controllers/lending/Dockerfile
+  s_67e5a4b20e7672::t_768f6ae64f01db 8-9
+controllers/lending/README.md
+  s_67e5a4b20e7672::t_2f2366fa25ce60 139-140
+infra/terraform/regions/pilot/odcr/held.tfvars
+  s_67e5a4b20e7672::t_3d160d4c346a7f 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "166475b506ad2ea47adb32415123749778919401",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
