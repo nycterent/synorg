@@ -64,6 +64,8 @@ Three separations carry the design, and each maps to a concrete mechanism.
 
 ![A 24-hour timeline of one node: a lendable node serves prod by day, goes idle in the evening, is lent to training overnight, drains through staged reclaim waves before the morning ramp, scrubs, and returns to prod; below it, the warm floor serves prod all day and never lends](../assets/diagrams/why-lending-day.svg)
 
+*Figure 1 — One lendable node over 24 hours — prod by day, lent to training overnight, reclaimed before the morning ramp; the warm floor never lends.*
+
 <div class="md-has-sidebar" markdown>
 <main markdown>
 

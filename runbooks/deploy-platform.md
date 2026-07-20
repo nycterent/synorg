@@ -13,6 +13,8 @@ NodePool, an ApplicationSet, and an ODCR are, and why the order below matters.
 
 ![Bootstrap sequence: ODCR capture, then management cluster with ArgoCD, pilot region with Karpenter, register the scoped spoke, policy plane, scheduling and lending, evidence plane, and finally a game-day gate that must pass before the lending window is enabled; a failed gate loops back to raise the warm floor and re-run](../docs/assets/diagrams/deploy-bootstrap.svg)
 
+*Figure 1 — Bootstrap sequence — ODCR capture through the game-day gate that must pass before lending is enabled.*
+
 ## Prerequisites
 
 - An AWS account with GPU instance quota (or ODCR grants) in the target EU

@@ -7,6 +7,8 @@ aborts the step, never the capacity.**
 
 ![Verify-before-terminate carve loop: create the open ODCR, then per wave cordon and drain one ECS instance, terminate it, verify the reservation still holds its capacity, launch an EKS nodeclaim into the freed slot, and confirm net count unchanged; every verify gate that fails routes to a single ABORT that leaves the ECS instance running and never releases capacity](../docs/assets/diagrams/capacity-carve.svg)
 
+*Figure 1 — Verify-before-terminate carve loop — every failed verify gate routes to a single ABORT that never releases capacity.*
+
 Preconditions: the open ODCRs exist and are utilization-verified (U15,
 `infra/terraform/regions/pilot/odcr/`), the pilot cluster + Karpenter are live
 (U3), and the reservation's `synorg.io/held-capacity=true` tag is set.

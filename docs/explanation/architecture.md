@@ -24,6 +24,8 @@ hand.
 
 ![Hub-spoke topology: the git monorepo (the only write API) feeds the ArgoCD hub, which syncs each region spoke; inside a spoke Karpenter provisions the warm-floor, lendable, and web NodePools while Kueue, the lending controller, Kyverno + VAP, and Prometheus run alongside](../assets/diagrams/architecture-topology.svg)
 
+*Figure 1 — Hub-and-spoke topology — the git monorepo is the only write API; the ArgoCD hub syncs each regional spoke.*
+
 ## Anatomy of the estate
 
 That shape is instantiated today as two EKS clusters, both v1.33, both in
@@ -112,6 +114,8 @@ lendable — same physics, ~$5–10 a run
 
 ![The two clusters and their namespaces: synorg-mgmt runs only the argocd namespace (ArgoCD, ApplicationSets, team AppProjects); synorg-pilot runs karpenter, kueue, lending, platform-system, observability, and team namespaces, drawing on the held ODCRs and the S3 checkpoint store](../assets/diagrams/cluster-anatomy.svg)
 
+*Figure 2 — The two clusters and their namespaces — synorg-mgmt runs ArgoCD; synorg-pilot runs the platform and team workloads.*
+
 On the hub everything lives in `argocd`: ArgoCD itself (Helm chart `argo-cd`
 7.7.0, installed once, self-managed thereafter), the `regions` and `services`
 ApplicationSets, and one AppProject per team. On the pilot, the `regions`
@@ -148,6 +152,8 @@ The system is easier to reason about as four planes than as a pile of
 components. Each answers one question.
 
 ![The four planes stacked: a change (PR) flows top-to-bottom through the Contract plane (git monorepo), the Actuation plane (ArgoCD + Karpenter), the Policy plane (Kyverno + ValidatingAdmissionPolicy), and the Evidence plane (Prometheus + DCGM); evidence flows back up to inform the next change](../assets/diagrams/architecture-planes.svg)
+
+*Figure 3 — The four planes — a change flows through Contract, Actuation, Policy, and Evidence; evidence flows back up.*
 
 - **Contract plane — "what is the desired state?"** The git monorepo. Base
   manifests plus per-region overlays; one golden Helm chart whose
@@ -219,6 +225,8 @@ controller drives — are the same ones the [operations runbook](../../runbooks/
 maps its on-call tasks to:
 
 ![Node lend/reclaim lifecycle: ProdServing to Idle to Lent to Reclaiming to Scrubbing back to ProdServing, with a Quarantined branch off Lent](../assets/diagrams/node-lifecycle.svg)
+
+*Figure 4 — Node lend/reclaim lifecycle — ProdServing → Idle → Lent → Reclaiming → Scrubbing → ProdServing, with a Quarantined branch.*
 
 The reclaim mechanism — why serving never queues and demand enters Kueue as a
 scheduled quota curve — has its own discussion in the reclaim model *(planned:

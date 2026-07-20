@@ -16,6 +16,8 @@ the agent alone:
 
 ![The agent loop as a four-stage cycle: propose (edit a values file, open a PR to the monorepo), validate (make validate returns pass/fail with a named error), observe (read the SLO read-API in slo-definitions.yaml), correct (the error message alone drives the fix and next PR), then back to propose — closed by the agent with no human translator](assets/diagrams/agent-loop.svg)
 
+*Figure 1 — The agent loop — propose (PR), validate (make validate), observe (SLO read-API), correct — closed with no human translator.*
+
 ## Repo layout
 
 | Path | What it is | You edit it? |

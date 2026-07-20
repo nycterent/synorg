@@ -10,6 +10,8 @@ this drives real preemption. Pilot cluster only.
 
 ![Staged-reclaim game-day: inference load ramps to peak while training borrow drains to zero in three scheduled waves (05:30, 06:00, 06:30) ahead of the 07:00 ramp; the render-start p95 line stays under its 2.0 s target across the window, clearing the pass gate](../docs/assets/diagrams/game-day-timeline.svg)
 
+*Figure 1 — Staged-reclaim game-day — training borrow drains to zero in three waves before the ramp; render-start p95 holds under target.*
+
 ## Variables
 
 ```bash

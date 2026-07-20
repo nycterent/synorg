@@ -14,6 +14,8 @@ changes and the game-day gate.
 
 ![Strangler migration behind one shared ALB: both an ECS target group (incumbent, stays warm) and an EKS target group (golden chart) sit under one listener; EKS weight is shifted shadow, 5%, 25%, 50%, 100% while ECS drops complementarily, and rollback is a weight flip back to ECS](../docs/assets/diagrams/strangler-alb.svg)
 
+*Figure 1 — Strangler migration behind one ALB — EKS weight is shifted shadow → 5% → 25% → 50% → 100%; rollback is a weight flip.*
+
 ## Preconditions
 
 - Target cluster is at converged state and its game-day gate has passed (U10).

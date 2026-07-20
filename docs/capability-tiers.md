@@ -14,6 +14,8 @@ backs the "autonomous" and "human-by-exception" tiers.
 
 ![Decision flow for a change (PR): cross-tenant reference or secret material is denied at admission (never); a prod topology, quota, or NodePool change needs a branch-protection review (human-by-exception); a namespace-scoped non-prod change, or a values-only prod change post game-day, whose policies all pass, auto-merges through make validate (autonomous)](assets/diagrams/capability-tiers.svg)
 
+*Figure 1 — Capability tiers — a change is denied at admission, gated by human review, or auto-merged, decided by what it touches.*
+
 ## Tiers
 
 | Tier | What lands here | Enforcement mechanism | Where the verdict is made |

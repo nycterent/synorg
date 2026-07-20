@@ -50,6 +50,8 @@ and the map for the on-call tasks below:
 
 ![Node lend/reclaim lifecycle: ProdServing to Idle to Lent to Reclaiming to Scrubbing back to ProdServing, with a Quarantined branch off Lent](../docs/assets/diagrams/node-lifecycle.svg)
 
+*Figure 1 — Node lend/reclaim lifecycle — ProdServing → Idle → Lent → Reclaiming → Scrubbing → ProdServing, with a Quarantined branch.*
+
 ### Preemption storm at morning ramp
 
 **Trigger:** render-start p95 climbing during reclaim. **Do:** the warm floor
