@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "cb8626d183b8",
+  "strategy": "manual-commit",
+  "branch": "fix/warm-floor-selector-guard",
+  "checkpoints_count": 4,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/cb/8626d183b8/0/metadata.json",
+      "transcript": "/cb/8626d183b8/0/full.jsonl",
+      "compact_transcript": "/cb/8626d183b8/0/transcript.jsonl",
+      "content_hash": "/cb/8626d183b8/0/content_hash.txt",
+      "prompt": "/cb/8626d183b8/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 120446,
+    "cache_read_tokens": 10692847,
+    "output_tokens": 62297,
+    "api_call_count": 25
+  }
+}
