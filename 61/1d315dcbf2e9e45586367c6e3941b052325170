@@ -1,0 +1,22 @@
+docs/value-case.md
+  s_792abb3a79ff66::t_abb4cd2a45b343 255-258
+  s_792abb3a79ff66::t_a5fb1c8b534f19 178-185
+  s_792abb3a79ff66::t_13627448a1ddf3 150-156
+  s_792abb3a79ff66::t_fa6514f4e2c974 199-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "611d315dcbf2e9e45586367c6e3941b052325170",
+  "prompts": {},
+  "sessions": {
+    "s_792abb3a79ff66": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71960c4e-1e8a-4ef6-a286-8e810f13fe6a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
