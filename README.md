@@ -52,6 +52,22 @@ Policy verdicts replace human approval queues — the tiers are enforced by CI, 
 protection, and cluster admission respectively, so none can be merged around. Full
 model: [docs/capability-tiers.md](docs/capability-tiers.md).
 
+## Maturity — what's proven, what's designed
+
+Be clear about the boundary before reading further:
+
+- **Proven on real GPUs, single region.** The full lend → reclaim → scrub →
+  rejoin → game-day → GitOps cycle ran end-to-end on live EKS GPUs (see below).
+  One region (the pilot) — that's what the numbers are.
+- **Designed, not yet exercised: multi-region.** The availability-arbitrage
+  rationale (ADR 0001) and MultiKueue cross-region dispatch (ADR 0002) are the
+  architecture's reason to exist, but they are **latent** — the hub-and-spoke
+  shape supports N regions; only one has run. Regional spot quota is the gate
+  (see Roadmap). Read "multi-region" as the design, not a claim of operation.
+
+The walking skeleton is real; the multi-region story is the next increment, not
+a thing already running.
+
 ## Live runs on real GPUs
 
 Two milestones on real EKS GPUs (us-east-1, g4dn), each a full run recorded verbatim
