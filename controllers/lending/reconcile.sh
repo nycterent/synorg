@@ -284,16 +284,34 @@ reclaim_node() {
   local node="$1" grace="$2" origin="$3" karpenter="$4" nodeclaims_json="$5" ncl
   if [ "$karpenter" = "1" ]; then
     emit_event ReclaimWaveStarted Node "$node" "reclaim ($origin): cordon+drain+nodeclaim delete"
+    # Mark the reclaim BEFORE cordon (audit P0-3): this annotation is what
+    # resume_incomplete_reclaims keys on to re-drive a reclaim whose process
+    # died after cordon but before the NodeClaim delete. Marking first is the
+    # safe order: a crash in the one-statement gap before cordon leaves the
+    # node un-cordoned, which the resumer (keyed on cordoned) does NOT catch —
+    # but a wave that has not yet fired re-selects it, and the next window
+    # close reclaims it regardless, so that narrow gap is covered by the
+    # wave/close paths rather than the resumer.
+    local reclaim_ts; reclaim_ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    kc annotate node "$node" "lending.synorg.io/reclaiming=$reclaim_ts" --overwrite >/dev/null
     kc cordon "$node" >/dev/null
     emit_event NodeDraining Node "$node" "draining with ${grace}s grace ($origin)"
     kc drain "$node" --ignore-daemonsets --delete-emptydir-data --grace-period="$grace" --timeout="$(( grace * 3 ))s" >/dev/null \
       || log warn action=drain_incomplete node="$node" msg="drain did not finish cleanly, proceeding to nodeclaim delete"
     ncl="$(echo "$nodeclaims_json" | jq -r --arg n "$node" '.items[] | select(.status.nodeName == $n) | .metadata.name' | head -1)"
     if [ -n "$ncl" ]; then
-      kc delete nodeclaim "$ncl" --wait=false >/dev/null
-      log info action=nodeclaim_deleted node="$node" nodeclaim="$ncl" "$origin" reason=NodeScrubStarted
-      emit_event NodeScrubStarted Node "$node" "nodeclaim $ncl deleted; Karpenter terminates the instance (scrub boundary)"
-      return 0
+      # Guard the delete (audit P0-3 review): errexit is suspended in every
+      # reclaim_node caller (if/||true), so a failed delete would otherwise
+      # fall through to a false nodeclaim_deleted log + return 0. The resumer
+      # would then believe the node terminated, never park it, and re-drive it
+      # every tick forever. A failed delete is degraded — return 1.
+      if kc delete nodeclaim "$ncl" --wait=false >/dev/null; then
+        log info action=nodeclaim_deleted node="$node" nodeclaim="$ncl" "$origin" reason=NodeScrubStarted
+        emit_event NodeScrubStarted Node "$node" "nodeclaim $ncl deleted; Karpenter terminates the instance (scrub boundary)"
+        return 0
+      fi
+      log warn action=nodeclaim_delete_failed node="$node" nodeclaim="$ncl" "$origin" msg="NodeClaim delete failed — node NOT terminated; degraded, caller returns/parks it"
+      return 1
     fi
     log warn action=reclaim node="$node" "$origin" msg="NO NodeClaim found — scrub-by-termination UNAVAILABLE; node cordoned+drained but returns unscrubbed, left cordoned for operator action"
     return 1
@@ -302,6 +320,58 @@ reclaim_node() {
   # a real deletion is impossible by construction, so log the intent.
   log info action=reclaim_intent node="$node" "$origin" msg="would cordon+drain node and delete its nodeclaim (no Karpenter on this cluster; log-only)"
   return 1
+}
+
+# resume_incomplete_reclaims POOL TAINT — crash-safety (audit P0-3). A reclaim
+# is non-atomic (mark -> cordon -> drain -> delete NodeClaim); if the process
+# dies mid-flight the node returns cordoned + still lent + still running
+# training, and BOTH the wave selection and the close transition skip
+# already-cordoned nodes as "in-flight", so nothing ever finishes it. Run first
+# each tick: re-drive any lent node a reclaim cordoned (carries the
+# lending.synorg.io/reclaiming marker) but never terminated, through the same
+# reclaim_node path. The marker distinguishes a reclaim-cordon from an operator
+# cordon, so an operator-parked node is never stomped.
+resume_incomplete_reclaims() {
+  local pool="$1" taint="$2" tkey teff nodes_json stranded node ncl_terminating
+  local karpenter=0 nodeclaims_json='{"items":[]}'
+  tkey="${taint%%=*}"; teff="${taint##*:}"
+  nodes_json="$(kc get nodes -l "karpenter.sh/nodepool=$pool" -o json)"
+  stranded="$(echo "$nodes_json" | jq -r --arg k "$tkey" '
+    .items[]
+    | select(.spec.unschedulable == true)
+    | select(.spec.taints // [] | any(.key == $k))
+    | select((.metadata.annotations["lending.synorg.io/reclaiming"] // "") != "")
+    | .metadata.name')"
+  [ -n "$stranded" ] || return 0
+  if kc api-versions | grep '^karpenter.sh/' >/dev/null; then karpenter=1; fi
+  if [ "$karpenter" = "1" ]; then nodeclaims_json="$(kc get nodeclaims -o json)"; fi
+  while IFS= read -r node; do
+    [ -n "$node" ] || continue
+    # Skip a node whose NodeClaim is already terminating: a prior reclaim's
+    # --wait=false delete succeeded and the node is on its way out. Re-driving
+    # would re-drain a dying node and spam events every tick until it vanishes.
+    ncl_terminating="$(echo "$nodeclaims_json" | jq -r --arg n "$node" \
+      '.items[] | select(.status.nodeName == $n) | select(.metadata.deletionTimestamp != null) | .metadata.name' | head -1)"
+    if [ -n "$ncl_terminating" ]; then
+      log info action=reclaim_resume_skip node="$node" msg="NodeClaim $ncl_terminating already terminating — reclaim in progress"
+      continue
+    fi
+    log info action=reclaim_resumed node="$node" msg="incomplete reclaim detected (cordoned + lent + reclaim marker) — re-driving"
+    if reclaim_node "$node" 120 "reason=resume_incomplete" "$karpenter" "$nodeclaims_json"; then
+      : # NodeClaim deleted — the node terminates and the marker goes with it.
+    else
+      # Degraded (no NodeClaim, delete failed, or log-only cluster): re-driving
+      # cannot complete. Mirror reconcile_taints' degraded close path — untaint
+      # so the lent capacity is returned and the node is no longer re-selected,
+      # and clear the marker. The node stays CORDONED (unscrubbed) for operator
+      # action. It is NOT left lent+unmarked, which would silently re-create the
+      # very strand P0-3 fixes.
+      kc taint node "$node" "$tkey:$teff-" >/dev/null 2>&1 || true
+      kc annotate node "$node" lending.synorg.io/reclaiming- >/dev/null 2>&1 || true
+      log info action=taint_removed node="$node" reason=NodeReturnedToProd origin=resume_incomplete
+      emit_event NodeReturnedToProd Node "$node" "incomplete reclaim could not complete; lent taint removed, node left cordoned for operator action"
+    fi
+  done < <(echo "$stranded")
 }
 
 # reconcile_taints OPEN POOL TAINT — converge lent taint on lendable Nodes to
@@ -571,6 +641,9 @@ tick() {
   # that instant as closed) still sees the lent taints its selection keys on;
   # reconcile_taints then routes any remaining lent node through the same
   # reclaim path instead of bare-untainting it.
+  # Crash-safety first (audit P0-3): finish any reclaim a dead process left
+  # cordoned-but-not-terminated before the waves/taints skip it as in-flight.
+  resume_incomplete_reclaims "$pool" "$taint" || log warn action=tick msg="resume-reclaim reconcile failed, continuing"
   reconcile_waves "$tz" "$pool" "$taint" || log warn action=tick msg="wave reconcile failed, continuing"
   reconcile_taints "$open" "$pool" "$taint" || log warn action=tick msg="taint reconcile failed, continuing"
   reconcile_borrow_limit "$tz" "$pool" "$queue" || log warn action=tick msg="borrow-limit reconcile failed, continuing"

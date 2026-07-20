@@ -124,6 +124,9 @@ required_rules() {
         printf '%s\n' "|nodes|get" "|nodes|patch" "|nodes|update" ;;
       cordon)
         printf '%s\n' "|nodes|get" "|nodes|patch" ;;
+      annotate)
+        # kubectl annotate reads then patches the Node object.
+        printf '%s\n' "|nodes|get" "|nodes|patch" ;;
       drain)
         # drain = cordon (nodes patch) + list pods + eviction API.
         printf '%s\n' "|nodes|get" "|nodes|patch" "|pods|get" "|pods|list" "|pods/eviction|create" ;;
@@ -436,6 +439,31 @@ else
   [ -n "$(find "$TMPDIR_T/cache-once/fired-waves" -name '*-w0-*' -print -quit 2>/dev/null)" ] \
     || fail "wave-once: fired-waves marker file missing"
   pass "wave-once: single firing across 3 ticks, marker file present"
+fi
+
+# 9. resume incomplete reclaim (audit P0-3): a lent node left cordoned +
+# reclaim-marked by a crash (mark+cordon happened, the process died before the
+# NodeClaim delete) must be re-driven on the next tick, not skipped as an
+# in-flight reclaim. On a Karpenter cluster the re-drive is a REAL cordon+drain+
+# nodeclaim-delete that would terminate the live test node, so — like scenarios
+# 6-8 — this runs kind-only, where reclaim is log-only.
+if k api-versions | grep -q '^karpenter.sh/'; then
+  skip "resume-incomplete scenario (Karpenter present — re-drive would really terminate the node)"
+else
+  write_fixture "$TMPDIR_T/resume.yaml" "00:00" "23:59" "$ALL_DAYS" 100 "[]"
+  SCHEDULE_FILE="$TMPDIR_T/resume.yaml" MAX_TICKS=1 TICK_SECONDS=0 bash "$RECONCILE" >/dev/null
+  k cordon "$NODE" >/dev/null
+  k annotate node "$NODE" "lending.synorg.io/reclaiming=2026-01-01T00:00:00Z" --overwrite >/dev/null
+  RESUME_OUT="$(SCHEDULE_FILE="$TMPDIR_T/resume.yaml" MAX_TICKS=1 TICK_SECONDS=0 bash "$RECONCILE" 2>&1)"
+  echo "$RESUME_OUT" | grep -q "action=reclaim_resumed node=$NODE" \
+    || fail "resume: stranded lent+cordoned+marked $NODE was not detected: $RESUME_OUT"
+  echo "$RESUME_OUT" | grep -q "action=reclaim_intent node=$NODE" \
+    || fail "resume: kind re-drive logged no reclaim_intent for $NODE (did not reach the reclaim path): $RESUME_OUT"
+  echo "$RESUME_OUT" | grep -q "reason=resume_incomplete" \
+    || fail "resume: re-drive carried no reason=resume_incomplete origin: $RESUME_OUT"
+  pass "resume incomplete reclaim: stranded node re-driven through the reclaim path, not skipped"
+  k uncordon "$NODE" >/dev/null 2>&1 || true
+  k annotate node "$NODE" lending.synorg.io/reclaiming- >/dev/null 2>&1 || true
 fi
 
 echo "ALL CHECKS PASSED"
