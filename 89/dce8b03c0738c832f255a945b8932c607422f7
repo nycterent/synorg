@@ -1,0 +1,19 @@
+docs/audits/2026-07-20-srs-lens-infra-audit.md
+  s_792abb3a79ff66::t_00d6029b5ab84f 1-312
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "89dce8b03c0738c832f255a945b8932c607422f7",
+  "prompts": {},
+  "sessions": {
+    "s_792abb3a79ff66": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71960c4e-1e8a-4ef6-a286-8e810f13fe6a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
