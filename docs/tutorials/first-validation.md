@@ -107,4 +107,4 @@ the whole deploy path is built around.
   example [migrate a service](../../runbooks/service-migration.md) — are the
   executable runbooks.
 
-*(An "add your first service" lesson is planned — see `docs/TODO-docs.md`, T2.)*
+*(An "add your first service" tutorial — walking a PR through the capability-tier lanes to ArgoCD sync — is the natural next lesson; see [Capability Tiers](../capability-tiers.md) for the mechanics it would teach.)*
