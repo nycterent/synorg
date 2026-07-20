@@ -1,0 +1,35 @@
+runbooks/training-onboarding.md
+  s_67e5a4b20e7672::t_70626742266799 109-114
+README.md
+  s_67e5a4b20e7672::t_4eb485dfca3611 89
+skills/launch-training/README.md
+  s_67e5a4b20e7672::t_606b3130094ac5 1-32
+skills/launch-training/SKILL.md
+  s_67e5a4b20e7672::t_cd8cc3ffc730ab 1-50
+skills/launch-training/references/interview.md
+  s_67e5a4b20e7672::t_81122af63258e9 1-47
+skills/launch-training/references/preflight.md
+  s_67e5a4b20e7672::t_58998cd1ca47d9 1-43
+skills/launch-training/references/submit.md
+  s_67e5a4b20e7672::t_e639bc9840849d 1-52
+skills/launch-training/references/validate.md
+  s_67e5a4b20e7672::t_9943a6b50c8b6a 1-29
+skills/launch-training/references/values-template.md
+  s_67e5a4b20e7672::t_866f557b057f6b 1-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "67f1792d16feae93112d393e62a932a0a3f3ef46",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
