@@ -109,7 +109,10 @@ manifests_in_scope() {
     if in_scope "$f"; then echo "$f"; fi
   done
 }
-mapfile -t MANIFESTS < <(manifests_in_scope)
+# Portable array fill (mapfile is Bash 4+; macOS ships Bash 3.2 and would fail
+# here, skipping the schema check). while-read works on 3.2+.
+MANIFESTS=()
+while IFS= read -r _m; do MANIFESTS+=("$_m"); done < <(manifests_in_scope)
 if [ "${#MANIFESTS[@]}" -gt 0 ]; then
   echo "kubeconform: ${#MANIFESTS[@]} manifest file(s)"
   kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version "$K8S_VERSION" \

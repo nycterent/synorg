@@ -136,6 +136,6 @@ Conventions (pool names, taints, priority classes, required labels):
 - ~~Validate the real GitOps remote end-to-end, then delete the direct-sync workaround — ADR 0006~~ **done 2026-07-19** (8/8 clean cycle)
 - ~~Migrate images to ghcr.io as canonical registry; retire ECR and the `registry.synorg.io` placeholder — ADR 0007~~ **done 2026-07-19**
 - ~~Borrower drain: deactivate/requeue borrowing Workloads during the reclaim phase — ADR 0008~~ **done 2026-07-19** (controller 0.2.1)
-- Teardown hardening: sweep EKS-created security groups and stray Karpenter instances inside `phase_down` (three manual interventions on 2026-07-19 prove the need), and rename the `lending_reclaim_window_active` misnomer (see [docs/glossary.md](docs/glossary.md))
+- Teardown hardening: sweep EKS-created security groups and stray Karpenter instances inside `phase_down` (the 2026-07-19 run needed three manual interventions **and** its `--down` failed on VPC/SG dependency violations, which is what tripped that run's exit-ledger zero-net-release assertion — see the live-runs note above), and rename the `lending_reclaim_window_active` misnomer (see [docs/glossary.md](docs/glossary.md))
 - Prod-hardening for borrower drain: deactivated-borrower metric + alert for stuck-drain detection (ADR 0008 consequence)
 - Regional spot quota unlock (three regions currently at spot=0) to exercise multi-region arbitrage — ADR 0001/0002 become live rather than latent
