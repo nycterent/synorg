@@ -153,3 +153,7 @@ is there no github ci/cd to do e2e?
 ---
 
 well look through previous runs how they were done. i have logged in into aws
+
+---
+
+ok, so lets mark that the last change was not tested
