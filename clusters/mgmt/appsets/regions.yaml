@@ -45,6 +45,10 @@ spec:
                 # Values dir, not manifests — owned by the services ApplicationSet.
                 - path: "clusters/{{.name}}/services"
                   exclude: true
+                # Training-run values, not manifests — owned by the training-runs
+                # ApplicationSet. Excluded here so the two don't double-apply it.
+                - path: "clusters/{{.name}}/training-runs"
+                  exclude: true
   template:
     metadata:
       # One Application per (cluster, overlay component).
