@@ -1,0 +1,19 @@
+README.md
+  s_792abb3a79ff66::t_139d13c568374d 94-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "aefb3ea54f1d9821260a674be460b1c0e15b689f",
+  "prompts": {},
+  "sessions": {
+    "s_792abb3a79ff66": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71960c4e-1e8a-4ef6-a286-8e810f13fe6a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
