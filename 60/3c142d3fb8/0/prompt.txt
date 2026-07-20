@@ -119,3 +119,7 @@ Files: `/Users/oldroot/Repos/synorg/controllers/lending/reconcile.sh`, `/Users/o
 ---
 
 current i am solo, this is my poc
+
+---
+
+digest-pin images
