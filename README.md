@@ -86,6 +86,7 @@ Harness and procedure: [tests/e2e/run.sh](tests/e2e/run.sh) and
 | [`policies/`](policies/) | Kyverno + ValidatingAdmissionPolicy, capability tiers, tests |
 | [`infra/terraform/`](infra/terraform/) | Management cluster, region clusters, ODCR capture, checkpoint store |
 | [`runbooks/`](runbooks/) | Executable playbooks (scrub, quarantine, carve, game-day) |
+| [`skills/`](skills/) | Agent skills — guided, PR-first contributor flows (e.g. launch a training job) |
 | [`rehearsal/`](rehearsal/) | Preemption game-day harness scenarios |
 | [`tools/`](tools/) | env-spec migration bridge (dated retirement) |
 | [`docs/`](docs/) | Conventions, capability tiers, SLO catalog, ADRs, glossary |

@@ -106,6 +106,12 @@ marker the preStop hook drops), flush one final checkpoint — you have 120 s.
 
 ## Step 6 — Deploy a job
 
+> **Guided alternative:** the `/launch-training` skill walks this step
+> (interview → scaffold → validate → PR) on the git-only-write path — it opens a
+> pull request instead of `kubectl apply`, so it needs no cluster credentials.
+> Use it once the team is onboarded (Steps 1–5); use the manual flow below when
+> you want the raw sequence.
+
 Write a values file (schema-validated; an unknown key or a missing required field
 fails by name) and template through the chart:
 
