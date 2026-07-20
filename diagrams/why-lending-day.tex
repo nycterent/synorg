@@ -14,7 +14,6 @@
   \draw[draw=synamber,fill=synamber!18] (22,0)   rectangle (24,0.8);
 
   \node[font=\footnotesize,text=synamber] at (2.75,0.4) {Lent · training};
-  \node[font=\tiny,text=syngrey]          at (6.75,0.4) {scrub};
   \node[font=\small,text=synteal]         at (13.5,0.4) {Prod · serving};
   \node[font=\footnotesize,text=syngrey]  at (21,0.4)   {Idle};
   \node[font=\footnotesize,text=synamber] at (23,0.4)   {Lent};
@@ -29,9 +28,15 @@
   \node[flowlbl,align=center,anchor=south] at (6,2.05)
     {staged reclaim waves\\05:30 · 06:00 · 06:30\\(borrow $\to$ 0)};
 
-  % ---- morning ramp marker ----
-  \draw[flow,draw=synteal] (7,1.3) -- (7,0.9);
-  \node[flowlbl,text=synteal,anchor=south] at (7.6,1.3) {ramp 07:00};
+  % ---- morning ramp marker (offset right + label reads into the prod band,
+  %      so it never crowds the amber reclaim-wave arrows at x<=6.4) ----
+  \draw[flow,draw=synteal] (7,1.15) -- (7,0.9);
+  \node[flowlbl,text=synteal,anchor=south west] at (7.15,1.05) {ramp 07:00};
+
+  % ---- scrub callout: the tiny grey segment is a fresh instance; label it
+  %      BELOW the band (it never fit inside a 0.5-unit box) ----
+  \draw[flow,draw=syngrey] (6.75,-0.2) -- (6.75,-0.02);
+  \node[font=\tiny,text=syngrey,anchor=north] at (6.75,-0.22) {scrub · new instance};
   % ---- window opens marker ----
   \draw[flow,draw=synamber] (22,1.25) -- (22,0.9);
   \node[flowlbl,text=synamber,anchor=south,align=center] at (22,1.3) {window\\opens 22:00};
