@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "92026f981aad",
+  "strategy": "manual-commit",
+  "branch": "fix/demo-validate-hardening",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/92/026f981aad/0/metadata.json",
+      "transcript": "/92/026f981aad/0/full.jsonl",
+      "compact_transcript": "/92/026f981aad/0/transcript.jsonl",
+      "content_hash": "/92/026f981aad/0/content_hash.txt",
+      "prompt": "/92/026f981aad/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 482,
+    "cache_creation_tokens": 1225496,
+    "cache_read_tokens": 116263603,
+    "output_tokens": 407862,
+    "api_call_count": 274
+  }
+}

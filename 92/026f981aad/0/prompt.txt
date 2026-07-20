@@ -1,0 +1,250 @@
+/compound-engineering:ce-plan
+
+---
+
+/compound-engineering:ce-work
+
+---
+
+your steer
+
+---
+
+dont let me stop you in this
+
+---
+
+<task-notification>
+<task-id>a22fda0d3770aa946</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-503/-Users-oldroot-Repos-synorg/71960c4e-1e8a-4ef6-a286-8e810f13fe6a/tasks/a22fda0d3770aa946.output</output-file>
+<status>completed</status>
+<summary>Agent "Review crash-safe reclaim fix" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I have the full picture. Here is my review.
+
+## Code Review: `fix/crash-safe-reclaim` (audit P0-3)
+
+**Overall:** The core mechanism is sound. Mark-before-cordon is the right ordering, the resumer's selection triple (cordoned + lent + marker) is correct, and the primary crash case — process death *after* cordon on EKS with a live NodeClaim — is recovered cleanly. The jq is correct, and the RBAC/test-parser wiring is right. Two real correctness gaps and one destructive test-safety gap keep it from being a clean landing. Details below, ranked.
+
+---
+
+### 🔴 1. NodeClaim delete failure → resumer hot-loops forever (re-drain every tick)
+
+**`reconcile.sh:286-291`** (root cause) + **`reconcile.sh:327-335`** (amplifier)
+
+`reclaim_node` is always invoked with errexit suspended — `if reclaim_node ...` (resumer:327, reconcile_taints:379) and `reclaim_node ... || true` (waves:586). Bash disables `-e` throughout a function body called in those contexts. So when `kc delete nodeclaim "$ncl" --wait=false` (line 287) fails, execution does **not** abort — it falls straight through to:
+
+```
+log info action=nodeclaim_deleted ... reason=NodeScrubStarted   # line 288 — falsely logs success
+emit_event NodeScrubStarted ...                                  # line 289
+return 0                                                          # line 290
+```
+
+reclaim_node returns **0** on a *failed* delete. The resumer (327-328) then treats it as success, does **not** clear the marker, and the node — which still exists because the delete failed — is re-selected next tick. Result: an unbounded every-tick re-drive (each doing a fresh drain up to `grace*3` = 360s, a fresh failing delete, and fresh ReclaimWaveStarted/NodeDraining/NodeScrubStarted events).
+
+**Failure scenario:** morning-ramp API pressure (exactly when waves fire) causes the `--request-timeout=30s` delete to time out. The resumer re-drains the same node every tick indefinitely. This is the specific case you asked about ("a live NodeClaim that repeatedly fails to delete") — and it is a perpetual loop, not a one-shot.
+
+The fall-through is pre-existing in `reclaim_node`, but the diff newly weaponizes it: waves fire once/day and close fires once/close, whereas the resumer runs **every tick**. Fix: guard the delete (`if kc delete ...; then ... return 0; fi`) so a failed delete returns 1 (degraded) rather than a false success — then the resumer's degraded branch bounds it. (This also fixes the false `nodeclaim_deleted` log across the whole controller.)
+
+---
+
+### 🟡 2. Degraded resumer branch re-creates the exact P0-3 strand — silently
+
+**`reconcile.sh:329-335`**
+
+On a degraded return (rc 1), the resumer clears the marker and leaves the node **cordoned + lent + unmarked**. That state is skipped by *every* path:
+- resumer (319) requires the marker — gone;
+- `reconcile_waves` (566) `select(.spec.unschedulable != true)` — excludes cordoned;
+- `reconcile_taints` close path (376) `[ "$cordoned" != "true" ] || continue` — skips cordoned.
+
+So the node sits lent forever pending manual operator action — which is precisely the P0-3 condition the fix targets, now re-created with the marker removed (so it's not even re-discoverable by the resumer). The clear is silent (`&gt;/dev/null 2&gt;&amp;1 || true`) — no event, no operator-facing log beyond the initial `reclaim_resumed`.
+
+This also diverges from the established degraded semantics: `reconcile_taints`' degraded close path (383-386) **untaints** the node (NodeReturnedToProd) so capacity is returned. The resumer does not. The code comment at 330-333 ("the same fate the degraded reclaim path already assigns it") is therefore inaccurate — the close path untaints; this path leaves it lent.
+
+Trigger frequency: **always on kind** (log-only reclaim always returns 1) and on EKS whenever no NodeClaim is found. Recommend either mirroring the close-degraded path (untaint to return the node) or keeping the marker + emitting a loud NodeReturnedToProd/degraded event so the abandoned node is not indistinguishable from the original bug. Whichever you choose, it should be a deliberate, documented decision and must not be silent.
+
+---
+
+### 🟡 3. Test scenario 9 has no Karpenter-skip guard — destructive on an EKS context
+
+**`test.sh:421-435`**
+
+Scenarios 6, 7, and 8 each guard with `if k api-versions | grep -q '^karpenter.sh/'; then skip ... else`. Scenario 9 omits it. The live tier accepts any context via `LENDING_TEST_CONTEXT`. On a Karpenter cluster, scenario 9 does `k cordon` + `k annotate` on a real node, then ticks — the resumer runs `reclaim_node` with `karpenter=1`, which performs a **real cordon + drain + `kc delete nodeclaim`**, terminating the live test node (a GPU node). The `reclaim_resumed` assertion still passes, masking the destruction.
+
+Add the same Karpenter-present skip the sibling scenarios use, or restructure scenario 9 to assert selection without driving a real termination.
+
+---
+
+### 💭 4. Crash between annotate and cordon is not resumer-recoverable (comment overstates)
+
+**`reconcile.sh:276-281`**
+
+A crash in the one-statement gap between `kc annotate` (280) and `kc cordon` (281) leaves the node **marked + lent + uncordoned**. The resumer requires cordoned (317), so it will not pick it up. The comment (276-278) says "the normal wave/taint path still selects it" — true for selection, but the wave path is gated by the once-per-day fired-marker (waves:560-561). If that wave already fired, only `reconcile_taints` at the next window **close** recovers it. So the node can stay lent until close rather than being re-driven promptly.
+
+Not a permanent strand (close recovers it, and the crash window is two adjacent kubectl calls), so low severity — but the comment's recoverability claim is stronger than reality. Worth a one-line correction.
+
+---
+
+### 💭 5. Churn on successful async delete (no "already terminating" guard)
+
+**`reconcile.sh:324-328`**
+
+`--wait=false` means a successfully reclaimed node lingers (finalizers / instance teardown) as cordoned+lent+marked across several ticks. The resumer re-selects and re-drives it each tick — re-drain, re-issue delete (idempotent), and re-emit ReclaimWaveStarted/NodeDraining/NodeScrubStarted — until the Node object disappears. Bounded by Karpenter finishing, but noisy (event spam + redundant drains). A cheap guard (skip nodes whose NodeClaim already carries a `deletionTimestamp`, or whose node has one) would eliminate it.
+
+---
+
+### 💭 6. Scenario 9 assertion is weaker than it looks
+
+**`test.sh:431`**
+
+It only greps `action=reclaim_resumed`, which is logged (326) **unconditionally before** `reclaim_node` is called — so it proves selection but not that the node entered the reclaim path. Strengthen by also asserting `reason=resume_incomplete` and (kind) `reclaim_intent`, matching the rigor of scenarios 6/7. There is also no negative control demonstrating the node *would* be skipped without the resumer.
+
+---
+
+### What's correct (verified, not assumed)
+
+- **jq selection (315-320):** correct for all missing-field cases — `null == true` is false (uncordoned), `.spec.taints // []` handles absent taints, and `.metadata.annotations["..."] // ""` relies on jq returning `null` for indexing a null `annotations` (no error). `//`/`|` precedence parses as `(.spec.taints // []) | any(...)`, consistent with the existing line 566.
+- **RBAC:** `annotate` → `nodes get+patch`; the ClusterRole grants `nodes: [get, list, watch, patch, update]`, so both new `kc annotate` calls are covered with **no** ClusterRole change. The invocations parser cleanly maps both (cut at `&gt;` before the redirect).
+- **Scenario 8 interaction:** the `reclaiming=` count is unaffected — the resumer's log line contains no `reclaiming=` substring, the node is neither cordoned nor marked during the wave-once ticks, and the marker-clear uses `reclaiming-` under `&gt;/dev/null`.
+- **Spurious action:** well-guarded. Operator-cordon carries no marker; warm-floor/inference nodes aren't in the lendable pool and aren't marked; `replicas: 1` + `Recreate` + synchronous reclaim + resumer-runs-first means no concurrent or same-tick double-drive.
+- **The main P0-3 path** (crash after cordon, EKS, NodeClaim present) recovers correctly.
+
+The two must-fix items are #1 (delete-failure loop) and #3 (destructive test). #2 is a should-fix — it silently regenerates the very state the audit item is about.
+
+Files: `/Users/oldroot/Repos/synorg/controllers/lending/reconcile.sh`, `/Users/oldroot/Repos/synorg/controllers/lending/test.sh`, `/Users/oldroot/Repos/synorg/clusters/pilot/lending/lending-controller.yaml`.</result>
+<usage><subagent_tokens>130792</subagent_tokens><tool_uses>4</tool_uses><duration_ms>361775</duration_ms></usage>
+</task-notification>
+
+---
+
+current i am solo, this is my poc
+
+---
+
+digest-pin images
+
+---
+
+so lets merge, do testing pass to be sure all is working
+
+---
+
+<task-notification>
+<task-id>buyqh1vvu</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-503/-Users-oldroot-Repos-synorg/71960c4e-1e8a-4ef6-a286-8e810f13fe6a/tasks/buyqh1vvu.output</output-file>
+<status>completed</status>
+<summary>Background command "Watch integration run to completion" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+what do we need to do to do e2e testing?
+
+---
+
+aws is setup already
+
+---
+
+is there no github ci/cd to do e2e?
+
+---
+
+well look through previous runs how they were done. i have logged in into aws
+
+---
+
+ok, so lets mark that the last change was not tested
+
+---
+
+/compound-engineering:ce-promote
+
+---
+
+<task-notification>
+<task-id>blaaqjg6p</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-503/-Users-oldroot-Repos-synorg/71960c4e-1e8a-4ef6-a286-8e810f13fe6a/tasks/blaaqjg6p.output</output-file>
+<status>completed</status>
+<summary>Background command "Re-run spiral write in background" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+just skip it, not required
+
+---
+
+comments? ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• I found a presentation-critical mismatch in the checked-in evidence: the July 19 run did pass all eight functional assertions, but its teardown
+  then failed and the final ledger assertion reported a zero-net-release violation. I’ll frame it accurately as functional evidence—not a clean end-
+  to-end success—in the draft.
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• Synorg is a credible pilot, but present it as a single-region functional prototype with clear production hardening work, not as a completed multi-
+  region platform.
+
+  Verified locally: make validate-full, docs build, make demo, lending offline tests, and 22 bridge tests pass. I made no changes.
+
+  Top review findings:
+
+  - High — evidence is overstated. README.md:84 calls the July 19 run a “full clean cycle,” but its log shows 8/8 functional assertions passed,
+    followed by teardown failure and a final zero-net-release violation at build/e2e/logs-20260719/e2e-gate3-8of8.log:9070. Don’t call it a clean
+    e2e success.
+
+  - High — policy labels can be forged/omitted. The inline-secret exception trusts a user-set label in policies/kyverno/deny-inline-secrets.yaml:45,
+    and tenancy rules rely on optional workload labels in policies/kyverno/tenancy-guard.yaml:25. Avoid claiming policy enforcement is fully
+    production-hardened.
+
+  - Medium — the demo can falsely pass. scripts/demo.sh:29 suppresses Kyverno failures while narrating “accept”/“reject.” The current run behaves
+    correctly, but tighten this before relying on it as proof.
+
+  - Medium — demo output exposes a retired registry. The bridge showcase outputs registry.synorg.io from tools/env-spec-bridge/fixtures/inference-
+    vision.envspec.yaml:7, contradicting the GHCR decision in docs/adr/0007-registry-ghcr-canonical.md:13.
+
+  - Medium — macOS portability. scripts/validate.sh:112 uses Bash 4’s mapfile; macOS’s system Bash 3.2 fails noisily and can exit successfully
+    without performing the intended checks. Homebrew Bash works.
+
+  A safe 10-minute showcase:
+
+  1. Explain the problem: held inference GPUs are expensive insurance; synorg lends safe overnight surplus to training, then reclaims and scrubs it
+     before the morning ramp.
+
+  2. Show the maturity boundary in README.md:55: one real-GPU pilot region; multi-region is designed, not proven.
+  3. Run make demo to show chart rendering and the safe-vs-unsafe scheduling policy.
+  4. Show the test ladder in docs/explanation/testing.md:39.
+  5. State: “We have functional single-region GPU evidence; the current hardening changes still need a fresh complete GPU e2e.”
+
+  Email draft:
+
+  > Subject: synorg — governing held GPU capacity without sacrificing inference safety
+  >
+  > Hi [Name],
+  >
+  > I’d like to share synorg, a GitOps-controlled EKS platform for a specific GPU-capacity problem: inference fleets are often held for peak demand
+  > because scarce GPU capacity cannot reliably be reacquired, while R&D buys separate capacity for training.
+  >
+  > synorg safely lends the capacity above a protected warm floor to preemptible training during planned windows, then reclaims and replaces those
+  > nodes before the inference ramp. The goal is not to pretend that lending pays for the fleet; it turns a large held-capacity decision into a
+  > measurable, governed one through utilization, idle-burn, and per-cycle safety evidence.
+  >
+  > The current pilot includes Helm deployment contracts, GitOps reconciliation, Kueue-based training admission, a lending/reclaim controller,
+  > policy checks, and a staged validation ladder. We have functional real-GPU evidence in one region; multi-region scheduling and a fresh full GPU
+  > revalidation after recent hardening are the next steps.
+  >
+  > If useful, I can give a short walkthrough of the architecture, the safety boundary between inference and training, and the validation/demo
+  > surface.
+  >
+  > Best,
+  > [Your name]
+
+  The strongest phrase to use is: “turning a blind GPU insurance cost into a governed capacity decision.”
+
+---
+
+yes
