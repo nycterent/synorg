@@ -63,6 +63,11 @@
           "minLength": 1,
           "description": "Immutable image tag; also published as app.kubernetes.io/version."
         },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "Optional content digest for reproducible pinning. When set, the image deploys as repository:tag@digest so the exact bytes are enforced no matter what the tag later points at (the tag stays for the version label). Produce it in CI, e.g. `crane digest <repo>:<tag>`."
+        },
         "pullPolicy": {
           "type": "string",
           "enum": ["Always", "IfNotPresent", "Never"],

@@ -57,7 +57,7 @@ spec:
             claimName: training-checkpoints
       containers:
         - name: trainer
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}{{ with .Values.image.digest }}@{{ . }}{{ end }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           # Evidence-plane scrape contract (U9): the trainer image serves the
           # checkpoint gate metrics (training_checkpoint_lost_seconds,
