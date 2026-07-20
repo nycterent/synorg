@@ -147,6 +147,13 @@ The boundary matters as much as the claim:
   time-flexible demand (batch inference plus R&D backlog). No overlap, no recovery.
   That overlap is a property of the customer's workload rhythm, which the pilot
   measures rather than assumes.
+- **Whole-node overnight training only; small slices are MIG's job.** synorg
+  recovers whole-node and multi-GPU training, the jobs that need the big NVLink
+  nodes it holds and that MIG structurally cannot slice. A small single-GPU
+  experiment belongs on a daytime MIG slice (hardware-isolated, no time-shift), not
+  on synorg. How much of R&D's backlog is whole-node versus sliceable sets how much
+  synorg recovers versus MIG, and the pilot measures that share rather than
+  assuming it.
 
 ## 6. What actually justifies the held book
 
@@ -168,10 +175,14 @@ The fleet is affordable for reasons lending only supplements:
 
 ## 7. The pilot's real value: de-risk and govern
 
-Today the $350k/month is spent **blind**. Nothing measures whether it earns its
-keep. synorg makes lending *safe* (the walking skeleton proved the full lend,
-reclaim, scrub, and rejoin cycle with zero-net-release and inference latency held),
-which turns a standing cost into a governed one via two numbers:
+The decision synorg de-risks is the held book's keep-or-shrink call, and it has
+two ways to go wrong: hold capacity you did not need (idle burn you could have cut)
+or release capacity you did (surge insurance you cannot rebuy in a shortage).
+Today that call is made **blind** — nothing measures which way the book is wrong,
+on a standing cost of order $350k/month. synorg makes lending *safe* (the walking
+skeleton proved the full lend, reclaim, scrub, and rejoin cycle with
+zero-net-release and inference latency held), which turns the blind call into a
+governed one via two numbers:
 
 - **`utilization-of-held`**, GPU-hours allocated ÷ held, per pool. Below the 70%
   floor for a rolling month, the options are to shrink the reservation, widen the
@@ -185,9 +196,11 @@ Because the customer is internal, these two metrics are also a **chargeback
 lever**. The platform can allocate the held cost to the BU by measured use and
 hold it accountable for its own sizing. De-risking becomes FinOps governance.
 
-The payoff is not the ~$12k/month of lending revenue. It is that **you stop paying
-$350k/month on faith and start paying it on evidence**, with a safe lever (lending)
-and, for a B2B customer, a compliance proof (the ledger) on top.
+The payoff is not the ~$12k/month of lending revenue. It is that **the keep-or-shrink
+call stops being made on faith and starts being made on evidence**, with a safe
+lever (lending) to act on it and, for a B2B customer, a compliance proof (the
+ledger) on top. Getting a decision that size right is worth far more than the
+marginal recovery.
 
 Gate the whole case on one premise: **you cannot shrink the insurance.** If you
 could, you would measure and shrink and skip the platform, since a FinOps
@@ -239,9 +252,10 @@ The real alternatives a technical and financial room raises, answered:
   with small experiments and sidesteps scrub latency. But MIG partitions are static
   and fragment the GPU: each slice is a fraction, so a large training run that wants
   a whole 8×H100 node with NVLink cannot use it, and repartitioning still drains
-  the GPU. MIG fits the small co-location case, not the whole-fleet
-  overnight-training case. Where it fits, use it; it is complementary, not a
-  replacement.
+  the GPU. So MIG and synorg divide the work: MIG serves daytime, hardware-isolated
+  slices for small single-GPU workloads; synorg serves the whole-node and multi-GPU
+  overnight training MIG cannot slice. Use MIG where it fits; it is a complement,
+  not a replacement.
 - **…rent from a neocloud?** Let someone else hold the idle and rent
   dedicated-feeling capacity. A real option where available and compliant, but it
   moves the customer's data to a third party (a contractual problem for a B2B
