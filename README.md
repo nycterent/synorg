@@ -19,6 +19,8 @@ so latency stays safe no matter what training does.
 
 ![A 24-hour timeline of one node: a lendable node serves prod by day, goes idle in the evening, is lent to training overnight, drains through staged reclaim waves before the morning ramp, scrubs, and returns to prod; below it, the warm floor serves prod all day and never lends](docs/assets/diagrams/why-lending-day.svg)
 
+*Figure 1 — One lendable node over 24 hours: prod by day, lent to training overnight, reclaimed before the morning ramp. The warm floor never lends.*
+
 The reclaim is real capacity motion, not a scheduler hint: nodes are drained and
 **scrubbed** (the instance is discarded and training resumes on a genuinely new one —
 GPU memory never survives the boundary), and the lending ledger proves zero net
@@ -34,6 +36,8 @@ ValidatingAdmissionPolicy enforce tenancy at the API server.
 
 ![Hub-spoke topology: the git monorepo (the only write API) feeds the ArgoCD hub, which syncs each region spoke; inside a spoke Karpenter provisions the warm-floor, lendable, and web NodePools while Kueue, the lending controller, Kyverno and VAP, and Prometheus run alongside](docs/assets/diagrams/architecture-topology.svg)
 
+*Figure 2 — Hub-and-spoke topology: the git monorepo is the only write API; the ArgoCD hub syncs each regional spoke.*
+
 **Deploy path.** A change is a PR: `make validate` (helm template → kubeconform →
 kyverno → rendered diff) runs in CI, the change routes to one of three capability
 tiers, and merge is what ArgoCD syncs. No `kubectl` writes outside break-glass.
@@ -41,6 +45,8 @@ Humans and agents are distinct principals — an agent opens PRs and reads the S
 but never holds cluster credentials. See [docs/agent-interface.md](docs/agent-interface.md).
 
 ![Decision flow for a change: cross-tenant references or secret material are denied at admission (never); prod topology, quota, or NodePool changes need a branch-protection review (human-by-exception); namespace-scoped non-prod changes, or values-only prod changes after the region's game-day gate, whose policies all pass, auto-merge through make validate (autonomous)](docs/assets/diagrams/capability-tiers.svg)
+
+*Figure 3 — Capability tiers: every change is denied at admission, gated by human review, or auto-merged — decided by what it touches.*
 
 Policy verdicts replace human approval queues — the tiers are enforced by CI, branch
 protection, and cluster admission respectively, so none can be merged around. Full
