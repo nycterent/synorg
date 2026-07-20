@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "603c142d3fb8",
+  "strategy": "manual-commit",
+  "branch": "feat/chart-image-digest",
+  "checkpoints_count": 4,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/60/3c142d3fb8/0/metadata.json",
+      "transcript": "/60/3c142d3fb8/0/full.jsonl",
+      "compact_transcript": "/60/3c142d3fb8/0/transcript.jsonl",
+      "content_hash": "/60/3c142d3fb8/0/content_hash.txt",
+      "prompt": "/60/3c142d3fb8/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 346,
+    "cache_creation_tokens": 1101504,
+    "cache_read_tokens": 65525656,
+    "output_tokens": 327037,
+    "api_call_count": 197
+  }
+}
