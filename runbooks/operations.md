@@ -52,6 +52,36 @@ and the map for the on-call tasks below:
 
 *Figure 1 — Node lend/reclaim lifecycle — ProdServing → Idle → Lent → Reclaiming → Scrubbing → ProdServing, with a Quarantined branch.*
 
+### Training not admitting — normal, or wedged?
+
+**Trigger:** a team reports "my training jobs are stuck suspended." This is the
+platform's most common false alarm: suspended is the *designed* state whenever
+inference is holding the floor. Before paging anyone, walk three checks — the
+answer is normal far more often than not.
+
+1. **Is a lending window open right now?** Check the schedule clock against the
+   `lending-schedule` ConfigMap (`opensAt`/`closesAt`).
+   - **Closed →** NORMAL. There is no lending outside the window; the job admits
+     when the window next opens. Nothing to do.
+2. **Window open — is the lending controller ticking?** The controller writes a
+   loop-alive heartbeat and logs `action=tick` each cycle
+   (`kubectl -n lending logs deploy/lending-controller --tail=20`).
+   - **Heartbeat stale / no recent tick →** WEDGED. The controller is down;
+     restart it and read its logs. This is a real incident.
+3. **Ticking + open — does the borrowing ClusterQueue match the curve?** Compare
+   the `training-borrow` CQ `borrowingLimit` against the curve value for now.
+   - **Curve says > 0 but `borrowingLimit == 0` →** WEDGED. The controller's
+     quota patch isn't landing (RBAC, a malformed schedule logged
+     `schedule_invalid`, or a stuck reconcile). Investigate the controller.
+   - **`borrowingLimit > 0` and still no admission →** NORMAL. Inference is
+     occupying every lendable GPU right now (genuine contention, no idle
+     headroom); Kueue admits as the ramp recedes and nodes free up.
+
+Only step 2's stale heartbeat and step 3's `borrowingLimit == 0` mismatch are
+incidents. Everything else is the system working as designed — do not "fix" it by
+hand-applying a Job or forcing the quota; that breaks the git-only-write
+invariant and hides the real signal.
+
 ### Preemption storm at morning ramp
 
 **Trigger:** render-start p95 climbing during reclaim. **Do:** the warm floor
