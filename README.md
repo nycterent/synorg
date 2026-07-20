@@ -1,5 +1,5 @@
 # synorg platform monorepo
-Multi-region GPU compute platform on EKS. Git is the only write API; ArgoCD reconciles; policy verdicts replace approval queues. See [docs/plans/2026-07-17-001-feat-eks-gpu-platform-plan.md](docs/plans/2026-07-17-001-feat-eks-gpu-platform-plan.md) for the plan and [eks-platform.prd](eks-platform.prd) for product intent.
+Multi-region GPU compute platform on EKS. Git is the only write API; ArgoCD reconciles; policy verdicts replace approval queues. See [docs/plans/2026-07-17-001-feat-eks-gpu-platform-plan.md](docs/plans/2026-07-17-001-feat-eks-gpu-platform-plan.md) for the plan and [eks-platform.prd.md](eks-platform.prd.md) for product intent.
 ## Live runs on real GPUs
 Two live milestones on real EKS GPUs (us-east-1, g4dn):
 

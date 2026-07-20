@@ -7,7 +7,7 @@ hide:
 
 **Date:** 2026-07-17
 **Context:** GPU utilization instrumentation and the lending thesis
-(`eks-platform.prd` Success Metric 2, plan Assumption 2 / Open Question 2).
+(`eks-platform.prd.md` Success Metric 2, plan Assumption 2 / Open Question 2).
 
 ## The distinction, and why it is load-bearing
 

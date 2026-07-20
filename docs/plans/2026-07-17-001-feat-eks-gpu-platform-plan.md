@@ -3,7 +3,7 @@ title: Multi-Region GPU Compute Platform on EKS - Plan
 type: feat
 date: 2026-07-17
 deepened: 2026-07-17
-origin: eks-platform.prd
+origin: eks-platform.prd.md
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: legacy-requirements
@@ -17,7 +17,7 @@ execution: code
 ## Goal Capsule
 
 - **Objective:** End GPU double-pay by building one EKS substrate per region where prod inference holds its render-start latency floor while idle held GPUs are lent to preemptible R&D training — git as the only write API, a golden Helm chart as the deploy interface, policy verdicts replacing approval queues, and LLM agents as first-class consumers.
-- **Authority hierarchy:** `eks-platform.prd` (product intent) > this plan > repo conventions established as units land.
+- **Authority hierarchy:** `eks-platform.prd.md` (product intent) > this plan > repo conventions established as units land.
 - **Stop conditions:** Render-start p95 breach during the U10 game-day that warm-floor resizing cannot fix; compliance rejection of scrub-on-return node reuse (Assumption 6); GPU capacity release forced by any step (held capacity may not return — never descale as a side effect).
 - **Execution profile:** Infrastructure-heavy; verification is rehearsal-style (policy test suites, rendered-diff golden tests, preemption game-days) until real clusters exist. Units U1–U5 are executable against a fresh AWS account; U6+ require the pilot cluster.
 - **Tail ownership:** Fleet-shaping loop, quarterly premium review, and ECS retirement dates are operational follow-through owned by the platform team after U14.
@@ -32,7 +32,7 @@ Phased build: contract/actuation planes first (repo, ArgoCD hub-spoke, golden ch
 
 ### Problem Frame
 
-Scarce GPU capacity is rented and deliberately never descaled, because released capacity may not return. The prod inference fleet sits ~90% idle at night while R&D trains at 100% on separately-bought capacity — the company pays an availability premium on the held fleet plus full price for training. Today's platform boundary (ECS static ASGs, no scheduler-level preemption) makes lending unsafe, and deploys pass through a bespoke env-spec translated by humans across two orchestration platforms. Carried from `eks-platform.prd`.
+Scarce GPU capacity is rented and deliberately never descaled, because released capacity may not return. The prod inference fleet sits ~90% idle at night while R&D trains at 100% on separately-bought capacity — the company pays an availability premium on the held fleet plus full price for training. Today's platform boundary (ECS static ASGs, no scheduler-level preemption) makes lending unsafe, and deploys pass through a bespoke env-spec translated by humans across two orchestration platforms. Carried from `eks-platform.prd.md`.
 
 ### Requirements
 
@@ -450,7 +450,7 @@ Per-unit: the unit's Verification bullet holds with evidence linked from its lan
 
 ## Appendix: Sources
 
-- `eks-platform.prd` — origin document (problem, requirements, D1–D5, metrics, non-goals).
+- `eks-platform.prd.md` — origin document (problem, requirements, D1–D5, metrics, non-goals).
 - Kueue docs: preemption (`reclaimWithinCohort`), ClusterQueue model, Topology-Aware Scheduling — kueue.sigs.k8s.io.
 - Karpenter ODCR support (v1.3/v1.6/v1.10 staged rollout) — karpenter.sh/docs/tasks/odcrs; GPU node-repair gap — kubernetes-sigs/karpenter#2833.
 - DRA GA status and device-maintenance mode (K8s 1.34–1.36) — CNCF blog 2026-07; informs the deferred sub-node scrub option only.

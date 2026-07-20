@@ -10,12 +10,12 @@ execution: code
 
 # Walking Skeleton — Deployable Platform + Live-Cluster Test Ladder - Plan
 
-**Context:** builds on `docs/plans/2026-07-17-001-feat-eks-gpu-platform-plan.md` (the platform) and `eks-platform.prd`. This plan does not re-build the platform; it makes the existing repo **deployable and tested against real clusters** so it runs and can be built upon.
+**Context:** builds on `docs/plans/2026-07-17-001-feat-eks-gpu-platform-plan.md` (the platform) and `eks-platform.prd.md`. This plan does not re-build the platform; it makes the existing repo **deployable and tested against real clusters** so it runs and can be built upon.
 
 ## Goal Capsule
 
 - **Objective:** Turn the offline-validated repo into a walking skeleton: a thin real lending controller, a live-cluster test ladder (`kind` integration → smoke → real-GPU e2e), and a repeatable deploy — the thinnest slice through all four planes that actually runs and that every later unit extends.
-- **Authority hierarchy:** the existing platform plan + `eks-platform.prd` (product intent) > this plan > repo conventions in `docs/conventions.md`.
+- **Authority hierarchy:** the existing platform plan + `eks-platform.prd.md` (product intent) > this plan > repo conventions in `docs/conventions.md`.
 - **Stop conditions:** a test tier that passes vacuously (asserts nothing) is a defect, not a pass; the e2e tier must never release held capacity or run without explicit AWS credentials.
 - **Execution profile:** test-first where the tier is the deliverable (the tests ARE the product here); `make integration` runs on a laptop and in CI with zero cloud spend; `make e2e` is real-GPU, manual, gated.
 - **Tail ownership:** the real lending-controller operator (beyond the v0 script), MIG, and multi-region remain later increments on this skeleton.
