@@ -98,7 +98,30 @@ the mechanism that makes it large.
 - **Commitment coverage** — the largest affordability lever, verified each ledger
   review.
 
-## 7. Go / no‑go for the pilot
+## 7. Why not just…
+
+The first questions in the room, answered:
+
+- **…train on pure spot?** Spot is cheap but it's *someone else's* preemption
+  clock — AWS reclaims on its schedule, not before your morning ramp, so you
+  can't guarantee inference headroom when you need it. And it does nothing about
+  the held inference fleet, which still sits idle overnight. You'd have cheap
+  training and an unmeasured $350k burn side by side. (ADR 0005 rejects
+  hold‑warm‑floor + pure‑spot for exactly this — it guts surge readiness.)
+- **…buy more dedicated GPUs for training?** That widens the double‑pay into a
+  triple‑pay: held inference + existing training + more training, with the idle
+  burn untouched. It scales cost linearly and never asks whether the capacity you
+  already hold is earning its keep.
+- **…use Karpenter + Kueue without the lending layer?** They provision and admit,
+  but nothing makes lend → reclaim *safe against the inference SLO* — draining
+  before the ramp, scrubbing to a genuinely new instance, proving zero‑net
+  capacity release. That orchestration, and the measurement it enables, is the
+  product; the schedulers are ingredients.
+- **…do nothing?** That's the status quo the pilot exists to end: $350k/month
+  spent on faith, no `utilization‑of‑held`, no lever. "Do nothing" is not free —
+  it's the blind cost, indefinitely.
+
+## 8. Go / no‑go for the pilot
 
 A right‑sized pilot (one region, the cheap profile the e2e harness already runs —
 on the order of days and low‑hundreds of dollars in cloud, plus the platform
