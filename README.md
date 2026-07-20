@@ -81,14 +81,17 @@ in-repo:
   ahead of the ramp deadline) → node scrub onto a genuinely new instance → service
   rejoin (p95 0.047 s) → game-day storm, 2 scenarios × 3 runs, 18/18 gates → lending
   ledger zero-net-release. Log: [build/e2e/logs-20260718/](build/e2e/logs-20260718/).
-- **2026-07-19 — GitOps path + borrower drain, 8/8 from zero.** The same physics
-  re-proven on a full clean cycle where ArgoCD ApplicationSets pulling this repository
-  (and public ghcr images, the controller digest-pinned) did every deploy — the
-  direct-sync bootstrap was deleted the same day (ADR 0006). Two new assertions passed
-  first try: borrower drain and reactivation (ADR 0008 — the Kueue tail-chase fix,
-  controller 0.2.1). Exercising the sync path for the first time surfaced seven latent
-  defects — four in the GitOps path itself, three in the controller and test harness —
-  each fixed and committed the same day. Log:
+- **2026-07-19 — GitOps path + borrower drain, 8/8 functional (teardown incomplete).**
+  The same physics re-proven on a from-zero deploy where ArgoCD ApplicationSets pulling
+  this repository (and public ghcr images, the controller digest-pinned) did every
+  deploy — the direct-sync bootstrap was deleted the same day (ADR 0006). All eight
+  functional assertions passed, including two new ones first try: borrower drain and
+  reactivation (ADR 0008 — the Kueue tail-chase fix, controller 0.2.1). Exercising the
+  sync path for the first time surfaced seven latent defects, each fixed and committed
+  the same day. **Not a clean end-to-end, though:** teardown then failed on VPC/SG
+  dependency violations (manual cleanup needed) and the exit-ledger assertion flagged a
+  zero-net-release violation (the run-owned cheap ODCR was released). Read this as
+  functional single-region evidence, not a clean full-cycle success. Log:
   [build/e2e/logs-20260719/](build/e2e/logs-20260719/).
 
 > **Not yet re-validated on real GPUs:** the audit fixes merged after these runs —
