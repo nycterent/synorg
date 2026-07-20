@@ -1,0 +1,73 @@
+# Training-runs ApplicationSet — the deploy path for preemptible training jobs.
+#
+# Files under clusters/<name>/training-runs/*.yaml are training-job VALUES, not
+# manifests. The regions ApplicationSet (regions.yaml) excludes that dir; this
+# one renders each file through charts/training-job and converges it — the same
+# wiring the services ApplicationSet provides for golden-chart serving. Without
+# it, a merged, schema-valid training-run values file would never deploy (a
+# training run is otherwise an ad-hoc `helm template | kubectl apply`, off the
+# git-only-write path).
+#
+# Generator: Cluster (spoke) × Git FILE generator. The file generator emits one
+# set of params PER values file, so each run becomes its own Application and the
+# file's own contents (team, …) are available as template params.
+#
+# Rendering: multi-source Application. Source `values` is a bare repo ref (no
+# path) that the chart source references as $values; the chart source points at
+# charts/training-job and feeds the run's values file via helm.valueFiles.
+# ($values-ref is the robust multi-source pattern — valueFiles can't reliably
+# escape the chart dir upward.)
+#
+# Lifecycle note: a training Job is terminal. `prune: true` means deleting the
+# run file removes the Job (the intended cleanup gesture); a completed Job's
+# status is stable, so selfHeal does not recreate it unless the spec changes.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: training-runs
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          - clusters:
+              selector:
+                matchLabels:
+                  synorg.io/role: spoke
+          - git:
+              repoURL: https://github.com/nycterent/synorg.git
+              revision: HEAD
+              # One Application per run values file; file contents become params.
+              files:
+                - path: "clusters/{{.name}}/training-runs/*.yaml"
+  template:
+    metadata:
+      # <cluster>-run-<run-filename-without-.yaml>.
+      name: "{{.name}}-run-{{trimSuffix `.yaml` .path.filename}}"
+    spec:
+      project: default
+      sources:
+        # Bare ref: carries the git tree so the chart source can read the run's
+        # values file out of it as $values.
+        - repoURL: https://github.com/nycterent/synorg.git
+          targetRevision: HEAD
+          ref: values
+        - repoURL: https://github.com/nycterent/synorg.git
+          targetRevision: HEAD
+          path: charts/training-job
+          helm:
+            valueFiles:
+              - "$values/{{.path.path}}"
+      destination:
+        server: "{{.server}}"
+        # Training Jobs land in their owning team's namespace (conventions.md:
+        # team-<name>). The values file's `team` key drives it.
+        namespace: "team-{{.team}}"
+      syncPolicy:
+        automated:
+          selfHeal: true
+          prune: true
+        syncOptions:
+          - CreateNamespace=true
