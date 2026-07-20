@@ -68,6 +68,10 @@ Be clear about the boundary before reading further:
 The walking skeleton is real; the multi-region story is the next increment, not
 a thing already running.
 
+For the economics — what lending actually recovers (a slice, not the fleet) and
+why the pilot is worth running anyway (measured de-risking of a ~$350k/month
+standing cost) — see the [value case](docs/value-case.md).
+
 ## Live runs on real GPUs
 
 Two milestones on real EKS GPUs (us-east-1, g4dn), each a full run recorded verbatim

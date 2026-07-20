@@ -86,6 +86,7 @@ nav:
   - Explanation:
       - Architecture: explanation/architecture.md
       - Why the platform lends GPUs: explanation/why-lending.md
+      - Value case (why run the pilot): value-case.md
       - The test ladder: explanation/testing.md
       - "Learning: kernel-idle vs allocation-idle": solutions/2026-07-17-kernel-idle-vs-allocation-idle.md
 
