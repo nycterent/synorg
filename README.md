@@ -91,6 +91,13 @@ in-repo:
   each fixed and committed the same day. Log:
   [build/e2e/logs-20260719/](build/e2e/logs-20260719/).
 
+> **Not yet re-validated on real GPUs:** the audit fixes merged after these runs —
+> P0-2 warm-floor selector guard, P0-3 crash-safe reclaim, P0-4 chart digest support
+> (see [docs/audits/2026-07-20-srs-lens-infra-audit.md](docs/audits/2026-07-20-srs-lens-infra-audit.md))
+> — are covered by unit and kind-`integration` tests, **not** by a fresh full-GPU e2e.
+> The 6/6 and 8/8 above predate them. Re-run `runbooks/e2e-gpu-run.md` before treating
+> the current `main` as GPU-proven.
+
 Harness and procedure: [tests/e2e/run.sh](tests/e2e/run.sh) and
 [runbooks/e2e-gpu-run.md](runbooks/e2e-gpu-run.md). Background and requirements:
 [eks-platform.prd.md](eks-platform.prd.md) and the implementation plan under
