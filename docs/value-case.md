@@ -38,6 +38,34 @@ otherwise be bought separately. From the pilot book, ~35 lendable GPUs × the
 (Training price band $1.5–2.5/GPU‑hr, L40S‑class.) **Lending does not pay for the
 fleet.** Anyone who claims it does hasn't done this arithmetic.
 
+### What this model does not capture — and why the pilot exists
+
+The table above is a **single‑region, uniform‑workload floor of understanding**,
+not a forecast. Three drivers dominate the real answer, and none are modeled here
+because none are knowable without running it:
+
+- **Inference demand shape.** "~90% idle overnight" is an average, not a
+  guarantee. Real inference load is lumpy — spikes, timezone spread, launch
+  events. Every hour inference actually needs the lendable pool is an hour it
+  can't be lent. The clean 22:00–06:30 window is an upper bound on availability.
+- **R&D backlog alignment.** The 70% utilization number *assumes R&D always has
+  overnight work to fill 35 lent GPUs.* If the training backlog is thin, bursty,
+  or deadline‑misaligned with the window, `utilization‑of‑held` craters and the
+  recovery with it. This is the single largest swing factor, and it is a property
+  of *your* R&D org, not the platform.
+- **Regional arbitrage.** The core rationale (ADR 0001) is that GPU availability,
+  instance families, and spot/reservation dynamics differ *between regions* — so
+  work is placed where availability is. This model is single‑region and captures
+  none of it: follow‑the‑sun inference peaks, R&D data gravity that may not
+  co‑locate with idle capacity, MultiKueue cross‑region dispatch. The multi‑region
+  value could be materially higher or lower; the arithmetic here does not reach it.
+
+This is precisely why the point estimate is not the pitch. **The pilot's job is to
+measure the joint distribution of (inference demand × R&D backlog × regional
+availability) that this model assumes away** — turning a floor‑of‑understanding
+into a real one. A value case that claimed to already know these numbers would be
+the thing to distrust.
+
 ## 3. What actually justifies the held book
 
 The fleet is affordable for reasons lending only *supplements*:
