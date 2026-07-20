@@ -64,6 +64,10 @@ KUBECTL_CACHE_DIR="${KUBECTL_CACHE_DIR:-/tmp/kubectl-cache}"
 EMIT_EVENTS="${EMIT_EVENTS:-true}"
 WAVE_FIRE_WINDOW_SECONDS="${WAVE_FIRE_WINDOW_SECONDS:-300}"
 MAX_TICKS="${MAX_TICKS:-0}"
+# The never-lent warm-floor pool name (audit P0-2). validate_schedule refuses any
+# schedule whose targets.lendablePool is this pool, so a typo can never aim the
+# cordon/drain/delete machinery at the inference insurance floor (R2).
+WARM_FLOOR_POOL="${WARM_FLOOR_POOL:-gpu-warm-floor}"
 
 # kc — the single kubectl entrypoint (see RBAC-CHECK CONTRACT above).
 # --request-timeout bounds every single API request (sibling smoke.sh/test.sh
@@ -184,6 +188,15 @@ validate_schedule() {
       return 1
     fi
   done
+  # Guard (audit P0-2): the lendable pool must never be the never-lent warm
+  # floor. A schedule aiming reclaim actuation at the warm-floor pool would
+  # cordon/drain/delete the inference insurance floor (R2). Fail closed — the
+  # whole tick is skipped, exactly like any other schedule_invalid.
+  if [ "$(yq -r '.targets.lendablePool // ""' "$SCHEDULE_FILE")" = "$WARM_FLOOR_POOL" ]; then
+    log error action=schedule_invalid file="$SCHEDULE_FILE" msg="targets.lendablePool must not be the warm-floor pool '$WARM_FLOOR_POOL' — refusing to actuate against the never-lent inference floor (R2)"
+    return 1
+  fi
+
   # Strict time/day validation: every clock field must be a valid HH:MM and
   # every day a real day name BEFORE any of them reaches window/wave/curve
   # arithmetic. Any failure skips the whole tick — malformed intent must never

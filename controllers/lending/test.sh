@@ -234,6 +234,29 @@ assert_invalid_no_actuation "malformed time (opensAt \"6:3x\")" "$TMPDIR_T/bad-t
 malformed_fixture "$TMPDIR_T/bad-day.yaml" "22:00" "Funday"
 assert_invalid_no_actuation "malformed day (\"Funday\")" "$TMPDIR_T/bad-day.yaml"
 
+# audit P0-2: a schema-complete, time/day-valid schedule whose lendablePool is
+# the never-lent warm floor must be rejected — a typo here would otherwise aim
+# the cordon/drain/delete machinery at the inference insurance floor (R2). The
+# guard lives in validate_schedule, so the tick dies before any kubectl call.
+cat >"$TMPDIR_T/warm-floor-pool.yaml" <<EOF
+schemaVersion: 1
+timezone: UTC
+targets:
+  lendablePool: gpu-warm-floor
+  lentTaint: "lending.synorg.io/lent=true:NoSchedule"
+  trainingQueue: training-borrow
+windows:
+  - name: test-window
+    opensAt: "22:00"
+    closesAt: "06:30"
+    days: ["Mon"]
+borrowingLimitCurve:
+  - at: "00:00"
+    gpuLimitPct: 100
+reclaimWaves: []
+EOF
+assert_invalid_no_actuation "lendablePool is warm floor (gpu-warm-floor)" "$TMPDIR_T/warm-floor-pool.yaml"
+
 # --- live tier -------------------------------------------------------------
 
 if [ "$OFFLINE_ONLY" = "1" ]; then
