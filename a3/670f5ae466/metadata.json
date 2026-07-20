@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "a3670f5ae466",
+  "strategy": "manual-commit",
+  "branch": "fix/crash-safe-reclaim",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "controllers/lending/reconcile.sh",
+    "controllers/lending/test.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a3/670f5ae466/0/metadata.json",
+      "transcript": "/a3/670f5ae466/0/full.jsonl",
+      "compact_transcript": "/a3/670f5ae466/0/transcript.jsonl",
+      "content_hash": "/a3/670f5ae466/0/content_hash.txt",
+      "prompt": "/a3/670f5ae466/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 308,
+    "cache_creation_tokens": 1065070,
+    "cache_read_tokens": 53374449,
+    "output_tokens": 305351,
+    "api_call_count": 176
+  }
+}
