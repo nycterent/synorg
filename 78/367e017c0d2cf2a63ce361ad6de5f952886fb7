@@ -1,0 +1,60 @@
+docs/agent-interface.md
+  s_67e5a4b20e7672::t_1eca9cc35d7da0 19-20
+docs/assets/diagrams/region-set.svg
+  s_67e5a4b20e7672::t_eb730b02517619 2
+docs/assets/diagrams/preemption-timeline.svg
+  s_67e5a4b20e7672::t_eb730b02517619 2
+docs/assets/diagrams/strangler-alb.svg
+  s_67e5a4b20e7672::t_eb730b02517619 2
+docs/assets/diagrams/agent-loop.svg
+  s_67e5a4b20e7672::t_eb730b02517619 2
+docs/assets/diagrams/capacity-carve.svg
+  s_67e5a4b20e7672::t_eb730b02517619 2
+docs/explanation/architecture.md
+  s_67e5a4b20e7672::t_1eca9cc35d7da0 27-28,117-118,156-157,229
+  s_67e5a4b20e7672::t_62915636cb390e 230
+runbooks/deploy-platform.md
+  s_67e5a4b20e7672::t_1eca9cc35d7da0 16-17
+runbooks/capacity-carve.md
+  s_67e5a4b20e7672::t_1eca9cc35d7da0 10-11
+docs/assets/diagrams/architecture-planes.svg
+  s_67e5a4b20e7672::t_eb730b02517619 2
+docs/assets/diagrams/cluster-anatomy.svg
+  s_67e5a4b20e7672::t_eb730b02517619 2
+runbooks/game-day.md
+  s_67e5a4b20e7672::t_1eca9cc35d7da0 13-14
+docs/explanation/why-lending.md
+  s_67e5a4b20e7672::t_1eca9cc35d7da0 67-68
+docs/assets/diagrams/deploy-bootstrap.svg
+  s_67e5a4b20e7672::t_eb730b02517619 2
+docs/capability-tiers.md
+  s_67e5a4b20e7672::t_1eca9cc35d7da0 17-18
+runbooks/training-onboarding.md
+  s_67e5a4b20e7672::t_1eca9cc35d7da0 157-158
+docs/assets/diagrams/node-lifecycle.svg
+  s_67e5a4b20e7672::t_eb730b02517619 2
+docs/region-set.md
+  s_67e5a4b20e7672::t_1eca9cc35d7da0 35-36
+docs/assets/diagrams/game-day-timeline.svg
+  s_67e5a4b20e7672::t_eb730b02517619 2
+runbooks/service-migration.md
+  s_67e5a4b20e7672::t_1eca9cc35d7da0 17-18
+runbooks/operations.md
+  s_67e5a4b20e7672::t_1eca9cc35d7da0 53-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "78367e017c0d2cf2a63ce361ad6de5f952886fb7",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
