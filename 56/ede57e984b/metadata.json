@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "56ede57e984b",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/adr/0009-batch-inference-tier-same-domain-no-scrub.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/56/ede57e984b/0/metadata.json",
+      "transcript": "/56/ede57e984b/0/full.jsonl",
+      "compact_transcript": "/56/ede57e984b/0/transcript.jsonl",
+      "content_hash": "/56/ede57e984b/0/content_hash.txt",
+      "prompt": "/56/ede57e984b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 17206,
+    "cache_read_tokens": 2397598,
+    "output_tokens": 11392,
+    "api_call_count": 7
+  }
+}
