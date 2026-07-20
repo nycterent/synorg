@@ -78,6 +78,7 @@ nav:
       - Capability tiers: capability-tiers.md
       - Agent interface: agent-interface.md
       - SLO catalog: slo-catalog.md
+      - Operational surface: operational-surface.md
       - Region set: region-set.md
       - Capacity transition ledger: capacity-transition.md
       - env-spec retirement: env-spec-retirement.md

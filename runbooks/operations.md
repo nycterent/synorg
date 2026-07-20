@@ -45,6 +45,11 @@ or NodePools silently fall back to on-demand.
 
 ## On-call
 
+New to operating synorg? Start with the
+[operational surface map](../docs/operational-surface.md) — every component you
+now own, ranked by how often it reaches on-call, each linked to its runbook.
+
+
 The states a GPU node moves through — the machine the lending controller drives,
 and the map for the on-call tasks below:
 
