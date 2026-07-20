@@ -1,0 +1,286 @@
+/grill-me
+
+---
+
+read through the repo
+
+---
+
+value case
+
+---
+
+internalize this as a skill: https://google.github.io/building-secure-and-reliable-systems/raw/toc.html
+
+---
+
+also audit infra
+
+---
+
+<task-notification>
+<task-id>affc25172a1f2cc4c</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-503/-Users-oldroot-Repos-synorg/71960c4e-1e8a-4ef6-a286-8e810f13fe6a/tasks/affc25172a1f2cc4c.output</output-file>
+<status>completed</status>
+<summary>Agent "Audit terraform/recovery/crisis" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I have everything needed. Producing the audit.
+
+## Findings
+
+**[RECOVERY / SUPPLY CHAIN] Live ODCR apply runs on local state** — `runbooks/deploy-platform.md:57` / blast radius: region + state trust-root / likelihood: med — The bootstrap step for the single most irreversible module reads `terraform init -backend=false` with the inline comment `# wire real backend for a live apply`. The flag does the opposite of the comment: `-backend=false` skips backend init, so the following `terraform apply -var-file=held.tfvars` (which creates the `prevent_destroy` held reservations) writes **local** state — no DynamoDB lock, no S3 versioning, no shared source of truth. This directly contradicts `backend.tf.example:39-41`, which singles out this exact module: "the ODCR module especially must never race (capacity is irreversible)." A lost/laptop-local state file orphans reservations that carry `end_date_type = unlimited` + `prevent_destroy`. Fix: copy `backend.tf` into the odcr dir (unique key) and `terraform init` against the real S3+Dynamo backend before any capacity-touching apply; delete the `-backend=false` line.
+
+**[CRISIS] Break-glass is pre-authorized but not audited** — `runbooks/training-intake-break-glass.md:12-29`, `runbooks/operations.md:9,140` / blast radius: workload/region / likelihood: med — The hub-down training-intake path is well pre-authorized by condition (hub down &gt;4h AND urgent, ADR 0004) and well-bounded ("Never: patch quota… submit inference… leave as default"). But nothing on the path requires **recording the break-glass invocation** — no event, no ledger row, no post-hoc review trigger. `operations.md:140` notes hand-applying "breaks audit," yet the sanctioned break-glass writes (spoke-direct submit; "the lending controller's stop path drains lendable nodes" at `operations.md:127`) emit no audit record of who invoked them, when, or why. Pre-authorized without audited is half the control. Fix: require every break-glass action to write a timestamped record (who/why/what) and auto-open a review.
+
+**[CRISIS] No incident command structure or blameless posture defined** — `runbooks/gpu-node-quarantine.md:91`, `runbooks/node-scrub.md:111`, `runbooks/capacity-carve.md:76` / blast radius: org process / likelihood: med — Four runbooks say "open an incident" but no runbook or ADR defines **who runs it**: no Incident Commander role, no comms/scribe split, no severity ladder, no postmortem template, no blameless framing. The only "Roles" line in the corpus is service ownership (`service-migration.md:14`), not incident roles. `game-day.md:132` produces a "signed-off game-day report" but that is a gate artifact, not a retrospective. Fix: add an incident-response runbook defining IC/comms/scribe, escalation, and a blameless postmortem template.
+
+**[RECOVERY / CRISIS] Suspected-compromise recovery destroys forensic evidence** — `runbooks/operations.md:33,116-120` / blast radius: cloud-account / likelihood: low — "Rotate spoke credentials… or suspected hub compromise" and "Rebuild the hub from Terraform + git (it is fully reproducible)" give a fast, clean recovery — but on a **security** incident, rebuilding the hub from git before capturing the running state wipes exactly the evidence needed to learn how it was breached. There is no "preserve evidence before you rebuild/rotate" step anywhere. Fix: add an evidence-preservation gate (snapshot instance/EBS, export audit logs, isolate before rebuild) to the compromise path, distinct from the plain availability-outage rebuild.
+
+**[SUPPLY CHAIN / RECOVERY] Checkpoint store uses the AWS-managed KMS key with no bucket policy** — `infra/terraform/regions/pilot/checkpoint-store/main.tf:43-48` / blast radius: store / likelihood: med — `sse_algorithm = "aws:kms"` with **no `kms_master_key_id`** resolves to the account's `aws/s3` managed key, whose key policy cannot be scoped. Combined with no bucket policy (only IAM/IRSA gates access, per `outputs.tf:1-4`), any account principal holding `s3:GetObject` + the default `aws/s3` decrypt can read checkpoints. These hold arbitrary R&amp;D training state that scrub (`node-scrub.md:5-9`) treats as an untrusted trust domain versus customer-data inference — so it deserves a key with an access-scoped policy. Fix: provision a customer-managed KMS CMK with a key policy limited to the trainer IRSA roles, set `kms_master_key_id`, and add a deny-by-default bucket policy (enforce TLS + the CMK).
+
+**[SUPPLY CHAIN] Trust-root write access is unscoped in the provided config** — `infra/terraform/backend.tf.example:24-45`, `infra/terraform/mgmt/main.tf:22-28`, `infra/terraform/regions/pilot/main.tf:22` / blast radius: cloud-account / likelihood: low — State is the trust root: whoever writes `synorg-terraform-state` and runs `mgmt` (`enable_cluster_creator_admin_permissions = true`, granting the caller cluster-admin on the fleet-reconciling hub) effectively owns the cloud. The backend example sets encrypt+lock+versioning but nothing scopes **who may write the state bucket or assume the deploy identity** — no bucket policy, no MFA-delete, no note on least-privilege of the deploy role. The hub-admin concentration is documented as intentional bootstrap-then-break-glass (comments are honest about it), but the state-bucket access boundary is simply absent. Fix: ship a state-bucket policy + role guidance (least-privilege deploy role, MFA-delete, restrict `s3:PutObject` on the state prefix) alongside the example.
+
+**[CHANGING LANDSCAPE / SUPPLY CHAIN] Spoke API server default admits the entire VPC /16** — `infra/terraform/regions/pilot/main.tf:29-38`, `variables.tf:85-89` / blast radius: region / likelihood: low — `hub_ingress_cidr` defaults to `10.42.0.0/16` (the disposable e2e VPC's whole range) and is fed straight into a 443 ingress rule on the spoke API server. The comment says "scope this to the hub's actual CIDR," but the wide default is the failure mode: ship the default to prod and every host in the VPC can reach the spoke control plane. Fix: make `hub_ingress_cidr` required (no default) so a prod apply must state the hub's real narrow CIDR.
+
+**[RECOVERY] Hub-rebuild / state-restore is asserted, not rehearsed** — `runbooks/operations.md:118` / blast radius: cloud-account / likelihood: low — "Rebuild the hub from Terraform + git (it is fully reproducible)" is the stated DR path, but no runbook drills it. What *is* rehearsed is genuinely rehearsed — `game-day.md` drives real preemption, and `service-migration.md:100-103` rehearses the ALB rollback once per fleet — which makes the un-drilled hub-from-zero rebuild and state-restore the aspirational gap. Fix: add a periodic hub-rebuild + state-restore DR drill with a pass artifact, same as the game-day gate.
+
+**[RECOVERY] Checkpoint lifecycle omits incomplete-multipart-upload cleanup** — `infra/terraform/regions/pilot/checkpoint-store/main.tf:63-76` / blast radius: store / likelihood: low — The lifecycle config expires noncurrent versions only. The design writes "multi-GB checkpoint shards per node" as a concurrent burst inside a 120 s grace (`main.tf:11-16`); shards killed mid-flush at the boundary leave orphaned incomplete multipart uploads that bill indefinitely and are invisible to the versioning fallback. Fix: add `abort_incomplete_multipart_upload { days_after_initiation = 1 }`.
+
+## Checked and clean
+
+- **The one source-tree IAM wildcard is justified, not a finding** — `infra/terraform/regions/pilot/main.tf:99` `resources = ["*"]` applies only to `ec2:DescribeCapacityReservations`, which AWS does not support resource-level scoping for; the *consumption* actions `ec2:RunInstances`/`ec2:CreateFleet` are scoped to the exact held-ODCR ARNs (`main.tf:105-106`), and the whole policy is gated on `count = length(var.odcr_reservation_arns) &gt; 0` (`main.tf:91`). This is least-privilege done correctly. (All other `"*"` hits in the tree are in the vendored `.terraform/modules/karpenter` cache, out of scope.)
+- **No hardcoded secrets, account IDs, or ARNs in source** — the `[0-9]{12}`/`arn:aws`/`secret`/`token` sweep over source `.tf` returned only the SSE/versioning comment lines; ODCR ARNs flow through variables/outputs (`odcr/outputs.tf:10-13`, `pilot/variables.tf:69-73`), never literals. Inline secrets are policy-denied and ESO is namespace-scoped (`deploy-platform.md:120`).
+- **Providers hash-locked in all four roots** — `.terraform.lock.hcl` present under `mgmt`, `regions/pilot`, `regions/pilot/checkpoint-store`, `regions/pilot/odcr`, each pinning `hashicorp/aws 5.100.0` with `h1:` hashes (the `versions.tf` `~&gt; 5.0` constraint is backstopped by the lock).
+- **State backend hardened** — `backend.tf.example:41,43` sets a DynamoDB lock table and `encrypt = true`; versioning is documented as the rollback path (`:18`).
+- **Checkpoint store S3 posture solid** — versioning Enabled (`main.tf:30-36`), all four public-access-block flags true (`:52-59`), SSE on, noncurrent-version expiry (`:63-76`), `force_destroy` left default-false, FSx tier gated off by default (`variables.tf:35-39`).
+- **ODCR blast-radius discipline is excellent** — `prevent_destroy` on held reservations (`odcr/main.tf:33-35`), positive-count validation (`odcr/variables.tf:46-49`), and a `declared_instance_counts` verify-before-terminate gate (`odcr/outputs.tf:26-29`) enforced one-instance-per-invocation in `capacity-carve.md:108-114`.
+- **Private-by-default control planes** — hub and spoke API endpoints private by default (`mgmt/main.tf:17-19`, `pilot/main.tf:16`), hub admin explicitly bootstrap-then-break-glass (`mgmt/main.tf:25-28`).
+- **game-day is a real rehearsal, not checklist theatre** — real preemption, `repeatRuns` before any verdict, an abort-on-unmeasurable-evidence precondition (`game-day.md:6,28-37,103,144`), and a cross-run variance gate (`:109`).
+- **Strangler migration is incremental with a cheap rollback** — weight-flip rollback with ECS kept warm, no data migration (`service-migration.md:90-103`).
+
+## Security×reliability tradeoffs observed
+
+- **Recovery vs security (NOT handled): hub rebuild erases forensics.** Rebuild-from-git is the fast availability recovery but destroys breach evidence on a compromise (`operations.md:33,118`). Named above; no evidence-preservation step exists.
+- **Recovery vs security (NOT handled): local-state ODCR apply.** `deploy-platform.md:57` trades the shared-locking/versioning safety of the remote backend for a local apply on the most irreversible module. Named above.
+- **Availability vs cost (handled): the $350k/month held book.** ADR 0005 names the unlimited-duration ODCR hold as availability insurance and offsets the premium with training borrow, measured first-class via `utilization-of-held` + `idle-burn` against a 70% floor with a quarterly review (`0005-...:16-28`).
+- **Security vs reliability (handled): scrub-on-return.** Discarding the instance to reset the GPU trust domain (`node-scrub.md:5-9`) costs return-to-service latency; bounded by the `nodeReturnToServiceBudgetSeconds` budget (`:104`) with warm-floor-resize-first remediation (`game-day.md:114-124`) so the security reset never gets traded away for schedule progress.
+- **Availability vs security (partially handled): wide spoke-API ingress default.** `hub_ingress_cidr = 10.42.0.0/16` favors hub-reconcile reachability over tight scoping; the comment flags it but the wide default remains (`pilot/main.tf:29-38`). Named above.</result>
+<usage><subagent_tokens>121164</subagent_tokens><tool_uses>32</tool_uses><duration_ms>249929</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a800a807b63619746</task-id>
+<tool-use-id>toolu_01Bug7tvjH2qQYAJuaLZYGEg</tool-use-id>
+<output-file>/private/tmp/claude-503/-Users-oldroot-Repos-synorg/71960c4e-1e8a-4ef6-a286-8e810f13fe6a/tasks/a800a807b63619746.output</output-file>
+<status>completed</status>
+<summary>Agent "Audit identity/tenancy/supply-chain" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I have everything I need. Confirmed: **no CODEOWNERS file exists anywhere in the repo**, no ruleset/branch-protection artifact, and no auto-merge automation — yet capability-tiers.md's entire "human-by-exception" tier rests on exactly those. Here is the audit.
+
+---
+
+## Findings
+
+**[LEAST PRIVILEGE] Every generated Application runs in the wide-open `default` AppProject — the per-team scoping is exampled but never wired** — `clusters/mgmt/appsets/regions.yaml:57`, `services.yaml:45`, `training-runs.yaml:50`, `observability.yaml:37,109`
+- Blast radius: **fleet**
+- Likelihood: **med**
+- All five ApplicationSets set `project: default`. ArgoCD's built-in `default` project permits all sourceRepos, all destinations (`namespace: '*'`, `server: '*'`), and all cluster/namespace resources. The one scoped project — `appproject-example.yaml` (namespace-locked, `clusterResourceWhitelist: []`, line 19-23) — is a copy-me example referenced by nothing. Destination namespaces are templated from untrusted file content (`namespace: "team-{{.team}}"` services.yaml:62, `"{{.path.basename}}"` regions.yaml:65), so a values/overlay file naming `kube-system` — or declaring a cluster-scoped resource — deploys there unopposed. The tenancy partition the AppProject exists to provide is not in force.
+- Fix: bind each generated Application to a per-team AppProject (template `project: team-{{.team}}`) and restrict `default`.
+
+**[UNDERSTANDABILITY / SUPPLY CHAIN] The "human-by-exception" tier claims branch-protection + path-scoped required reviewers that exist nowhere in the repo** — `docs/capability-tiers.md:24,42-48`
+- Blast radius: **fleet** (prod topology, quota, NodePool changes)
+- Likelihood: **med**
+- The doc calls this a "technical gate (a required review that cannot be dismissed by the author)... proven by repo settings (branch protection + path-scoped required reviewers)." GitHub path-scoped required reviewers *require a CODEOWNERS file* — there is none (`find` returns nothing; `.github/` holds only workflows). No ruleset artifact either. The load-bearing control for the highest-blast-radius tier is an unversioned, unauditable, and currently-unproven GitHub setting. Since no admission policy backs this tier (capability-tiers.md:42-44 says so explicitly), a schema-valid NodePool/quota PR would pass `make validate` and nothing in-repo stops its merge.
+- Fix: commit a CODEOWNERS with path rules for `infra/terraform/**`, NodePool/quota overlays, and check in the branch-protection ruleset as code.
+
+**[SUPPLY CHAIN] Workloads run by mutable image tag with no provenance/signature/digest, and a values-only image bump auto-merges with no human** — `charts/training-job/templates/job.yaml:60`, `docs/agent-interface.md:49`, `docs/capability-tiers.md:23`, ADR `0007:13-19`
+- Blast radius: **region / single-workload** (prod serving + training)
+- Likelihood: **med**
+- Images resolve as `{{ .Values.image.repository }}:{{ .Values.image.tag }}` — a mutable tag an agent supplies in a values file. Images are public on ghcr, pulled without auth (ADR 0007:16-19), with no cosign/binary-authorization admission check anywhere in `policies/`. capability-tiers.md:23 puts "values-only prod image bump" in the **autonomous** (auto-merge, no human) lane. So an agent identity can repoint a prod service at an arbitrary tag with no second party and no verification that the image matches reviewed source — the exact "is the code that runs the code you reviewed?" gap. No policy restricts `image.repository` to the canonical registry either.
+- Fix: require digest-pinned images from `ghcr.io/nycterent/*` via an admission policy, and verify provenance (cosign) at deploy.
+
+**[SUPPLY CHAIN] All ApplicationSets track mutable `HEAD` with `selfHeal: true` + `prune: true` — a merge auto-deploys fleet-wide with no provenance gate beyond git** — `regions.yaml:42,60,67-69`; `services.yaml:51,53,63-65`; `training-runs.yaml:55,58,68-70`
+- Blast radius: **fleet**
+- Likelihood: **med**
+- `revision: HEAD` / `targetRevision: HEAD` plus automated self-heal means whatever lands on the default branch reconciles onto every spoke automatically. The only gate between "commit on main" and "running fleet-wide" is git review — which (finding #2) has no enforced reviewer. There is no signed-tag or commit-digest pin and no admission-time provenance verification.
+- Fix: pin `targetRevision` to signed release tags/commit digests promoted through a gated step, not the branch head.
+
+**[SECURITY×RELIABILITY] Kyverno `Enforce` webhooks gate all Pod/Secret creation fleet-wide with no documented break-glass for a policy-engine outage** — `tenancy-guard.yaml:16` (matches all Pods), `require-team-label.yaml:14`, `deny-inline-secrets.yaml:16`
+- Blast radius: **fleet**
+- Likelihood: **low-med** (outage-triggered)
+- `tenancy-guard` and `require-team-label` match every Pod and run `validationFailureAction: Enforce` through the Kyverno admission webhook. A Kyverno outage (default webhook `failurePolicy: Fail`) fails closed and blocks *all* pod creation across the fleet. The least-privilege reference (Ch.5, "fail safe... but pair with break-glass") warns about exactly this; no cached fallback or documented escape hatch for a policy-engine outage appears anywhere in scope.
+- Fix: document a break-glass (scoped `failurePolicy` carve-out or webhook-bypass runbook) and alert on Kyverno availability.
+
+**[SUPPLY CHAIN] Third-party Helm charts pulled at sync time on floating minor ranges, no digest** — `observability.yaml:43` (`kube-prometheus-stack` `targetRevision: "65.x"`), `observability.yaml:113` (`dcgm-exporter` `"3.x"`)
+- Blast radius: **fleet** (both install into every spoke, one as a privileged GPU DaemonSet)
+- Likelihood: **med**
+- `65.x` / `3.x` resolve to whatever the upstream repo publishes at sync time from `prometheus-community` / `nvidia` — mutable, unreviewed code fetched from external hosts. The file even carries a TODO admitting it ("targetRevision pinned to a digest in a follow-up," line 42).
+- Fix: pin both to exact chart versions/digests.
+
+**[LEAST PRIVILEGE] The autonomous lane collapses separation of duties — agent authors and CI is the only gate, with no CODEOWNERS to require a second party** — `docs/capability-tiers.md:23,29-33`, `docs/agent-interface.md:87,116-118`
+- Blast radius: **region**
+- Likelihood: **med**
+- "An agent-authored, namespace-scoped, non-prod change auto-passes the autonomous gate under the agent's identity" — author = approver = (via HEAD auto-sync) deployer. This is a deliberate R7 design choice, but with no CODEOWNERS (finding #2) and `project: default` (finding #1), the boundary that's supposed to confine the autonomous lane to "namespace-scoped non-prod" is not technically enforced — only `make validate` schema-checks it.
+- Fix: enforce the tier boundary technically (per-team AppProject + admission policy on prod/cluster-scoped paths), not by lane convention.
+
+**[SECURITY] Generated training default-deny-egress ships a `10.0.0.0/8` egress allow placeholder** — `policies/kyverno/lendable-networkpolicy.yaml:56-61`
+- Blast radius: **namespace** (every training namespace)
+- Likelihood: **med**
+- The "checkpoint store only" egress rule allows the entire RFC1918 `10.0.0.0/8` on :443. The comment says it's "pinned per region in the cluster overlay before rollout" (line 54-55) — but if an overlay forgets, training pods on lendable/shared nodes reach all of 10/8, defeating the "no route to customer-data services" intent the policy's own description states (line 10-13).
+- Fix: leave the CIDR unset/invalid so it fails loudly, or template it as a required overlay value.
+
+**[LEAST PRIVILEGE] Training trainer container has no securityContext (may run as root) on lendable co-tenancy nodes** — `charts/training-job/templates/job.yaml:58-116`
+- Blast radius: **single-workload / node**
+- Likelihood: **med**
+- The trainer container sets no `runAsNonRoot`, `readOnlyRootFilesystem`, or capability drop — contrast the careful `controllers/lending/Dockerfile:33-34` (numeric non-root UID, RO-rootfs). Training runs on `gpu-lendable` nodes that are "reclaimed and scrubbed for R&amp;D" (tenancy-guard.yaml:34) — a root container there widens the node-compromise surface on shared hardware.
+- Fix: add a hardened pod/container `securityContext` to the chart.
+
+**[UNDERSTANDABILITY] `eso-namespace-scope` verifies `SecretStore.name == namespace`, which mis-models store ownership (over-denies valid names, weak guarantee)** — `policies/kyverno/eso-namespace-scope.yaml:65-68,76-81`
+- Blast radius: **namespace**
+- Likelihood: **low**
+- The `secretstore-ref-namespace-local` rule denies when `secretStoreRef.name != request.namespace`. A conventionally-named store like `team-foo-store` in namespace `team-foo` is denied (name ≠ namespace), while the check only actually confirms string-equality to the namespace — it does not verify the store *belongs* to the namespace. The stated invariant ("may not name another team's namespace store") is not what the CEL computes.
+- Fix: match the store's namespace, not a name-equals-namespace heuristic.
+
+**[UNDERSTANDABILITY] `deny-cross-namespace-refs` is framed as a cross-tenant secret-access control but only enforces a naming lint** — `policies/vap/deny-cross-namespace-refs.yaml:42-56`, `docs/capability-tiers.md:58`, `policies/README.md:32`
+- Blast radius: n/a (defense-in-depth)
+- Likelihood: **low**
+- Kubernetes already resolves `secretName`/`configMap.name` in the pod's *own* namespace — a pod cannot mount another namespace's Secret. The VAP's real check is "a `team-`prefixed reference name must equal your namespace," i.e. naming hygiene, not the load-bearing cross-tenant control the docs imply (listed under "never tier... cross-tenant references"). Fine as defense-in-depth, but the stated invariant overclaims what enforces tenant isolation.
+- Fix: relabel the doc/README to describe it as a naming guard; note namespace isolation is the actual control.
+
+**[LEAST PRIVILEGE] Break-glass paths are documented but not stated to alert/audit; ghcr push uses a classic PAT** — ADR `0004:16-21`, ADR `0007:23-24`
+- Blast radius: **fleet** (hub) / registry
+- Likelihood: **low**
+- ADR 0004's spoke-direct break-glass gives a trigger condition but never says the bypass is logged, alerted, or reviewed-after-use — the least-privilege bar for break-glass (Ch.5). (`regions.yaml:20-21` asserts hub syncs "are alerted on," but that alert config is not in the repo.) ADR 0007 provisions ghcr push via "a classic PAT with `write:packages`" — a broad, long-lived, standing credential whose holder can overwrite any public image tag (compounding finding #3).
+- Fix: emit an audit/alert event on break-glass use; replace the classic PAT with a fine-grained token or OIDC-federated push.
+
+**[SUPPLY CHAIN] `validate`, `integration`, `nightly` workflows set no `permissions:` block and download toolchains without checksum** — `validate.yaml` (no `permissions`), `integration.yaml`, `nightly-full-validate.yaml`; `validate.yaml:29-31`, `integration.yaml:54-56`
+- Blast radius: **repo**
+- Likelihood: **low-med**
+- Unlike `e2e.yaml:36-38` and `docs.yaml:9-12` (which scope the token), these three inherit the repo-default `GITHUB_TOKEN` scope — write, if the repo default is permissive. They also `curl | tar` helm/kubeconform/kyverno/kind with no sha256 verification (versions are pinned, integrity rides on TLS). Third-party actions are pinned to mutable major tags (`actions/checkout@v4`, `aws-actions/configure-aws-credentials@v4` — the last mints AWS creds via OIDC), not commit SHAs.
+- Fix: add `permissions: contents: read`, verify tool checksums, and pin actions to SHAs.
+
+---
+
+## Checked and clean
+
+- **`deny-cross-namespace-refs` VAP is genuinely enforced, not just documented** — `Deny` binding, CEL, `failurePolicy: Fail`, at admission — `policies/vap/deny-cross-namespace-refs.yaml:11,58-65` (caveat: guarantee is narrower than framed — see findings).
+- **`tenancy-guard` actually denies the R9-violating tolerations at admission** (`Enforce`), both customer-data→lendable and training→warm-floor — `tenancy-guard.yaml:16,37-42,61-66`.
+- **`require-team-label` hard-denies GPU pods lacking `team.synorg.io/name`** (`Enforce`), scoped precisely to pods that request `nvidia.com/gpu` — `require-team-label.yaml:14,26-29,35-40`.
+- **`lendable-networkpolicy` generate rule is drift-corrected** — `synchronize: true` + `generateExisting: true` mean a deleted/edited NetworkPolicy is regenerated — `lendable-networkpolicy.yaml:32-33`.
+- **`e2e.yaml` is a model least-privilege CI surface** — `workflow_dispatch` only, double-confirm gate before any cloud call, OIDC (no static keys), an assume-role whose scope explicitly *excludes* `ec2:CancelCapacityReservation`, and teardown in an `always()` step with its own timeout — `e2e.yaml:1-16,19,36-38,53-56,71-74,111-123`.
+- **ArgoCD hub is hardened against imperative access** — `exec.enabled: "false"`, `server.insecure: false`, Dex disabled, and `Prune=false` so a bad sync can't self-delete the hub — `install.yaml:17-18,32,35,52`.
+- **Read-only deploy key for ArgoCD repo access and per-spoke scoped/rotated credentials (not fleet admin)** are the stated design — ADR `0006:18-19`, `regions.yaml:16-21`.
+- **`validate.yaml` uses `pull_request`, not `pull_request_target`** — untrusted fork code never runs with secrets or a write token; the base-SHA `git checkout` renders only within the PR checkout — `validate.yaml:3,50-57`.
+- **`deny-inline-secrets` enforces ESO-only secret material** in team namespaces (`Enforce`), allowing through only ESO-stamped Secrets — `deny-inline-secrets.yaml:14,40-50`.
+- **`controllers/lending/Dockerfile` is solid supply-chain hygiene** — numeric non-root UID `65532`, RO-rootfs-compatible, kubectl sha256-verified against the published checksum, `apk del curl` after use, with the yq no-checksum gap explicitly acknowledged in a comment — `Dockerfile:19-28,33-34`.
+
+## Security×reliability tradeoffs observed
+
+- **Fail-closed Kyverno admission gating all pod creation, no break-glass** (finding #5). A Kyverno outage denies every Pod fleet-wide. Named by the design as `Enforce` but the outage escape hatch is **not handled** — no cached fallback or documented bypass in scope.
+- **`deny-cross-namespace-refs` VAP is `failurePolicy: Fail` bound cluster-wide** (`namespaceSelector: {}`, `policies/vap/deny-cross-namespace-refs.yaml:12,68-69`). A CEL evaluation error would deny pods in every namespace including `kube-system`. **Mostly handled** by it being a built-in in-process VAP (no webhook/network dependency), so the only trigger is a CEL bug, not an operational outage — a materially safer fail-closed than the Kyverno webhook above. The README's "binding to all namespaces costs nothing" (line 66-67) is true for latency but understates this blast radius.
+- **HEAD auto-sync with `selfHeal: true` + `prune: true`** (findings #1, #4) is a reliability feature (drift auto-correction) that doubles as the fleet-wide auto-deploy blast-radius amplifier. The `observability.yaml:9` note records the inverse failure — a mis-placed Application "retried forever," a reliability outage caused by a sync-topology mistake — showing the auto-sync coupling cuts both ways. Partially handled (self-heal is deliberate); the provenance gap on the input side is not.
+- **ADR 0004 accepts a hub-outage training-intake pause as the safe default** (`0004:11-16`) — a clean, explicitly-named availability-vs-simplicity tradeoff (reject hub HA until multi-region need). Handled and reasoned; the only gap is the break-glass audit/alerting (finding #12).
+
+All findings are grounded in files read this session; nothing above is inferred from code outside the audited scope (RBAC bindings, cluster secrets, the referenced runbooks, and GitHub repo settings were out of scope and are flagged where a claim depends on them).</result>
+<usage><subagent_tokens>124912</subagent_tokens><tool_uses>31</tool_uses><duration_ms>327408</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a5d241d5b532afa7d</task-id>
+<tool-use-id>toolu_016nn1W4SftmaBWLKWyDKerT</tool-use-id>
+<output-file>/private/tmp/claude-503/-Users-oldroot-Repos-synorg/71960c4e-1e8a-4ef6-a286-8e810f13fe6a/tasks/a5d241d5b532afa7d.output</output-file>
+<status>completed</status>
+<summary>Agent "Audit resilience/DoS/lending" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I have everything I need. Here is the audit.
+
+## Findings
+
+**[RESILIENCE] A crash between `cordon` and `nodeclaim delete` strands a lent node that both reclaim paths then deliberately skip** — `controllers/lending/reconcile.sh:274-283` / blast: pool+workload / likelihood: med. `reclaim_node` cordons (`:274`), drains (`:276`, up to `grace*3` = 360s), then deletes the NodeClaim (`:280`) — non-atomic. The idempotency guard that makes re-fires safe is also the trap: `reconcile_taints` skips any cordoned node as an "in-flight reclaim" (`:330-331` `[ "$cordoned" != "true" ] || continue`) and `reconcile_waves` excludes cordoned nodes from selection (`:521` `select(.spec.unschedulable != true)`). Those guards are only valid while the process that cordoned the node is still alive to finish it. If the pod dies during the ~360s drain window (OOM, deploy rollover, node loss), the node comes back **cordoned + still lent + still running training**, and there is no reconciler that resumes an interrupted reclaim — both paths treat it as "someone else is handling it." It sits lent past the ramp; only the warm floor saves inference. The once-per-occurrence marker is touched *before* the loop (`:517`), so the wave won't re-fire either. Fix direction: on each tick, actively re-drive cordoned-lent nodes toward completion (re-issue drain + NodeClaim-delete) rather than skipping them; distinguish "cordoned by a live in-flight reclaim" from "cordoned and abandoned" via a timestamp/annotation.
+
+**[RESILIENCE] The warm floor is not isolated from the reclaimer — a single schedule field aims the full cordon/drain/terminate machinery, and schedule PRs ride the auto-approved lane** — `clusters/pilot/lending/lending-controller.yaml:61-70`, `clusters/pilot/lending/schedule.yaml:43` / blast: fleet (the inference floor itself) / likelihood: low, consequence catastrophic. The ClusterRole grants `nodes` patch/update and `nodeclaims` delete **cluster-wide, unrestricted** (`:61-63`, `:68-70`). The only thing keeping reclaim off the warm floor is the code selector `karpenter.sh/nodepool=$pool` where `pool` = `targets.lendablePool` read straight from the schedule (`reconcile.sh:306,:375,:520`). Warm floor and lendable share the same EC2NodeClass, instance types, and ODCR pool (`nodepool-gpu-warm-floor.yaml:39-45` vs `nodepool-gpu-lendable.yaml:29-35`) — they differ only by label/taint. `validate_schedule` never checks that `lendablePool` is actually the lendable pool. A schedule setting `lendablePool: gpu-warm-floor` would cordon+drain+delete-NodeClaim the never-lent inference floor — and the floor's protections (balloon + `budgets: nodes:"0"`, `nodepool-gpu-warm-floor.yaml:50-51`) only stop *Karpenter* voluntary consolidation, not an external NodeClaim delete. Worse, the evidence plane targets an 80% auto-approval share for PRs (`recording-rules.yaml:114-122`, `slo-definitions.yaml:98-104`), and the schedule ConfigMap is "the ONLY write path" (`schedule.yaml:1-5`) — so a malformed pool value could merge without human review. Fix direction: pin the pool selector to a constant (or add a validate_schedule assertion that `lendablePool != gpu-warm-floor`), and require human approval on schedule.yaml diffs.
+
+**[CHANGING LANDSCAPE] No fast kill switch and no abort — the only lending write path is a git PR, and the one way to "stop now" triggers an un-staged mass reclaim** — `clusters/pilot/lending/schedule.yaml:1-8`, `controllers/lending/reconcile.sh:318-344` / blast: fleet / likelihood: med. There is no `lendingEnabled: false` flag and no break-glass. To stop lending under incident you either open a PR (CI + merge + ArgoCD sync — not seconds-fast) or scale the Deployment to 0, which *freezes* state (cordoned nodes stay cordoned, drained borrowers stay `spec.active=false` until phase exit). And narrowing the window to force a stop is not gentle: `reconcile_taints` on close iterates **every** still-lent un-cordoned node and calls `reclaim_node` on each in one tick with no `reclaimFraction` staging (`:318-344`) — the staged waves (`schedule.yaml:82-96`) apply only to scheduled reclaim, not to a window-close reclaim. So "close the window now" = the `storm-all-at-once` case, absorbed only because the warm floor backstops it (`scenarios.yaml:96-115`). The changing-landscape lens wants a *governed fast path*; a git round-trip is governed but not fast. Fix direction: a controller-honored pause flag (env or a dedicated ConfigMap key) that halts new actuation without freezing recovery, plus a documented emergency abort.
+
+**[DoS] No per-tenant quota — every training team shares one `training-borrow` ClusterQueue, so one team can consume the entire borrow limit** — `clusters/pilot/kueue/clusterqueue-training-borrow.yaml:41-60`, `clusters/pilot/kueue/localqueue-team-example.yaml:20-26` / blast: workload (other training tenants; inference unaffected) / likelihood: med. Each team's LocalQueue forwards to the same `training-borrow` (`localqueue-team-example.yaml:26`, README `:1-6`), which has a single `borrowingLimit` and no per-team `nominalQuota`. `withinClusterQueue: LowerPriority` (`:32`) lets a higher-priority job preempt a lower one, but among equal-priority jobs it is first-come: one team submitting a wave of jobs starves the rest. Kueue *attributes* usage per team (`recording-rules.yaml:65-71`) but does not *limit* it — the DoS ref's "per-tenant quotas stop one tenant exhausting shared capacity" is unmet. ADR 0008 (`:27-28`) notes the queue-wide design is intentional but conditional. Fix direction: per-team LocalQueue/ClusterQueue quotas within the cohort, or borrowingLimit-per-flavor sub-splits, before onboarding a second team.
+
+**[RECOVERY] Liveness is loop-alive, not tick-success; a single replica + Recreate + 300s staleness can silently miss a 300s wave-fire window with no standby** — `clusters/pilot/lending/lending-controller.yaml:169-171,:227-235`, `controllers/lending/reconcile.sh:507,:577,:584` / blast: pool / likelihood: med. The heartbeat is touched after *every* tick including handled failures and `schedule_invalid` skips (`:584`, README `:155-166`), so a controller that is alive but failing every kubectl call (blind, API down, RBAC revoked) never restarts and never trips liveness — during the morning reclaim it would silently fail to reclaim, invisible except via the render-latency SLO. Compounding it: `replicas: 1` + `strategy: Recreate` (`:169-171`) with no leader-elected standby (deferred, `:200-203`), and a wave stays due only `WAVE_FIRE_WINDOW_SECONDS` = 300s (`reconcile.sh:507`) while the liveness staleness threshold is also 300s with `failureThreshold: 3` — a wedged controller can take longer to be killed + rescheduled than the wave's fire window, so a wave is missed outright with nothing covering the gap until the window-close mass reclaim. Fix direction: a tick-success signal (metric/readiness) wired to an alert, and bring forward leader election so a standby can take over within a wave window.
+
+**[RESILIENCE] "Reclaim beats the ramp" is schedule-authored, not enforced in code** — `controllers/lending/README.md:81-83`, `clusters/pilot/lending/schedule.yaml:36,:98-102` / blast: pool / likelihood: low. `productionRampAt` (07:00) and `nodeReturnToServiceBudgetSeconds` (600s) are read but **not actuated** by v0 — waves fire at hardcoded `startsAt` times, not at a lead-time computed back from the ramp. The 30-minute margin between the 06:30 close and the 07:00 ramp is a human-authored constant, not a guarantee the controller can defend if a wave is slow or missed. Fix direction: compute wave lead time from the return budget vs the ramp (the documented real-operator scope), and alert if remaining-lent-nodes × return-budget won't clear before ramp.
+
+**[CHANGING LANDSCAPE] Node AMI pinned to `al2023@latest` — scrubbed nodes reboot on a moving target** — `clusters/pilot/karpenter/ec2nodeclass-gpu-held.yaml:14-15`, `ec2nodeclass-web.yaml:8-9` / blast: pool / likelihood: low. The scrub-by-termination model returns "a fresh instance booting a fresh AMI" (`lending-controller.yaml:64-66`); with `@latest` that AMI can silently change under you, so a reclaimed node can come back behaving differently than it left — a latent surprise exactly during the reclaim critical path. The file comment admits it's a scaffold placeholder (`:12-13`). Fix direction: pin the AMI to a digest/version, as the comment already plans.
+
+**[DoS] Inference HPA scales on CPU only for a GPU service; the render endpoint has no app-layer shedding** — `charts/golden-service/templates/hpa.yaml:16-21`, `rehearsal/loadgen.yaml:49-52` / blast: workload / likelihood: low. CPU utilization is a poor proxy for GPU-bound inference load, so the HPA is a weak/mismatched signal; the real render-path protection is warm floor + PriorityClass preemption, which is sound, but there is no rate-limit or load-shedding on the render endpoint itself (the loadgen hits it raw at 4000 RPS). The DoS lens' "autoscaling is not a defense by itself" applies. Fix direction: scale on a GPU/latency custom metric and add request-level shedding at the inference gateway.
+
+## Checked and clean
+
+- **Staged reclaim + non-compounding once-semantics is real.** Waves at 0.25/0.50/1.0 (`schedule.yaml:82-96`); the fired-marker keys on `date + index + startsAt` (`reconcile.sh:515-517`) so game-day re-drives correctly re-fire, and selection excludes already-cordoned nodes (`:521`) as a structural backstop so even a marker-loss re-fire cannot re-count an in-flight reclaim (`:474-484`). Genuinely prevents `1-(1-f)^n` compounding.
+- **Malformed schedule fails closed before any kubectl.** `validate_schedule` (`:170-228`) gates schemaVersion, required fields, strict `HH:MM` via `valid_hm` (`:162-166`), and day names; `tick` returns on failure before actuation (`:548`), the loop survives and never crash-loops (`:581`), and `test.sh:217-235` asserts no `action=(tick|taint|reclaim|...)` line ever appears on garbage input. The `valid_hm` gate specifically closes the "arithmetic-error-reads-as-window-closed" mass-untaint bug.
+- **Inference/training isolation is strong and layered.** Inference never enters Kueue (`clusterqueue-training-borrow.yaml:11-19`); it preempts via PriorityClass `inference-critical` 1000000 (`priorityclasses.yaml:8-16`) while `training-preemptible` is `preemptionPolicy: Never` (`:24-28`) — one-directional. Training tolerates only lendable taints, never warm-floor (`resourceflavors.yaml:16-20,:33-41`), so borrowing cannot overrun the floor. Warm-floor balloon (value -10, instant-preempt, `warm-floor-balloon.yaml:22-29`) plus `budgets: nodes:"0"` (`nodepool-gpu-warm-floor.yaml:50-51`) hold the floor against consolidation.
+- **RBAC drift-trap and the offline RBAC-subset check.** The ClusterRole deliberately grants no NodePool/EC2NodeClass verbs (`lending-controller.yaml:44-51`), preventing the whole-pool-replacement drift bug; `test.sh:55-170` parses every `kc` invocation, maps it to (group, resource, verb), and fails closed on anything unmapped — a real "uses only granted verbs" proof runnable without a cluster.
+- **The in-cluster-config blind-spot is found and fixed.** `materialize_incluster_kubeconfig` (`:76-107`) documents a live EKS failure where `--request-timeout` disabled kubectl's in-cluster fallback (controller dialed localhost:8080 and went blind) and materializes an explicit token-file kubeconfig; `kc`'s `--request-timeout=30s` (`:74`) bounds every request so a stalled API server can't wedge a tick.
+- **Close transition never bare-untaints.** Still-lent nodes route through the same `reclaim_node` path as waves and untaint only on explicitly logged degraded paths (`:301-344`), verified by the close-boundary test (`test.sh:377-398`). The degraded EKS-no-NodeClaim path leaves the node cordoned+parked rather than returning it unscrubbed to inference (`:285-286`) — isolation over availability.
+- **Borrower drain is level-triggered and conservative.** Only reactivates Workloads it annotated (`:463-470`, "a Workload a human deactivated is not ours to resurrect" `:443-444`); taint transitions act only on real change (`:322,:327`); event emission is non-fatal (`:129`). Controller image is digest-pinned (`lending-controller.yaml:198`).
+- **Game-day rehearses the reclaim shapes and the driver-wedge quarantine.** `scenarios.yaml` covers staged/compressed/storm/failure-injection, and the storm case explicitly asserts the warm floor holds R2 with no stagger (`:96-115`); gates read `*_over_time` windows to survive the stale-during-reclaim gap (`:19-25`).
+
+## Security × reliability tradeoffs observed
+
+- **Idempotency vs crash-resumption (the crown-jewel tension).** The "skip cordoned = in-flight reclaim" rule (`reconcile.sh:330-331,:521`) is exactly what makes re-fires safe *and* what strands a node when the process dies mid-reclaim. The design bought double-act safety at the cost of crash-resume safety; it needs both. Currently the warm floor is the only thing covering the gap.
+- **Scrub-safety vs availability, un-timed against the ramp.** The controller correctly prefers isolation (park an unscrubbable node rather than return training's VRAM residue to inference, `:285-286`) — but it does **not** compute whether reclaim beats the 07:00 ramp: `productionRampAt` / `nodeReturnToServiceBudgetSeconds` are read-only (README `:81-83`). So "beat the deadline" is schedule-authored + warm-floor-backstopped, not code-guaranteed. Honest for a v0 skeleton, but the deadline the whole system exists to protect is not enforced by the actuator.
+- **GitOps integrity vs incident speed.** Making git "the ONLY write path" (`schedule.yaml:1-5`) is a strong attribution/integrity property and the right default — but it removes the fast, governed emergency lever the changing-landscape lens demands, and the only in-band "stop" (narrow the window) fires an un-staged storm reclaim. The two goals are in genuine tension and currently resolve entirely toward integrity.
+- **Simplicity vs tenant isolation.** One shared `training-borrow` queue keeps the model simple and the taints pin training to one pool (ADR 0008 `:27-28`), but it defers all per-tenant DoS protection — acceptable at one pilot team, a gap the moment a second team onboards.</result>
+<usage><subagent_tokens>146138</subagent_tokens><tool_uses>29</tool_uses><duration_ms>358741</duration_ms></usage>
+</task-notification>
+
+---
+
+resume
+
+---
+
+(b)-with-a-twist
+
+---
+
+search internet for aws availability of gpu instances on deamnd
+
+---
+
+a cant shrink, but also the q is - why rnd and prod are using different gpu clusters in the real world?
+
+---
+
+a cant shrink, but also the q is - why rnd and prod are using different gpu clusters in the real world? and if there is a way to solve contradictions in any  other way than separating the?
+
+---
+
+what is not clear for me is what happens during day, when both prod and rnd needs hw?
+
+---
+
+but if we do not release the hw - then it ought to be enough during day time to run rnd anyway?
+
+---
+
+well i mean - why would be need to use it? i mean - economically? oh, wait, we have three types of workload - batch (text to video, say), realtime (interactive) and rnd (batch, but maybe different sla)
+
+---
+
+consider that synorg services internal customer that provides services b2b
+
+---
+
+a
+
+---
+
+approved
+
+---
+
+De-dash / tighten pass

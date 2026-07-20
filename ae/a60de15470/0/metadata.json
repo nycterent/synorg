@@ -1,0 +1,283 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "aea60de15470",
+  "session_id": "71960c4e-1e8a-4ef6-a286-8e810f13fe6a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-20T15:38:33.569413Z",
+  "branch": "main",
+  "checkpoints_count": 40,
+  "save_step_count": 16,
+  "files_touched": [
+    "docs/value-case.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8[1m]",
+  "turn_id": "9a01c8f21549",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 156,
+    "cache_creation_tokens": 353874,
+    "cache_read_tokens": 17674451,
+    "output_tokens": 146600,
+    "api_call_count": 91
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-grill-me-2026-07-20T11:27:50.212146Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "grill-me"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "b8637a7c76bf",
+      "timestamp": "2026-07-20T11:27:50.212146Z",
+      "native": {
+        "command": "/grill-me"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/grill-me",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01EsCPG1Bves2XigUcCYipi6",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "grilling"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "9a01c8f21549",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 25,
+        "end": 26,
+        "entry_ids": [
+          "6d81b8f8-83c6-494f-964c-4377d8908d78"
+        ],
+        "tool_use_id": "toolu_01EsCPG1Bves2XigUcCYipi6"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01EsCPG1Bves2XigUcCYipi6"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: grilling",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01X6e6NUQZ2rFpdMA219mtEe",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "skill-creator:skill-creator"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "9a01c8f21549",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 133,
+        "end": 134,
+        "entry_ids": [
+          "8ef6505e-be22-4d1d-b026-8f24a441e1fd"
+        ],
+        "tool_use_id": "toolu_01X6e6NUQZ2rFpdMA219mtEe"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01X6e6NUQZ2rFpdMA219mtEe"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: skill-creator:skill-creator",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01HksHRWmZvrmNXCB4uXyWC1",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "secure-reliable-systems"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "9a01c8f21549",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 326,
+        "end": 327,
+        "entry_ids": [
+          "a2a251a0-cee3-46ee-8d10-3baba9ac8b3a"
+        ],
+        "tool_use_id": "toolu_01HksHRWmZvrmNXCB4uXyWC1"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01HksHRWmZvrmNXCB4uXyWC1"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: secure-reliable-systems",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 40
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-20T15:38:33.498865Z",
+    "agent_lines": 242,
+    "agent_removed": 121,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 242,
+    "total_lines_changed": 363,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 322,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".codex/config.toml": 3,
+        ".codex/hooks.json": 52,
+        ".opencode/plugins/entire.ts": 267
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 634,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 634,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 634,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 634,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 634,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 634,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 634,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 634,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 634,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 12,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 634,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 13,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 634,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 14,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 15,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 870,
+      "agent_lines_removed": 114
+    },
+    {
+      "checkpoint_number": 16,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 17,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 876,
+      "agent_lines_removed": 121
+    }
+  ]
+}
