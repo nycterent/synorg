@@ -1,0 +1,20 @@
+scripts/build-diagrams.sh
+  s_67e5a4b20e7672::t_052de264072b2d 14-32
+  s_67e5a4b20e7672::t_d862e85b708a1c 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "0d2c8448213df9155fe9fa9b9e08194f1159c0c8",
+  "prompts": {},
+  "sessions": {
+    "s_67e5a4b20e7672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8973b50-ebe2-4b0a-ac49-a57236234dc3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
