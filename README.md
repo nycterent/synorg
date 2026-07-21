@@ -104,13 +104,20 @@ in-repo:
 ## Explainers (generated)
 
 Orientation aids generated with NotebookLM from this repository's docs (2026-07-21).
-Where they simplify or overstate, the README and docs are the source of truth — in
-particular, the deck's "Empirical Proof" page omits the 2026-07-19 teardown failure
-and exit-ledger violation described above.
+Where they simplify or overstate, the README and docs are the source of truth.
 
 - [73-second video — how capacity lending works](docs/assets/media/how-gpu-capacity-lending-works.mp4)
 - [10-page visual deck — value case, topology, lifecycle, governance](docs/assets/media/algorithmic-value-engine.pdf)
 - [One-page infographic — the 24-hour lend/reclaim cycle](docs/assets/media/capacity-lending-infographic.png)
+
+Known issues in the generated assets (fixable only by regeneration):
+
+- **Deck:** the "Empirical Proof" page omits the 2026-07-19 teardown failure and
+  exit-ledger violation described above; "cross-tenant data leakage is physically
+  impossible" overstates the scrub guarantee (the instance is discarded — strong,
+  but not a physics claim); "zero credentials live outside the system" ignores the
+  break-glass path.
+- **Infographic:** two typos — "reciaiming", "kubecti".
 
 Harness and procedure: [tests/e2e/run.sh](tests/e2e/run.sh) and
 [runbooks/e2e-gpu-run.md](runbooks/e2e-gpu-run.md). Background and requirements:
