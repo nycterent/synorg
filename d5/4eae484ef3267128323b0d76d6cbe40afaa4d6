@@ -1,0 +1,19 @@
+README.md
+  s_d44846746b1d65::t_d783657d3e77f0 136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "d54eae484ef3267128323b0d76d6cbe40afaa4d6",
+  "prompts": {},
+  "sessions": {
+    "s_d44846746b1d65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d724605f-16f7-4be8-b9f3-99c0e55430c8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
