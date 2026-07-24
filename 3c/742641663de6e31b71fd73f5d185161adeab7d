@@ -1,0 +1,23 @@
+controllers/lending/test.sh
+  s_cdca33b167653a::t_e6cacc61ebf4aa 467,469,481-488
+controllers/lending/reconcile.sh
+  s_cdca33b167653a::t_918a6f7c69c55f 71-77
+  s_cdca33b167653a::t_584e0d67291bce 163-180
+  s_cdca33b167653a::t_de1cac0e6bd35e 350,354,358,364
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "3c742641663de6e31b71fd73f5d185161adeab7d",
+  "prompts": {},
+  "sessions": {
+    "s_cdca33b167653a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
