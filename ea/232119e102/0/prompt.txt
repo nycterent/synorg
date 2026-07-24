@@ -1,0 +1,19 @@
+<task-notification>
+<task-id>bkf3ban6b</task-id>
+<tool-use-id>toolu_01Kp7ydxM7MwwJwDK36As1NZ</tool-use-id>
+<output-file>/private/tmp/claude-503/-Users-oldroot-orca-workspaces-cutlassfish/e1d74260-951e-458d-85cc-c6dad8e250aa/tasks/bkf3ban6b.output</output-file>
+<status>completed</status>
+<summary>Background command "Watch integration run to completion" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+what?
+
+---
+
+why would we not merge it?
+
+---
+
+go till the end
