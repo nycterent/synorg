@@ -260,6 +260,22 @@ reclaimWaves: []
 EOF
 assert_invalid_no_actuation "lendablePool is warm floor (gpu-warm-floor)" "$TMPDIR_T/warm-floor-pool.yaml"
 
+# U7 drain-budget arithmetic (R9/R10) — offline, no cluster. Source the budget
+# functions and drive them with synthetic node JSON + a temp schedule.
+{
+  eval "$(sed -n '/^drains_in_flight()/,/^}/p;/^budget_available()/,/^}/p' "$RECONCILE")"
+  BSF="$TMPDIR_T/sched-budget.yaml"
+  IF1='{"items":[{"metadata":{"name":"a","annotations":{"lending.synorg.io/reclaiming":"t"}},"spec":{"unschedulable":true}}]}'
+  IF2='{"items":[{"metadata":{"name":"a","annotations":{"lending.synorg.io/reclaiming":"t"}},"spec":{"unschedulable":true}},{"metadata":{"name":"b","annotations":{"lending.synorg.io/reclaiming":"t"}},"spec":{"unschedulable":true}}]}'
+  printf 'targets:\n  maxConcurrentDrains: 2\n' >"$BSF"
+  SCHEDULE_FILE="$BSF" budget_available gpu-lendable "" "$IF1" || fail "budget: 1 in-flight under cap 2 should be available"
+  SCHEDULE_FILE="$BSF" budget_available gpu-lendable "" "$IF2" && fail "budget: 2 in-flight at cap 2 must be refused, not queued silently"
+  SCHEDULE_FILE="$BSF" budget_available gpu-lendable "a" "$IF2" || fail "budget: a node already in flight must not consume NEW budget (re-drive)"
+  printf 'targets:\n  maxConcurrentDrains: 0\n' >"$BSF"
+  SCHEDULE_FILE="$BSF" budget_available gpu-lendable "" "$IF2" || fail "budget: cap 0 must mean unlimited"
+  pass "drain budget: cap gates new drains, refuses at cap, exempts re-drives, 0 = unlimited"
+}
+
 # --- live tier -------------------------------------------------------------
 
 if [ "$OFFLINE_ONLY" = "1" ]; then
@@ -464,15 +480,28 @@ else
   NOW_HM="$(TZ=UTC date +%H:%M)"
   write_fixture "$TMPDIR_T/close-boundary.yaml" "00:00" "$NOW_HM" "$ALL_DAYS" 0 \
     "[{name: final-wave, startsAt: \"$NOW_HM\", reclaimFraction: 1.0, drainGraceSeconds: 120, preferPreScrubbed: true}]"
+  EVIDENCE_F="$TMPDIR_T/evidence.jsonl"
   CLOSE_OUT="$(SCHEDULE_FILE="$TMPDIR_T/close-boundary.yaml" MAX_TICKS=1 TICK_SECONDS=0 \
+    EVIDENCE_FILE="$EVIDENCE_F" \
     KUBECTL_CACHE_DIR="$TMPDIR_T/cache-close" bash "$RECONCILE" 2>&1)"
   echo "$CLOSE_OUT" | grep -q 'action=reclaim_intent' \
     || fail "close boundary: no reclaim_intent logged for the lent node: $CLOSE_OUT"
   echo "$CLOSE_OUT" | grep -q 'reason=window_close' \
     || fail "close boundary: close transition did not route through the reclaim path: $CLOSE_OUT"
+  # U3 (R5): the RTS drain-start stage boundary fires above the karpenter/kind
+  # branch, so the kind path logs it even though the drain itself is log-only.
+  echo "$CLOSE_OUT" | grep -q "action=stage_drain_start node=$NODE" \
+    || fail "close boundary: RTS stage_drain_start not logged on the kind reclaim path: $CLOSE_OUT"
   k get node "$NODE" -o json | jq -e --arg k "$TAINT_KEY" '.spec.taints // [] | any(.key == $k) | not' >/dev/null \
     || fail "close boundary: node still tainted after the kind degradation untaint"
-  pass "close boundary: reclaim_intent (reason=window_close) before untaint, node returned"
+  # U4 (R14, AE9): the return appended one evidence record whose attestation
+  # field is the explicit not-enforced value (never empty) and carries no image
+  # digest in pass 1.
+  [ -s "$EVIDENCE_F" ] \
+    || fail "close boundary: no evidence record written to the JSONL sink"
+  jq -e 'select(.attestation == "not-enforced") | select(has("image_digest") | not)' "$EVIDENCE_F" >/dev/null \
+    || fail "close boundary: evidence record lacks attestation=not-enforced or carries an image digest: $(cat "$EVIDENCE_F")"
+  pass "close boundary: stage_drain_start + reclaim_intent + evidence record (attestation=not-enforced), node returned"
 fi
 
 # 8. wave once-semantics -> a due wave fires exactly once across 3 ticks

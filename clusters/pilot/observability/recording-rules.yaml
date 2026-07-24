@@ -92,6 +92,120 @@ spec:
               / (capacity_asked:rate5m > 0)
             )
 
+    # -- Return-to-service stage decomposition (U3, R5) ---------------------
+    # RTS = drain-start → rejoined-and-serving, decomposed by stage so pass 2's
+    # governor has per-stage tuning data instead of one opaque number. The
+    # controller owns the DRAIN stage and emits it as `action=stage_drain_*`
+    # structured logs (controllers/lending/reconcile.sh); bridging those logs to
+    # a Prometheus series lands with the controller metrics endpoint (deferred).
+    # The post-termination stages are derived here from Karpenter NodeClaim
+    # lifecycle histograms. The ATTEST stage (R13) is DECLARED so RTS carries it
+    # as ABSENT — not zero — until attestation is built: it references a
+    # lending_attest_duration_seconds series nothing emits yet, so it resolves to
+    # absent, and a zero would silently understate RTS once attest joins the
+    # return path (KTD4). Correct magnitudes are validated when the pilot runs;
+    # pass 1 only stands the series up (instrument before tuning).
+    - name: rts-return-to-service
+      interval: 1m
+      rules:
+        # reimage: instance launch→registration — the scrub-and-reimage span.
+        - record: rts_reimage_seconds:p95
+          expr: histogram_quantile(0.95, sum by (nodepool, le) (rate(karpenter_nodeclaims_registration_duration_seconds_bucket[1h])))
+        # orchestration-to-serving: launch→Ready — the rejoin span.
+        - record: rts_orchestration_seconds:p95
+          expr: histogram_quantile(0.95, sum by (nodepool, le) (rate(karpenter_nodeclaims_launch_duration_seconds_bucket[1h])))
+        # attest: declared, absent until R13 emits lending_attest_duration_seconds.
+        - record: rts_attest_seconds:p95
+          expr: histogram_quantile(0.95, sum by (nodepool, le) (rate(lending_attest_duration_seconds_bucket[1h])))
+        # Observable-so-far upper bound: the post-termination stages Karpenter
+        # exposes today. `or vector(0)` keeps a missing stage from nulling the
+        # sum; the drain and attest stages fold in once their series exist. This
+        # is an upper bound (sum of per-stage p95s), not a true end-to-end p95 —
+        # the real p95 needs the drain-stage bridge (pass 2).
+        - record: rts_observable_seconds:sum_p95
+          expr: |
+            (rts_reimage_seconds:p95 or vector(0))
+            + (rts_orchestration_seconds:p95 or vector(0))
+
+    # -- Conservation: the held book decomposed into six buckets (U5, R18) --
+    # The "never descale" invariant is proven, not assumed: held must equal the
+    # sum of the five states a held node can occupy. A node in NONE of them
+    # (e.g. an operator-parked cordon that is not lent) makes the sum fall short
+    # of held — a capacity incident (R19). These rules are the Prometheus mirror;
+    # the authoritative partition + sum assertion lives in
+    # tests/integration/conservation/conservation_test.sh (node-state jq, no
+    # Prometheus in kind) and the lending ledger's held-vs-ODCR tie-out
+    # (tests/e2e/assertions.sh, credential-gated). Keep the three in sync.
+    # Buckets are disjoint by construction: in-transit (cordoned+lent) is carved
+    # out of lent; quarantine is its own taint; the floor is warm-floor-only.
+    - name: conservation
+      interval: 30s
+      rules:
+        - record: conservation:held:nodes
+          expr: count(kube_node_labels{label_karpenter_sh_nodepool=~"gpu-lendable|gpu-warm-floor"}) or vector(0)
+        # in-transit: lent AND cordoned = a reclaim in flight.
+        - record: conservation:in_transit:nodes
+          expr: count(kube_node_spec_taint{key="lending.synorg.io/lent"} and on (node) (kube_node_spec_unschedulable == 1)) or vector(0)
+        # lent-and-serving-training: lent AND schedulable (not yet reclaimed).
+        - record: conservation:lent:nodes
+          expr: count(kube_node_spec_taint{key="lending.synorg.io/lent"} unless on (node) (kube_node_spec_unschedulable == 1)) or vector(0)
+        - record: conservation:quarantine:nodes
+          expr: count(kube_node_spec_taint{key="lending.synorg.io/quarantine"}) or vector(0)
+        # owner-idle-floor: warm-floor nodes, never lent by design — the surge
+        # insurance the keep-or-shrink decision must not confuse with oversizing.
+        - record: conservation:owner_idle_floor:nodes
+          expr: count(kube_node_labels{label_karpenter_sh_nodepool="gpu-warm-floor"} unless on (node) kube_node_spec_taint{key="lending.synorg.io/lent"}) or vector(0)
+        # owner-serving: lendable nodes serving prod — held, not lent, not cordoned.
+        - record: conservation:owner_serving:nodes
+          expr: |
+            count(
+              kube_node_labels{label_karpenter_sh_nodepool="gpu-lendable"}
+              unless on (node) kube_node_spec_taint{key="lending.synorg.io/lent"}
+              unless on (node) (kube_node_spec_unschedulable == 1)
+            ) or vector(0)
+        # Reconciliation residual: held − Σ(five buckets). Non-zero = incident.
+        - record: conservation:residual:nodes
+          expr: |
+            conservation:held:nodes
+            - (conservation:owner_serving:nodes + conservation:owner_idle_floor:nodes
+               + conservation:lent:nodes + conservation:in_transit:nodes
+               + conservation:quarantine:nodes)
+
+    # -- Borrower demand + held-capacity utilization (U6, R28, R2) ----------
+    # The signals R2's curve-vs-leases graduation trigger needs, and the
+    # keep-or-shrink decision on the held book. Dimensioned by `cluster_queue`
+    # (the Kueue borrower class), so a second borrower — batch-inference-borrow
+    # (ADR 0009) — registers as another series with NO rule rewrite. Source:
+    # Kueue queue metrics (already scraped), same family as reclaimed_hours_served
+    # below. Magnitudes are validated when the pilot runs; pass 1 stands up the
+    # series (instrument before tuning).
+    - name: borrower-demand
+      interval: 1m
+      rules:
+        # Borrowed GPUs per borrower class (integrate over the window → GPU-hours).
+        - record: borrower:gpu_borrowed:sum
+          expr: sum by (cluster_queue) (kueue_cluster_queue_resource_usage{resource="nvidia_com_gpu"})
+        # Admission wait p95 per borrower class — the contention signal. Rising
+        # wait under a filled curve is what argues for lease objects (R2).
+        - record: borrower:admission_wait_seconds:p95
+          expr: histogram_quantile(0.95, sum by (cluster_queue, le) (rate(kueue_quota_reserved_wait_time_seconds_bucket[1h])))
+        # Held GPU capacity: allocatable on the never-descaled book (lendable +
+        # warm-floor). `and on(node)` filters allocatable to held-pool nodes.
+        - record: held:gpu_capacity:sum
+          expr: |
+            sum(
+              kube_node_status_allocatable{resource="nvidia_com_gpu"}
+              and on (node)
+              kube_node_labels{label_karpenter_sh_nodepool=~"gpu-lendable|gpu-warm-floor"}
+            )
+        # Lendable-window utilization of HELD capacity — borrowed / held, NOT
+        # borrowed / lendable. The denominator is the whole standing book so the
+        # ratio answers "how much of what we pay to hold is being second-tenanted".
+        - record: held:lendable_utilization:ratio
+          expr: |
+            sum(kueue_cluster_queue_resource_usage{resource="nvidia_com_gpu"})
+            / (held:gpu_capacity:sum > 0)
+
     # -- Success Criterion 3: $/GPU-hour and reclaimed-hours-served ---------
     # Source: billing-derived hourly cost gauge joined to region; Kueue borrow
     # usage on the training-borrow queue (GPUs served on reclaimed night capacity;

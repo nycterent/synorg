@@ -68,6 +68,13 @@ MAX_TICKS="${MAX_TICKS:-0}"
 # schedule whose targets.lendablePool is this pool, so a typo can never aim the
 # cordon/drain/delete machinery at the inference insurance floor (R2).
 WARM_FLOOR_POOL="${WARM_FLOOR_POOL:-gpu-warm-floor}"
+# EVIDENCE_FILE (U4, R14) — append-only JSONL sink for per-return evidence
+# records. In-pod this is a mounted volume; the test points it at a temp dir.
+# Append-only by construction (>> a JSONL file): each return adds one immutable
+# line, so two returns of the same node are both retained. Kubernetes Events are
+# a SECONDARY notification only — they are GC'd on the apiserver TTL and are not
+# an audit store. Hash-chaining and the durable storage substrate land with R13.
+EVIDENCE_FILE="${EVIDENCE_FILE:-/var/lib/lending/evidence.jsonl}"
 
 # kc — the single kubectl entrypoint (see RBAC-CHECK CONTRACT above).
 # --request-timeout bounds every single API request (sibling smoke.sh/test.sh
@@ -151,6 +158,24 @@ firstTimestamp: "$ts"
 lastTimestamp: "$ts"
 count: 1
 EOF
+}
+
+# emit_evidence NODE ORIGIN SCRUB — append one per-return evidence record (U4,
+# R14) to the append-only JSONL sink. Fields: ts, node, borrow window (the
+# origin token: wave=<name> or reason=window_close), scrub outcome, and an
+# explicit attestation=not-enforced value — NEVER empty, so a later audit cannot
+# misread pass-1 records as attested (KTD4 / AE9). No image_digest field: the
+# controller never observes the replacement instance (the Node object disappears
+# with the terminated instance), so the digest lands with R13. Best-effort: a
+# sink write failure logs but never blocks the reclaim.
+emit_evidence() {
+  local node="$1" origin="$2" scrub="$3" ts
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  mkdir -p "$(dirname "$EVIDENCE_FILE")" 2>/dev/null || true
+  printf '{"ts":"%s","node":"%s","borrow_window":"%s","scrub":"%s","attestation":"not-enforced"}\n' \
+    "$ts" "$node" "$origin" "$scrub" >>"$EVIDENCE_FILE" \
+    || log warn action=evidence_record node="$node" msg="evidence sink write failed (non-fatal)"
+  log info action=evidence_record node="$node" "$origin" scrub="$scrub" attestation=not-enforced
 }
 
 # hm_to_min "HH:MM" -> minutes since local midnight.
@@ -269,6 +294,38 @@ window_open() {
   return 1
 }
 
+# drains_in_flight NODES_JSON — count reclaims currently in flight on the pool:
+# a node cordoned (unschedulable) AND carrying the reclaiming marker. This is
+# the shared denominator the drain budget accounts against; it is derived from
+# cluster state (stateless, crash-safe) so "release" is automatic — a node drops
+# out of the count the moment its NodeClaim is deleted (it terminates and leaves
+# the node list) or the degraded path clears its reclaiming marker.
+drains_in_flight() {
+  echo "$1" | jq '[.items[]
+    | select(.spec.unschedulable == true)
+    | select((.metadata.annotations["lending.synorg.io/reclaiming"] // "") != "")] | length'
+}
+
+# budget_available POOL THISNODE NODES_JSON — the shared drain-budget gate (U7,
+# R9/R10). Returns 0 (available) when maxConcurrentDrains is 0 (unlimited), when
+# THISNODE is already in flight (re-driving consumes no NEW budget), or when
+# in-flight < cap. Reclaim is the only live consumer today; upgrades consult the
+# same gate via `--budget-acquire` (KTD6 — cluster upgrades are not driven by
+# this controller yet, so the second consumer is a stub). Reclaim draws first:
+# an upgrade only gets budget the reclaim waves leave unused.
+budget_available() {
+  local pool="$1" thisnode="$2" nodes_json="$3" cap inflight
+  cap="$(yq -r '.targets.maxConcurrentDrains // 0' "$SCHEDULE_FILE")"
+  [ "$cap" -eq 0 ] 2>/dev/null && return 0
+  if [ -n "$thisnode" ] && echo "$nodes_json" | jq -e --arg n "$thisnode" \
+      '.items[] | select(.metadata.name == $n) | select(.spec.unschedulable == true)
+       | select((.metadata.annotations["lending.synorg.io/reclaiming"] // "") != "")' >/dev/null 2>&1; then
+    return 0
+  fi
+  inflight="$(drains_in_flight "$nodes_json")"
+  [ "$inflight" -lt "$cap" ]
+}
+
 # reclaim_node NODE GRACE ORIGIN KARPENTER NODECLAIMS_JSON — the single
 # reclaim path, shared by the waves and the window-close transition. ORIGIN is
 # a preformatted log token ("wave=<name>" or "reason=window_close").
@@ -282,6 +339,13 @@ window_open() {
 #     ClusterRole grants no nodes:delete and kind has no NodeClaims.
 reclaim_node() {
   local node="$1" grace="$2" origin="$3" karpenter="$4" nodeclaims_json="$5" ncl
+  # RTS stage boundary (U3, R5): drain-start opens the return-to-service clock.
+  # Emitted ABOVE the karpenter/kind branch so BOTH paths log it — on kind the
+  # drain is log-only, but the stage marker still fires so the boundary is
+  # assertable in the integration harness. Downstream RTS-by-stage recording
+  # rules (clusters/pilot/observability/recording-rules.yaml) join these
+  # controller stages to Karpenter NodeClaim series on nodepool+nodeclaim name.
+  log info action=stage_drain_start node="$node" "$origin"
   if [ "$karpenter" = "1" ]; then
     emit_event ReclaimWaveStarted Node "$node" "reclaim ($origin): cordon+drain+nodeclaim delete"
     # Mark the reclaim BEFORE cordon (audit P0-3): this annotation is what
@@ -298,6 +362,8 @@ reclaim_node() {
     emit_event NodeDraining Node "$node" "draining with ${grace}s grace ($origin)"
     kc drain "$node" --ignore-daemonsets --delete-emptydir-data --grace-period="$grace" --timeout="$(( grace * 3 ))s" >/dev/null \
       || log warn action=drain_incomplete node="$node" msg="drain did not finish cleanly, proceeding to nodeclaim delete"
+    # RTS stage boundary (U3, R5): drain complete — the drain stage closes here.
+    log info action=stage_drain_complete node="$node" "$origin"
     ncl="$(echo "$nodeclaims_json" | jq -r --arg n "$node" '.items[] | select(.status.nodeName == $n) | .metadata.name' | head -1)"
     if [ -n "$ncl" ]; then
       # Guard the delete (audit P0-3 review): errexit is suspended in every
@@ -306,19 +372,28 @@ reclaim_node() {
       # would then believe the node terminated, never park it, and re-drive it
       # every tick forever. A failed delete is degraded — return 1.
       if kc delete nodeclaim "$ncl" --wait=false >/dev/null; then
+        # RTS stage boundary (U3, R5): nodeclaim-deleted is the last stage the
+        # controller can observe — the Node object disappears with the instance,
+        # so the reimage and orchestration-to-serving stages are derived in
+        # recording rules from Karpenter NodeClaim series keyed on this name.
+        log info action=stage_nodeclaim_deleted node="$node" nodeclaim="$ncl" "$origin"
         log info action=nodeclaim_deleted node="$node" nodeclaim="$ncl" "$origin" reason=NodeScrubStarted
         emit_event NodeScrubStarted Node "$node" "nodeclaim $ncl deleted; Karpenter terminates the instance (scrub boundary)"
+        emit_evidence "$node" "$origin" started
         return 0
       fi
       log warn action=nodeclaim_delete_failed node="$node" nodeclaim="$ncl" "$origin" msg="NodeClaim delete failed — node NOT terminated; degraded, caller returns/parks it"
+      emit_evidence "$node" "$origin" delete-failed
       return 1
     fi
     log warn action=reclaim node="$node" "$origin" msg="NO NodeClaim found — scrub-by-termination UNAVAILABLE; node cordoned+drained but returns unscrubbed, left cordoned for operator action"
+    emit_evidence "$node" "$origin" unscrubbed-cordoned
     return 1
   fi
   # kind path: no Karpenter and the ClusterRole grants no nodes:delete —
   # a real deletion is impossible by construction, so log the intent.
   log info action=reclaim_intent node="$node" "$origin" msg="would cordon+drain node and delete its nodeclaim (no Karpenter on this cluster; log-only)"
+  emit_evidence "$node" "$origin" log-only
   return 1
 }
 
@@ -412,6 +487,13 @@ reconcile_taints() {
         '.items[] | select(.metadata.name == $n) | .spec.unschedulable // false')"
       # Already cordoned = a wave's reclaim is in flight — do not double-act.
       [ "$cordoned" != "true" ] || continue
+      # Drain budget (U7, R9/R10): if the budget is full, defer — leave the node
+      # LENT (not untainted) so it is retried next tick. This is a deferral, not
+      # the degraded path: the node has not been drained.
+      if ! budget_available "$pool" "$node" "$nodes_json"; then
+        log info action=budget_deferred node="$node" pool="$pool" reason=window_close msg="drain budget full — deferring, node stays lent"
+        continue
+      fi
       # Grace matches the schedule's drainGraceSeconds default (waves carry
       # their own value; the close transition uses the same default).
       if reclaim_node "$node" 120 "reason=window_close" "$karpenter" "$nodeclaims_json"; then
@@ -609,6 +691,21 @@ reconcile_waves() {
     count="$(awk -v n="$(echo "$lent" | wc -l | tr -d ' ')" -v f="$fraction" \
       'BEGIN { c = n * f; printf "%d", (c == int(c)) ? c : int(c) + 1 }')"
     local wave_name; wave_name="$(yq -r ".reclaimWaves[$i].name" "$SCHEDULE_FILE")"
+    # Drain budget (U7, R9/R10): cap this wave's NEW drains by remaining budget.
+    # Reclaim draws first — an upgrade consumer (via --budget-acquire) gets only
+    # what the waves leave unused (KTD6). in-flight is derived from cluster state,
+    # so budget "releases" automatically as nodes terminate or degrade.
+    local maxdrains; maxdrains="$(yq -r '.targets.maxConcurrentDrains // 0' "$SCHEDULE_FILE")"
+    if [ "$maxdrains" -gt 0 ] 2>/dev/null; then
+      local inflight remaining
+      inflight="$(drains_in_flight "$(kc get nodes -l "karpenter.sh/nodepool=$pool" -o json)")"
+      remaining=$(( maxdrains - inflight )); [ "$remaining" -lt 0 ] && remaining=0
+      if [ "$count" -gt "$remaining" ]; then
+        log info action=budget_deferred wave="$wave_name" pool="$pool" cap="$maxdrains" inflight="$inflight" msg="drain budget caps this wave to $remaining new drains (wanted $count); the rest stay lent for the next tick"
+        count="$remaining"
+      fi
+      [ "$count" -eq 0 ] && continue
+    fi
     log info action=reclaim_wave wave="$wave_name" lent_nodes="$(echo "$lent" | wc -l | tr -d ' ')" reclaiming="$count"
     # One cluster-wide NodeClaim fetch per wave (not per node): each node maps
     # to a distinct claim, so looking a node's claim up from this cache stays
@@ -680,6 +777,26 @@ if [ "${1:-}" = "--print-borrow-path" ]; then
   command -v jq >/dev/null 2>&1 || { log error msg="jq not installed"; exit 1; }
   borrow_limit_path
   exit 0
+fi
+
+# --budget-acquire CONSUMER: the shared drain-budget consumer interface (U7,
+# R9/R10). A non-reclaim consumer (a future cluster-upgrade driver — not built,
+# KTD6) consults the SAME budget the reclaim waves draw from before initiating
+# its own drains. Reclaim draws first, so this only grants budget the waves
+# leave unused. Exit 0 (granted) / 1 (refused). Stateless: in-flight is derived
+# from live cluster state, so nothing to release.
+if [ "${1:-}" = "--budget-acquire" ]; then
+  command -v jq >/dev/null 2>&1 || { log error msg="jq not installed"; exit 1; }
+  consumer="${2:-unknown}"
+  pool="$(yq -r '.targets.lendablePool // "gpu-lendable"' "$SCHEDULE_FILE")"
+  nodes_json="$(kc get nodes -l "karpenter.sh/nodepool=$pool" -o json)"
+  # Empty THISNODE = a fresh acquire (the consumer holds no in-flight node).
+  if budget_available "$pool" "" "$nodes_json"; then
+    log info action=budget_granted consumer="$consumer" pool="$pool"
+    exit 0
+  fi
+  log info action=budget_refused consumer="$consumer" pool="$pool" reason=drain_budget_full
+  exit 1
 fi
 
 main "$@"

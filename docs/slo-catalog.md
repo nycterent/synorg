@@ -37,3 +37,15 @@ reference live in `clusters/pilot/observability/recording-rules.yaml`.
 - **`training_lost_work_max`** reads a raw game-day series
   (`training_checkpoint_lost_seconds`); it is the U10 pass gate expressed as an
   SLO so the harness and the read-API agree on the number.
+- **Evidence signals with no target (U6, R28).** `borrower:gpu_borrowed:sum`,
+  `borrower:admission_wait_seconds:p95` (both per `cluster_queue`, so a second
+  borrower class registers free), `held:gpu_capacity:sum`, and
+  `held:lendable_utilization:ratio` are decision inputs, not pass/fail SLOs. They
+  feed R2's curve-vs-leases graduation trigger and the keep-or-shrink call on the
+  held book; their thresholds are pinned in pass 2 when the governor lands, not
+  here. Rising admission wait under a filled curve is the signal that argues for
+  lease objects.
+- **RTS stage series (U3, R5).** `rts_reimage_seconds:p95`,
+  `rts_orchestration_seconds:p95`, and `rts_attest_seconds:p95` (declared-absent
+  until R13) decompose return-to-service. Pass 1 stands them up; the governor
+  that consumes them is pass 2.

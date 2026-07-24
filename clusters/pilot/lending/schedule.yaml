@@ -43,6 +43,7 @@ data:
       lendablePool: gpu-lendable                       # Karpenter NodePool name (never edited, only its Nodes tainted)
       lentTaint: "lending.synorg.io/lent=true:NoSchedule"  # added to Node objects while lent; removed on return-to-prod
       trainingQueue: training-borrow                   # Kueue ClusterQueue whose borrowingLimit this curve drives (U6 owns the file)
+      maxConcurrentDrains: 3                            # drain-budget cap (U7, R9/R10): max nodes draining at once, shared by reclaim waves and any upgrade consumer. 0 = unlimited. Reclaim draws first; upgrades consult via `reconcile.sh --budget-acquire`.
 
     # windows: when the lendable pool may carry training. Opening the window
     # flips the lent taint ON (training tolerates it, inference does not);
@@ -107,3 +108,16 @@ data:
     # critical path, adopted U8). true = controller may pre-scrub idle lent
     # nodes mid-window; false = scrub only at reclaim time.
     nightScrubRotation: true
+
+    # pass2Gate (AE7): the pass-1 → pass-2 opening gate. These three are
+    # DECISIONS a human must set before pass 1 is declared complete — NOT
+    # measurements. They are explicitly null so their absence cannot be mistaken
+    # for a default (AS1): pass 2 (the RTS-governor units R6/R26/R27) must not
+    # open until all three are filled and satisfied. The calendarDeadline also
+    # bounds the pass-1 window in which nodes return via discard alone with no
+    # attestation (R13 is pass 2) — running past it without attestation needs a
+    # fresh accepted-risk decision, not silence.
+    pass2Gate:
+      minSamplesPerStage: null   # UNSET — min RTS observations per stage before its p95 is published
+      stabilityBandPct: null     # UNSET — max p95 drift across consecutive cycles that still counts as "stable by stage"
+      calendarDeadline: null     # UNSET — hard date by which the two above are set (bounds the no-attestation window)

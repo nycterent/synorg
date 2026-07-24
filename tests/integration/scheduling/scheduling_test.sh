@@ -461,8 +461,38 @@ run_lint() {
     done <<<"$(yq -N '.. | select(tag=="!!map") | select(has("priorityClassName")) | .priorityClassName' "$f")"
   done
 
+  # U8 ratification — assert the contract's claimed separations actually hold in
+  # the committed config (R1 aggregate ceiling, AE8 grace, AE7 gate visibility,
+  # R3 warm-floor separation). Offline, no cluster.
+  echo "lint: U8 ratification (R1 / AE8 / AE7 / R3)"
+  local inner
+  inner="$(yq -r '.data."schedule.yaml"' "$ROOT/clusters/pilot/lending/schedule.yaml")"
+  # AE8 / KTD12: every reclaim wave carries a drain grace.
+  if yq -e '.reclaimWaves[] | select(has("drainGraceSeconds") | not)' <<<"$inner" >/dev/null 2>&1; then
+    lint_err "AE8: a reclaimWaves entry is missing drainGraceSeconds (KTD12 eviction grace)"
+  fi
+  # R1: borrowing is an aggregate curve (a number over time), NOT per-tenant leases.
+  [ "$(yq -r '.borrowingLimitCurve | length' <<<"$inner")" -gt 0 ] \
+    || lint_err "R1: borrowingLimitCurve is empty — the aggregate ceiling is the tenancy mechanism, not per-tenant lease objects"
+  # AE7: the pass-2 gate params are PRESENT (visible in-repo, AS1) so a reader
+  # cannot mistake absence for a default. null = unset in pass 1; pass 2 fills them.
+  local g
+  for g in minSamplesPerStage stabilityBandPct calendarDeadline; do
+    yq -e ".pass2Gate | has(\"$g\")" <<<"$inner" >/dev/null 2>&1 \
+      || lint_err "AE7: pass2Gate.$g missing — the pass-1→pass-2 gate must be visible in-repo (AS1)"
+  done
+  # R3: warm-floor and lendable are DISTINCT NodePools (the never-lent floor is
+  # structurally separate from the lendable pool).
+  local wf lp
+  wf="$ROOT/clusters/pilot/karpenter/nodepool-gpu-warm-floor.yaml"
+  lp="$ROOT/clusters/pilot/karpenter/nodepool-gpu-lendable.yaml"
+  { [ -f "$wf" ] && [ -f "$lp" ]; } || lint_err "R3: warm-floor or lendable NodePool file missing"
+  if [ -f "$wf" ] && [ -f "$lp" ] && [ "$(yq -r '.metadata.name' "$wf")" = "$(yq -r '.metadata.name' "$lp")" ]; then
+    lint_err "R3: warm-floor and lendable NodePools share a name — they must be distinct pools"
+  fi
+
   [ "$rc" -eq 0 ] || exit 1
-  echo "LINT OK: ${#files[@]} workload manifest(s) schema-valid; queue/flavor/priority-class names consistent with $KUEUE_DIR"
+  echo "LINT OK: ${#files[@]} workload manifest(s) schema-valid; queue/flavor/priority-class names consistent with $KUEUE_DIR; U8 separations ratified"
 }
 
 # --- entry points ------------------------------------------------------------
