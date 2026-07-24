@@ -1,0 +1,24 @@
+controllers/governor/rts-governor.sh
+  s_cdca33b167653a::t_6c18d59d439ef9 1-108
+tests/integration/governor/governor_test.sh
+  s_cdca33b167653a::t_511054cae4a77c 1-28,31-32,35-36,39-40,45-54
+  s_cdca33b167653a::t_24f5517dad0482 29-30,33-34,37-38,41-44
+clusters/pilot/lending/schedule.yaml
+  s_cdca33b167653a::t_9b43be24a2c711 141-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "3fb24962f7930158ffb9349ae75b44dd49be3383",
+  "prompts": {},
+  "sessions": {
+    "s_cdca33b167653a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
