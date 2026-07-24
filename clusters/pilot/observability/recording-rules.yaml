@@ -92,6 +92,41 @@ spec:
               / (capacity_asked:rate5m > 0)
             )
 
+    # -- Return-to-service stage decomposition (U3, R5) ---------------------
+    # RTS = drain-start → rejoined-and-serving, decomposed by stage so pass 2's
+    # governor has per-stage tuning data instead of one opaque number. The
+    # controller owns the DRAIN stage and emits it as `action=stage_drain_*`
+    # structured logs (controllers/lending/reconcile.sh); bridging those logs to
+    # a Prometheus series lands with the controller metrics endpoint (deferred).
+    # The post-termination stages are derived here from Karpenter NodeClaim
+    # lifecycle histograms. The ATTEST stage (R13) is DECLARED so RTS carries it
+    # as ABSENT — not zero — until attestation is built: it references a
+    # lending_attest_duration_seconds series nothing emits yet, so it resolves to
+    # absent, and a zero would silently understate RTS once attest joins the
+    # return path (KTD4). Correct magnitudes are validated when the pilot runs;
+    # pass 1 only stands the series up (instrument before tuning).
+    - name: rts-return-to-service
+      interval: 1m
+      rules:
+        # reimage: instance launch→registration — the scrub-and-reimage span.
+        - record: rts_reimage_seconds:p95
+          expr: histogram_quantile(0.95, sum by (nodepool, le) (rate(karpenter_nodeclaims_registration_duration_seconds_bucket[1h])))
+        # orchestration-to-serving: launch→Ready — the rejoin span.
+        - record: rts_orchestration_seconds:p95
+          expr: histogram_quantile(0.95, sum by (nodepool, le) (rate(karpenter_nodeclaims_launch_duration_seconds_bucket[1h])))
+        # attest: declared, absent until R13 emits lending_attest_duration_seconds.
+        - record: rts_attest_seconds:p95
+          expr: histogram_quantile(0.95, sum by (nodepool, le) (rate(lending_attest_duration_seconds_bucket[1h])))
+        # Observable-so-far upper bound: the post-termination stages Karpenter
+        # exposes today. `or vector(0)` keeps a missing stage from nulling the
+        # sum; the drain and attest stages fold in once their series exist. This
+        # is an upper bound (sum of per-stage p95s), not a true end-to-end p95 —
+        # the real p95 needs the drain-stage bridge (pass 2).
+        - record: rts_observable_seconds:sum_p95
+          expr: |
+            (rts_reimage_seconds:p95 or vector(0))
+            + (rts_orchestration_seconds:p95 or vector(0))
+
     # -- Success Criterion 3: $/GPU-hour and reclaimed-hours-served ---------
     # Source: billing-derived hourly cost gauge joined to region; Kueue borrow
     # usage on the training-borrow queue (GPUs served on reclaimed night capacity;

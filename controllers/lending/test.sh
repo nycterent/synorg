@@ -470,9 +470,13 @@ else
     || fail "close boundary: no reclaim_intent logged for the lent node: $CLOSE_OUT"
   echo "$CLOSE_OUT" | grep -q 'reason=window_close' \
     || fail "close boundary: close transition did not route through the reclaim path: $CLOSE_OUT"
+  # U3 (R5): the RTS drain-start stage boundary fires above the karpenter/kind
+  # branch, so the kind path logs it even though the drain itself is log-only.
+  echo "$CLOSE_OUT" | grep -q "action=stage_drain_start node=$NODE" \
+    || fail "close boundary: RTS stage_drain_start not logged on the kind reclaim path: $CLOSE_OUT"
   k get node "$NODE" -o json | jq -e --arg k "$TAINT_KEY" '.spec.taints // [] | any(.key == $k) | not' >/dev/null \
     || fail "close boundary: node still tainted after the kind degradation untaint"
-  pass "close boundary: reclaim_intent (reason=window_close) before untaint, node returned"
+  pass "close boundary: stage_drain_start + reclaim_intent (reason=window_close) before untaint, node returned"
 fi
 
 # 8. wave once-semantics -> a due wave fires exactly once across 3 ticks

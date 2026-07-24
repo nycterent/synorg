@@ -282,6 +282,13 @@ window_open() {
 #     ClusterRole grants no nodes:delete and kind has no NodeClaims.
 reclaim_node() {
   local node="$1" grace="$2" origin="$3" karpenter="$4" nodeclaims_json="$5" ncl
+  # RTS stage boundary (U3, R5): drain-start opens the return-to-service clock.
+  # Emitted ABOVE the karpenter/kind branch so BOTH paths log it — on kind the
+  # drain is log-only, but the stage marker still fires so the boundary is
+  # assertable in the integration harness. Downstream RTS-by-stage recording
+  # rules (clusters/pilot/observability/recording-rules.yaml) join these
+  # controller stages to Karpenter NodeClaim series on nodepool+nodeclaim name.
+  log info action=stage_drain_start node="$node" "$origin"
   if [ "$karpenter" = "1" ]; then
     emit_event ReclaimWaveStarted Node "$node" "reclaim ($origin): cordon+drain+nodeclaim delete"
     # Mark the reclaim BEFORE cordon (audit P0-3): this annotation is what
@@ -298,6 +305,8 @@ reclaim_node() {
     emit_event NodeDraining Node "$node" "draining with ${grace}s grace ($origin)"
     kc drain "$node" --ignore-daemonsets --delete-emptydir-data --grace-period="$grace" --timeout="$(( grace * 3 ))s" >/dev/null \
       || log warn action=drain_incomplete node="$node" msg="drain did not finish cleanly, proceeding to nodeclaim delete"
+    # RTS stage boundary (U3, R5): drain complete — the drain stage closes here.
+    log info action=stage_drain_complete node="$node" "$origin"
     ncl="$(echo "$nodeclaims_json" | jq -r --arg n "$node" '.items[] | select(.status.nodeName == $n) | .metadata.name' | head -1)"
     if [ -n "$ncl" ]; then
       # Guard the delete (audit P0-3 review): errexit is suspended in every
@@ -306,6 +315,11 @@ reclaim_node() {
       # would then believe the node terminated, never park it, and re-drive it
       # every tick forever. A failed delete is degraded — return 1.
       if kc delete nodeclaim "$ncl" --wait=false >/dev/null; then
+        # RTS stage boundary (U3, R5): nodeclaim-deleted is the last stage the
+        # controller can observe — the Node object disappears with the instance,
+        # so the reimage and orchestration-to-serving stages are derived in
+        # recording rules from Karpenter NodeClaim series keyed on this name.
+        log info action=stage_nodeclaim_deleted node="$node" nodeclaim="$ncl" "$origin"
         log info action=nodeclaim_deleted node="$node" nodeclaim="$ncl" "$origin" reason=NodeScrubStarted
         emit_event NodeScrubStarted Node "$node" "nodeclaim $ncl deleted; Karpenter terminates the instance (scrub boundary)"
         return 0
