@@ -20,6 +20,8 @@ need() { command -v "$1" >/dev/null 2>&1 || fail "'$1' not installed — install
 need helm
 need kubeconform
 need kyverno
+need yq
+need promtool
 
 # --- Scope: changed paths vs merge-base, or everything under FULL=1 -------
 changed_paths() {
@@ -41,7 +43,8 @@ changed_paths() {
 }
 
 CHANGED_FILE="$(mktemp)"
-trap 'rm -f "$CHANGED_FILE"' EXIT
+PROMQL_DIR="$(mktemp -d)"
+trap 'rm -f "$CHANGED_FILE"; rm -rf "$PROMQL_DIR"' EXIT
 changed_paths >"$CHANGED_FILE"
 CHANGED="$(cat "$CHANGED_FILE")"
 
@@ -165,6 +168,38 @@ if [ "$POLICY_SCOPE" = "1" ]; then
     kyverno apply policies/kyverno "${RESOURCE_ARGS[@]}" \
       || fail "rendered output violates a Kyverno policy — a rendered pod would be rejected at admission. Fix the chart/values that emits it, never the policy."
   fi
+fi
+
+# --- 3c. PromQL rule check (U9) ----------------------------------------------
+# Kubeconform (sections 1/2) validates only the PrometheusRule CRD envelope and
+# treats every `expr` as an opaque string — a syntactically broken rule ships
+# green. Extract `.spec.groups` from each PrometheusRule manifest into a
+# promtool-shaped rules file (one extraction per source file, so groups from
+# different manifests never land in the same document) and run
+# `promtool check rules` over it. See
+# clusters/pilot/observability/README.md for how to run this by hand.
+if [ "$RENDER_ONLY" != "1" ]; then
+promql_manifests_in_scope() {
+  local f
+  for f in $(repo_files 'clusters/pilot/observability/*.yaml'); do
+    grep -qxF 'kind: PrometheusRule' "$f" 2>/dev/null || continue
+    if in_scope "$f"; then echo "$f"; fi
+  done
+}
+PROMQL_MANIFESTS=()
+while IFS= read -r _m; do PROMQL_MANIFESTS+=("$_m"); done < <(promql_manifests_in_scope)
+if [ "${#PROMQL_MANIFESTS[@]}" -gt 0 ]; then
+  echo "promtool check rules: ${#PROMQL_MANIFESTS[@]} PrometheusRule manifest(s)"
+  RULE_FILES=()
+  for f in "${PROMQL_MANIFESTS[@]}"; do
+    rule_file="$PROMQL_DIR/$(basename "$f" .yaml).rules.yaml"
+    yq '{"groups": .spec.groups}' "$f" >"$rule_file" \
+      || fail "$f: could not extract .spec.groups (see yq error above)"
+    RULE_FILES+=("$rule_file")
+  done
+  promtool check rules "${RULE_FILES[@]}" \
+    || fail "PromQL rule check failed — a recording rule does not parse (see promtool output above for the offending rule)"
+fi
 fi
 
 # --- 4. Rendered diff (PR surface) -----------------------------------------

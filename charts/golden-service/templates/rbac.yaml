@@ -1,0 +1,48 @@
+{{- if .Values.rbac.create }}
+{{/*
+Per-team boundary for the web tier (R21/R22). A Role is namespace-scoped by
+construction, so this grants a team read access to its own namespace and no
+route to any other one — the cross-namespace read is unrepresentable here, not
+merely unlisted. Secrets are absent on purpose: workload credentials arrive via
+ExternalSecrets, and a team-wide secret read would undo that.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "golden-service.fullname" . }}-team
+  labels:
+    {{- include "golden-service.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "configmaps", "events", "endpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch"]
+---
+{{/*
+Subject is the identity-provider group named after the owning team, the same
+value that becomes the team.synorg.io/name label — one team identifier, not two
+that can drift apart.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "golden-service.fullname" . }}-team
+  labels:
+    {{- include "golden-service.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "golden-service.fullname" . }}-team
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: team:{{ .Values.team }}
+{{- end }}

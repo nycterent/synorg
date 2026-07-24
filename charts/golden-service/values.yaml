@@ -51,3 +51,6 @@ pdb:
 serviceAccount:
   create: true
   name: ""
+
+rbac:
+  create: false            # true renders a namespace-scoped team Role + RoleBinding

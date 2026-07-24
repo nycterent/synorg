@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: payments-web
+  labels:
+    workload.synorg.io/class: web
+    team.synorg.io/name: payments
+---
+# Web tier, but nobody owns it — out of scope, so nothing is generated.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: unowned-web
+  labels:
+    workload.synorg.io/class: web

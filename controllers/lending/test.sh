@@ -270,12 +270,57 @@ fi
 # The live tier is pinned to an explicit kubecontext (the U1 kind harness by
 # default) so it never mutates whatever context the operator happens to be on.
 KCTX="${LENDING_TEST_CONTEXT:-kind-synorg}"
-k() { kubectl --context "$KCTX" "$@"; }
+# Setup and assertions run as the operator. KUBECONFIG is pinned explicitly
+# because the reconcile.sh invocations below export an impersonating one (see
+# the live-tier identity block) and k() must not inherit it.
+ORIG_KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
+k() { KUBECONFIG="$ORIG_KUBECONFIG" kubectl --context "$KCTX" "$@"; }
 if ! command -v kubectl >/dev/null 2>&1 || ! k get nodes >/dev/null 2>&1; then
   skip "live tier (kubecontext '$KCTX' unreachable — set LENDING_TEST_CONTEXT to override)"
   echo "ALL OFFLINE CHECKS PASSED"
   exit 0
 fi
+
+# --- live-tier identity: reconcile.sh runs AS the controller ----------------
+# The lent taint is admission-protected (policies/vap/deny-lent-taint-removal.yaml,
+# applied to this very cluster by tests/kind/up.sh): only the controller's
+# ServiceAccount may remove it, so break-glass cannot hand a lent node back
+# without the reclaim path. In the pod reconcile.sh holds that identity; here it
+# runs out-of-pod, and under the operator's own kubeconfig its window-close
+# untaint would be DENIED — a real admission verdict, not a harness artifact.
+# So give the loop the identity it runs with in production: a kubeconfig that
+# impersonates the ServiceAccount (user.as). This also pins reconcile.sh to
+# $KCTX, which it previously inherited from whatever context happened to be
+# current.
+LENDING_SA="system:serviceaccount:$(yq -r 'select(.kind == "ServiceAccount") | .metadata.namespace' "$RBAC_FILE"):$(yq -r 'select(.kind == "ServiceAccount") | .metadata.name' "$RBAC_FILE")"
+case "$LENDING_SA" in *:null:*|*:null) fail "could not read the controller ServiceAccount from $RBAC_FILE" ;; esac
+
+# Impersonation is authorized as the impersonated subject, so the SA needs its
+# ClusterRole on this cluster; up.sh does not apply clusters/pilot/lending/.
+# Apply the REAL role/binding when absent (never a test-invented grant — that
+# would hide a role too narrow to reconcile) and remove it again on exit.
+CREATED_LENDING_RBAC=0
+if ! k get clusterrole lending-controller >/dev/null 2>&1; then
+  yq eval 'select(.metadata.name == "lending-controller") |
+    select(.kind == "ClusterRole" or .kind == "ClusterRoleBinding")' "$RBAC_FILE" \
+    | k apply -f - >/dev/null \
+    || fail "live tier: could not apply the lending-controller ClusterRole/Binding"
+  CREATED_LENDING_RBAC=1
+fi
+
+CTRL_KUBECONFIG="$TMPDIR_T/kubeconfig-lending-controller"
+k config view --raw --minify --flatten >"$CTRL_KUBECONFIG" \
+  || fail "live tier: could not export a kubeconfig for context $KCTX"
+# The kubeconfig impersonation field is `user.as` (the external v1 kubeconfig
+# serialization). NOT `act-as` — that is the internal clientcmd/api yaml tag and
+# kubectl ignores it in a kubeconfig file, so the impersonation silently no-ops
+# and the window-close untaint is DENIED. Verified against a live apiserver
+# (kubectl v1.36): `user.as` impersonates, `user.act-as` does not.
+yq eval -i ".users[0].user.as = \"$LENDING_SA\"" "$CTRL_KUBECONFIG"
+export KUBECONFIG="$CTRL_KUBECONFIG"
+# k_ctrl — one-off controller-identity kubectl for the harness itself (cleanup).
+k_ctrl() { KUBECONFIG="$ORIG_KUBECONFIG" kubectl --context "$KCTX" --as "$LENDING_SA" "$@"; }
+echo "live tier: reconcile.sh runs as $LENDING_SA (impersonating kubeconfig)"
 
 POOL_LABEL="karpenter.sh/nodepool=gpu-lendable"
 TAINT_KEY="lending.synorg.io/lent"
@@ -307,11 +352,18 @@ cleanup_live() {
   else
     k label node "$NODE" karpenter.sh/nodepool- >/dev/null 2>&1 || true
   fi
-  k taint node "$NODE" "$TAINT_KEY:NoSchedule-" >/dev/null 2>&1 || true
+  # Controller identity: admission denies this untaint to anyone else, so an
+  # operator-identity cleanup would silently leave the node lent.
+  k_ctrl taint node "$NODE" "$TAINT_KEY:NoSchedule-" >/dev/null 2>&1 || true
   if [ -n "$ORIG_LIMIT" ] && [ -n "$BORROW_PATH" ] \
     && k get clusterqueue training-borrow >/dev/null 2>&1; then
     k patch clusterqueue training-borrow --type=json \
       -p "[{\"op\": \"replace\", \"path\": \"$BORROW_PATH\", \"value\": $ORIG_LIMIT}]" >/dev/null 2>&1 || true
+  fi
+  # Only the RBAC this run applied; a pre-existing role belongs to the cluster.
+  if [ "${CREATED_LENDING_RBAC:-0}" = "1" ]; then
+    k delete clusterrolebinding lending-controller --ignore-not-found >/dev/null 2>&1 || true
+    k delete clusterrole lending-controller --ignore-not-found >/dev/null 2>&1 || true
   fi
 }
 trap 'cleanup_live; rm -rf "$TMPDIR_T"' EXIT

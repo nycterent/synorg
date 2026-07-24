@@ -1,0 +1,37 @@
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: generate-web-tier-quota
+policies:
+  - ../../kyverno/generate-web-tier-quota.yaml
+resources:
+  - resources.yaml
+results:
+  - policy: generate-web-tier-quota
+    rule: generate-web-tier-resourcequota
+    kind: ResourceQuota
+    resources:
+      - payments-web
+    generatedResource: generated-quota.yaml
+    result: pass
+  - policy: generate-web-tier-quota
+    rule: generate-web-tier-limitrange
+    kind: LimitRange
+    resources:
+      - payments-web
+    generatedResource: generated-quota.yaml
+    result: pass
+  # A web namespace with no owning team is out of scope for both rules, so no
+  # quota and no limits are generated for it.
+  - policy: generate-web-tier-quota
+    rule: generate-web-tier-resourcequota
+    kind: ResourceQuota
+    resources:
+      - unowned-web
+    result: skip
+  - policy: generate-web-tier-quota
+    rule: generate-web-tier-limitrange
+    kind: LimitRange
+    resources:
+      - unowned-web
+    result: skip
