@@ -1,0 +1,5 @@
+rule: docker is in mini, air is not to be used for such things
+
+---
+
+status?
