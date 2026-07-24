@@ -464,7 +464,9 @@ else
   NOW_HM="$(TZ=UTC date +%H:%M)"
   write_fixture "$TMPDIR_T/close-boundary.yaml" "00:00" "$NOW_HM" "$ALL_DAYS" 0 \
     "[{name: final-wave, startsAt: \"$NOW_HM\", reclaimFraction: 1.0, drainGraceSeconds: 120, preferPreScrubbed: true}]"
+  EVIDENCE_F="$TMPDIR_T/evidence.jsonl"
   CLOSE_OUT="$(SCHEDULE_FILE="$TMPDIR_T/close-boundary.yaml" MAX_TICKS=1 TICK_SECONDS=0 \
+    EVIDENCE_FILE="$EVIDENCE_F" \
     KUBECTL_CACHE_DIR="$TMPDIR_T/cache-close" bash "$RECONCILE" 2>&1)"
   echo "$CLOSE_OUT" | grep -q 'action=reclaim_intent' \
     || fail "close boundary: no reclaim_intent logged for the lent node: $CLOSE_OUT"
@@ -476,7 +478,14 @@ else
     || fail "close boundary: RTS stage_drain_start not logged on the kind reclaim path: $CLOSE_OUT"
   k get node "$NODE" -o json | jq -e --arg k "$TAINT_KEY" '.spec.taints // [] | any(.key == $k) | not' >/dev/null \
     || fail "close boundary: node still tainted after the kind degradation untaint"
-  pass "close boundary: stage_drain_start + reclaim_intent (reason=window_close) before untaint, node returned"
+  # U4 (R14, AE9): the return appended one evidence record whose attestation
+  # field is the explicit not-enforced value (never empty) and carries no image
+  # digest in pass 1.
+  [ -s "$EVIDENCE_F" ] \
+    || fail "close boundary: no evidence record written to the JSONL sink"
+  jq -e 'select(.attestation == "not-enforced") | select(has("image_digest") | not)' "$EVIDENCE_F" >/dev/null \
+    || fail "close boundary: evidence record lacks attestation=not-enforced or carries an image digest: $(cat "$EVIDENCE_F")"
+  pass "close boundary: stage_drain_start + reclaim_intent + evidence record (attestation=not-enforced), node returned"
 fi
 
 # 8. wave once-semantics -> a due wave fires exactly once across 3 ticks

@@ -68,6 +68,13 @@ MAX_TICKS="${MAX_TICKS:-0}"
 # schedule whose targets.lendablePool is this pool, so a typo can never aim the
 # cordon/drain/delete machinery at the inference insurance floor (R2).
 WARM_FLOOR_POOL="${WARM_FLOOR_POOL:-gpu-warm-floor}"
+# EVIDENCE_FILE (U4, R14) — append-only JSONL sink for per-return evidence
+# records. In-pod this is a mounted volume; the test points it at a temp dir.
+# Append-only by construction (>> a JSONL file): each return adds one immutable
+# line, so two returns of the same node are both retained. Kubernetes Events are
+# a SECONDARY notification only — they are GC'd on the apiserver TTL and are not
+# an audit store. Hash-chaining and the durable storage substrate land with R13.
+EVIDENCE_FILE="${EVIDENCE_FILE:-/var/lib/lending/evidence.jsonl}"
 
 # kc — the single kubectl entrypoint (see RBAC-CHECK CONTRACT above).
 # --request-timeout bounds every single API request (sibling smoke.sh/test.sh
@@ -151,6 +158,24 @@ firstTimestamp: "$ts"
 lastTimestamp: "$ts"
 count: 1
 EOF
+}
+
+# emit_evidence NODE ORIGIN SCRUB — append one per-return evidence record (U4,
+# R14) to the append-only JSONL sink. Fields: ts, node, borrow window (the
+# origin token: wave=<name> or reason=window_close), scrub outcome, and an
+# explicit attestation=not-enforced value — NEVER empty, so a later audit cannot
+# misread pass-1 records as attested (KTD4 / AE9). No image_digest field: the
+# controller never observes the replacement instance (the Node object disappears
+# with the terminated instance), so the digest lands with R13. Best-effort: a
+# sink write failure logs but never blocks the reclaim.
+emit_evidence() {
+  local node="$1" origin="$2" scrub="$3" ts
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  mkdir -p "$(dirname "$EVIDENCE_FILE")" 2>/dev/null || true
+  printf '{"ts":"%s","node":"%s","borrow_window":"%s","scrub":"%s","attestation":"not-enforced"}\n' \
+    "$ts" "$node" "$origin" "$scrub" >>"$EVIDENCE_FILE" \
+    || log warn action=evidence_record node="$node" msg="evidence sink write failed (non-fatal)"
+  log info action=evidence_record node="$node" "$origin" scrub="$scrub" attestation=not-enforced
 }
 
 # hm_to_min "HH:MM" -> minutes since local midnight.
@@ -322,17 +347,21 @@ reclaim_node() {
         log info action=stage_nodeclaim_deleted node="$node" nodeclaim="$ncl" "$origin"
         log info action=nodeclaim_deleted node="$node" nodeclaim="$ncl" "$origin" reason=NodeScrubStarted
         emit_event NodeScrubStarted Node "$node" "nodeclaim $ncl deleted; Karpenter terminates the instance (scrub boundary)"
+        emit_evidence "$node" "$origin" started
         return 0
       fi
       log warn action=nodeclaim_delete_failed node="$node" nodeclaim="$ncl" "$origin" msg="NodeClaim delete failed — node NOT terminated; degraded, caller returns/parks it"
+      emit_evidence "$node" "$origin" delete-failed
       return 1
     fi
     log warn action=reclaim node="$node" "$origin" msg="NO NodeClaim found — scrub-by-termination UNAVAILABLE; node cordoned+drained but returns unscrubbed, left cordoned for operator action"
+    emit_evidence "$node" "$origin" unscrubbed-cordoned
     return 1
   fi
   # kind path: no Karpenter and the ClusterRole grants no nodes:delete —
   # a real deletion is impossible by construction, so log the intent.
   log info action=reclaim_intent node="$node" "$origin" msg="would cordon+drain node and delete its nodeclaim (no Karpenter on this cluster; log-only)"
+  emit_evidence "$node" "$origin" log-only
   return 1
 }
 
