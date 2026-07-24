@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "adca0eecfc1d",
+  "strategy": "manual-commit",
+  "branch": "nycterent/pass2-free-mechanisms",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "clusters/pilot/lending/schedule.yaml",
+    "controllers/attest/attest-node.sh",
+    "controllers/lending/reconcile.sh",
+    "tests/integration/attest/attest_test.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ad/ca0eecfc1d/0/metadata.json",
+      "transcript": "/ad/ca0eecfc1d/0/full.jsonl",
+      "compact_transcript": "/ad/ca0eecfc1d/0/transcript.jsonl",
+      "content_hash": "/ad/ca0eecfc1d/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 789118,
+    "cache_read_tokens": 9392659,
+    "output_tokens": 17637,
+    "api_call_count": 13
+  }
+}
