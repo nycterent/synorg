@@ -1,0 +1,243 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "1213802499d4",
+  "session_id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-24T04:00:56.617421Z",
+  "branch": "nycterent/capacity-time-tenancy",
+  "checkpoints_count": 12,
+  "save_step_count": 11,
+  "files_touched": [
+    "docs/plans/2026-07-24-001-feat-capacity-time-tenancy-plan.md"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "fcb6a4ae2eda",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 244,
+    "cache_creation_tokens": 970054,
+    "cache_read_tokens": 40621503,
+    "output_tokens": 169607,
+    "api_call_count": 129
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-lfg-2026-07-24T03:30:00.987604Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "lfg"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "bcdca82eb3d8",
+      "timestamp": "2026-07-24T03:30:00.987604Z",
+      "native": {
+        "command": "/lfg"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/lfg",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01Lfu7FEg4LVUWXoBJp2ttdn",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "compound-engineering:ce-plan"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "fcb6a4ae2eda",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 874,
+        "end": 875,
+        "entry_ids": [
+          "6a02d24d-f75f-45ed-a8a9-7ca4678e95f6"
+        ],
+        "tool_use_id": "toolu_01Lfu7FEg4LVUWXoBJp2ttdn"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Lfu7FEg4LVUWXoBJp2ttdn"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: compound-engineering:ce-plan",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_019ayHoVkAWDFpFeLDGV2Tgr",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "compound-engineering:ce-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "fcb6a4ae2eda",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 1077,
+        "end": 1078,
+        "entry_ids": [
+          "127515ff-1591-406b-8a2a-faaf626f660d"
+        ],
+        "tool_use_id": "toolu_019ayHoVkAWDFpFeLDGV2Tgr"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_019ayHoVkAWDFpFeLDGV2Tgr"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: compound-engineering:ce-work",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 12
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-24T04:00:56.510502Z",
+    "agent_lines": 258,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 258,
+    "total_lines_changed": 258,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 584,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".codex/config.toml": 3,
+        ".codex/hooks.json": 52,
+        ".opencode/plugins/entire.ts": 267,
+        "docs/plans/2026-07-24-001-feat-capacity-time-tenancy-plan.md": 262
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 816,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 842,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 533,
+      "user_lines_removed": 2,
+      "agent_lines_added": 842,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "charts/golden-service/ci/web.yaml": 2,
+        "charts/golden-service/templates/rbac.yaml": 48,
+        "charts/golden-service/values.schema.json": 7,
+        "charts/golden-service/values.yaml": 3,
+        "clusters/pilot/observability/README.md": 58,
+        "policies/kyverno/generate-web-tier-quota.yaml": 103,
+        "policies/tests/generate-web-tier-quota/generated-quota.yaml": 37,
+        "policies/tests/generate-web-tier-quota/kyverno-test.yaml": 37,
+        "policies/tests/generate-web-tier-quota/resources.yaml": 15,
+        "policies/vap/deny-lent-taint-removal.yaml": 90,
+        "scripts/validate.sh": 36,
+        "tests/integration/admission/admission_test.sh": 97
+      },
+      "user_removed_per_file": {
+        "scripts/validate.sh": 1,
+        "tests/integration/admission/admission_test.sh": 1
+      }
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 12,
+      "user_lines_added": 77,
+      "user_lines_removed": 2,
+      "agent_lines_added": 1499,
+      "agent_lines_removed": 5,
+      "user_added_per_file": {
+        "controllers/lending/test.sh": 49,
+        "runbooks/training-intake-break-glass.md": 28
+      },
+      "user_removed_per_file": {
+        "controllers/lending/test.sh": 2
+      }
+    }
+  ]
+}
