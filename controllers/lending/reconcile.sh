@@ -326,6 +326,23 @@ budget_available() {
   [ "$inflight" -lt "$cap" ]
 }
 
+# quarantine_saturated — the stop-the-world gate (U16/R16). Returns 0 (SATURATED)
+# when the quarantine pool has reached quarantine.maxNodes. When saturated, the
+# tick halts reclaim actuation: adding more failed/drained nodes to a full
+# quarantine only deepens a capacity incident. maxNodes 0 = DISABLED — the pool
+# sizing is pilot-gated (needs observed attestation-failure rate), so the gate
+# ships dormant with the number surfaced explicitly (like AE7); the MECHANISM is
+# here, only the threshold waits on data.
+quarantine_saturated() {
+  local cap count nodes_json="${1:-}"
+  cap="$(yq -r '.quarantine.maxNodes // 0' "$SCHEDULE_FILE")"
+  [ "$cap" -eq 0 ] 2>/dev/null && return 1
+  [ -n "$nodes_json" ] || nodes_json="$(kc get nodes -o json)"
+  count="$(echo "$nodes_json" | jq '[.items[]
+    | select(.spec.taints // [] | any(.key == "lending.synorg.io/quarantine"))] | length')"
+  [ "$count" -ge "$cap" ]
+}
+
 # reclaim_node NODE GRACE ORIGIN KARPENTER NODECLAIMS_JSON — the single
 # reclaim path, shared by the waves and the window-close transition. ORIGIN is
 # a preformatted log token ("wave=<name>" or "reason=window_close").
@@ -733,6 +750,15 @@ tick() {
   queue="$(yq -r '.targets.trainingQueue' "$SCHEDULE_FILE")"
   if window_open "$tz"; then open=1; fi
   log info action=tick window_open="$open" pool="$pool" queue="$queue"
+  # Stop-the-world (R16): a saturated quarantine pool halts reclaim actuation for
+  # this tick — resume, waves, and the close-path drains all skip. The borrow
+  # curve (a number, not a drain) still tracks so lending state stays coherent.
+  # An upgrade consumer independently halts via upgrade-drain's stop condition.
+  if quarantine_saturated; then
+    log error action=stop_the_world reason=quarantine_saturated msg="quarantine pool at/over maxNodes — halting reclaim actuation this tick (R16)"
+    reconcile_borrow_limit "$tz" "$pool" "$queue" || log warn action=tick msg="borrow-limit reconcile failed, continuing"
+    return 0
+  fi
   # Order matters: waves fire BEFORE taint reconcile so a window closing at a
   # wave's startsAt (wave-3 06:30 == closesAt 06:30, and window_open reads
   # that instant as closed) still sees the lent taints its selection keys on;

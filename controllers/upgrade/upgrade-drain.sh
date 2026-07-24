@@ -77,11 +77,25 @@ rts_p95_ok() {
 # lending controller's consult interface (SCHEDULE_FILE is exported above).
 budget_ok() { bash "$RECONCILE" --budget-acquire upgrade >/dev/null 2>&1; }
 
-# stop_conditions_ok — the two HALT gates (owner floor, RTS). Budget is a DEFER
-# gate (wait, don't halt), handled separately in the drain loop.
+# quarantine_ok — the R16 stop-the-world gate applied to upgrades: a saturated
+# quarantine pool halts upgrade drains too, not just reclaim. maxNodes 0 =
+# disabled (sizing pilot-gated), so the gate is dormant until the threshold is
+# pinned.
+quarantine_ok() {
+  local cap count nodes_json="${1:-}"
+  cap="$(yq -r '.quarantine.maxNodes // 0' "$SCHEDULE_FILE")"
+  [ "$cap" -eq 0 ] 2>/dev/null && return 0
+  [ -n "$nodes_json" ] || nodes_json="$(kc get nodes -o json)"
+  count="$(echo "$nodes_json" | jq '[.items[] | select(.spec.taints // [] | any(.key == "lending.synorg.io/quarantine"))] | length')"
+  [ "$count" -lt "$cap" ]
+}
+
+# stop_conditions_ok — the HALT gates (owner floor, RTS, quarantine saturation).
+# Budget is a DEFER gate (wait, don't halt), handled separately in the drain loop.
 stop_conditions_ok() {
-  if ! owner_floor_ok; then log error action=upgrade_halt reason=owner_floor msg="warm-floor Ready nodes below the minimum — refusing to drain for upgrade"; return 1; fi
-  if ! rts_p95_ok;    then log error action=upgrade_halt reason=rts_p95    msg="RTS p95 over budget — refusing to add upgrade drains to a stressed return path"; return 1; fi
+  if ! owner_floor_ok;  then log error action=upgrade_halt reason=owner_floor    msg="warm-floor Ready nodes below the minimum — refusing to drain for upgrade"; return 1; fi
+  if ! rts_p95_ok;      then log error action=upgrade_halt reason=rts_p95         msg="RTS p95 over budget — refusing to add upgrade drains to a stressed return path"; return 1; fi
+  if ! quarantine_ok;   then log error action=upgrade_halt reason=quarantine      msg="quarantine pool saturated — halting upgrade drains (R16 stop-the-world)"; return 1; fi
   return 0
 }
 
@@ -103,6 +117,11 @@ if [ "${1:-}" = "--lint" ]; then
   UPGRADE_RTS_P95_SECONDS=500 rts_p95_ok || { echo "LINT FAIL: rts 500 <= 600 should pass" >&2; exit 1; }
   UPGRADE_RTS_P95_SECONDS=700 rts_p95_ok && { echo "LINT FAIL: rts 700 > 600 must halt" >&2; exit 1; }
   UPGRADE_RTS_P95_SECONDS="" rts_p95_ok || { echo "LINT FAIL: missing RTS source should proceed (warn)" >&2; exit 1; }
+  # R16 quarantine stop-the-world arithmetic.
+  QJ='{"items":[{"spec":{"taints":[{"key":"lending.synorg.io/quarantine"}]}},{"spec":{"taints":[{"key":"lending.synorg.io/quarantine"}]}},{"spec":{}}]}'
+  printf 'quarantine:\n  maxNodes: 0\n' >"$SF"; quarantine_ok "$QJ" || { echo "LINT FAIL: quarantine 0 = disabled must be ok" >&2; exit 1; }
+  printf 'quarantine:\n  maxNodes: 3\n' >"$SF"; quarantine_ok "$QJ" || { echo "LINT FAIL: 2 < cap 3 must be ok" >&2; exit 1; }
+  printf 'quarantine:\n  maxNodes: 2\n' >"$SF"; quarantine_ok "$QJ" && { echo "LINT FAIL: 2 at cap 2 must halt" >&2; exit 1; }
   echo "UPGRADE-DRAIN LINT OK"
   exit 0
 fi

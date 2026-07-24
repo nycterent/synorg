@@ -129,3 +129,12 @@ data:
     upgrade:
       ownerFloorMinNodes: 1        # never drain the warm floor below this many Ready nodes for an upgrade
       rtsP95BudgetSeconds: 600     # halt upgrades when RTS p95 exceeds this (mirrors nodeReturnToServiceBudgetSeconds)
+
+    # quarantine (R16): stop-the-world when the quarantine pool saturates. A full
+    # quarantine means many nodes failed attestation / are held; draining MORE
+    # (reclaim or upgrade) only deepens the incident, so both halt. maxNodes is a
+    # DECISION pinned from observed attestation-failure rate + RTS tail — a
+    # pilot-gated number, so it ships 0 (DISABLED) with the mechanism live; a
+    # human sets it before pass 1's no-attestation window closes (see pass2Gate).
+    quarantine:
+      maxNodes: 0                  # 0 = disabled until sized; >0 = halt reclaim + upgrades at this many quarantined nodes
