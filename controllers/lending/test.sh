@@ -263,7 +263,7 @@ assert_invalid_no_actuation "lendablePool is warm floor (gpu-warm-floor)" "$TMPD
 # U7 drain-budget arithmetic (R9/R10) — offline, no cluster. Source the budget
 # functions and drive them with synthetic node JSON + a temp schedule.
 {
-  eval "$(sed -n '/^drains_in_flight()/,/^}/p;/^budget_available()/,/^}/p' "$RECONCILE")"
+  eval "$(sed -n '/^drains_in_flight()/,/^}/p;/^budget_available()/,/^}/p;/^quarantine_saturated()/,/^}/p' "$RECONCILE")"
   BSF="$TMPDIR_T/sched-budget.yaml"
   IF1='{"items":[{"metadata":{"name":"a","annotations":{"lending.synorg.io/reclaiming":"t"}},"spec":{"unschedulable":true}}]}'
   IF2='{"items":[{"metadata":{"name":"a","annotations":{"lending.synorg.io/reclaiming":"t"}},"spec":{"unschedulable":true}},{"metadata":{"name":"b","annotations":{"lending.synorg.io/reclaiming":"t"}},"spec":{"unschedulable":true}}]}'
@@ -274,6 +274,19 @@ assert_invalid_no_actuation "lendablePool is warm floor (gpu-warm-floor)" "$TMPD
   printf 'targets:\n  maxConcurrentDrains: 0\n' >"$BSF"
   SCHEDULE_FILE="$BSF" budget_available gpu-lendable "" "$IF2" || fail "budget: cap 0 must mean unlimited"
   pass "drain budget: cap gates new drains, refuses at cap, exempts re-drives, 0 = unlimited"
+
+  # U16/R16 quarantine stop-the-world arithmetic (offline).
+  QJSON='{"items":[
+    {"spec":{"taints":[{"key":"lending.synorg.io/quarantine"}]}},
+    {"spec":{"taints":[{"key":"lending.synorg.io/quarantine"}]}},
+    {"spec":{}}]}'
+  printf 'quarantine:\n  maxNodes: 0\n' >"$BSF"
+  SCHEDULE_FILE="$BSF" quarantine_saturated "$QJSON" && fail "quarantine: maxNodes 0 must be DISABLED (never saturated)"
+  printf 'quarantine:\n  maxNodes: 3\n' >"$BSF"
+  SCHEDULE_FILE="$BSF" quarantine_saturated "$QJSON" && fail "quarantine: 2 quarantined < cap 3 must not saturate"
+  printf 'quarantine:\n  maxNodes: 2\n' >"$BSF"
+  SCHEDULE_FILE="$BSF" quarantine_saturated "$QJSON" || fail "quarantine: 2 quarantined at cap 2 must saturate (stop-the-world)"
+  pass "quarantine stop-the-world: 0=disabled, saturates at/over maxNodes"
 }
 
 # --- live tier -------------------------------------------------------------

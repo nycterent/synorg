@@ -129,3 +129,36 @@ data:
     upgrade:
       ownerFloorMinNodes: 1        # never drain the warm floor below this many Ready nodes for an upgrade
       rtsP95BudgetSeconds: 600     # halt upgrades when RTS p95 exceeds this (mirrors nodeReturnToServiceBudgetSeconds)
+
+    # quarantine (R16): stop-the-world when the quarantine pool saturates. A full
+    # quarantine means many nodes failed attestation / are held; draining MORE
+    # (reclaim or upgrade) only deepens the incident, so both halt. maxNodes is a
+    # DECISION pinned from observed attestation-failure rate + RTS tail — a
+    # pilot-gated number, so it ships 0 (DISABLED) with the mechanism live; a
+    # human sets it before pass 1's no-attestation window closes (see pass2Gate).
+    quarantine:
+      maxNodes: 0                  # 0 = disabled until sized; >0 = halt reclaim + upgrades at this many quarantined nodes
+
+    # governor (R6/R26/R27): the RTS-governor knobs (controllers/governor/rts-governor.sh).
+    # ceilingPct/wavePct are the governor-managed lending aggressiveness (100 = full).
+    # The governor steps them one notch per cycle toward the RTS budget and proposes
+    # the result for the NEXT window, landed by PR (R25). Inside ±holdBand of the
+    # budget nothing changes (R27 damping). Magnitudes tuned on the pilot; the loop
+    # math is complete and pilot-independent.
+    governor:
+      rtsP95BudgetSeconds: 600
+      holdBandSeconds: 60
+      ceilingPct: 100
+      ceilingStepPct: 10
+      wavePct: 100
+      waveStepPct: 10
+
+    # attestation (R13): the attest step (controllers/attest/attest-node.sh).
+    # enabled=false is pass-1 — returns record attestation=not-enforced and no
+    # node is attested. Flipping to true is the pass-2 step that closes the
+    # no-attestation window (must land before pass2Gate.calendarDeadline). The
+    # real attestor is TPM-backed image-hash proof on the pilot; the control flow
+    # ships now behind the flag with a stub attestor.
+    attestation:
+      enabled: false             # false = pass-1 (not-enforced); true = enforce the attest step
+      expectedImageDigest: ""    # golden image digest a returning node must match (set with the golden-image pipeline)

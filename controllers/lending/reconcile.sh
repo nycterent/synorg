@@ -160,20 +160,34 @@ count: 1
 EOF
 }
 
+# sha256h — portable sha256 of stdin (hex, no filename). sha256sum in the
+# container, shasum -a 256 on a dev mac.
+sha256h() { if command -v sha256sum >/dev/null 2>&1; then sha256sum | cut -d' ' -f1; else shasum -a 256 | cut -d' ' -f1; fi; }
+
 # emit_evidence NODE ORIGIN SCRUB — append one per-return evidence record (U4,
 # R14) to the append-only JSONL sink. Fields: ts, node, borrow window (the
-# origin token: wave=<name> or reason=window_close), scrub outcome, and an
-# explicit attestation=not-enforced value — NEVER empty, so a later audit cannot
-# misread pass-1 records as attested (KTD4 / AE9). No image_digest field: the
-# controller never observes the replacement instance (the Node object disappears
-# with the terminated instance), so the digest lands with R13. Best-effort: a
-# sink write failure logs but never blocks the reclaim.
+# origin token), scrub outcome, and an explicit attestation=not-enforced value —
+# NEVER empty, so a later audit cannot misread pass-1 records as attested
+# (KTD4 / AE9). No image_digest: the controller never observes the replacement
+# instance, so the digest lands with R13.
+#
+# TAMPER-EVIDENCE (R14): each record hash-chains to the previous one. hash =
+# sha256(prev_hash + record-without-hash); prev_hash = the prior line's hash (""
+# for the genesis record). Altering or dropping any record breaks every hash
+# after it, so the append-only JSONL is verifiably intact after the fact —
+# `verify-evidence` (below) walks the chain. This is the pass-1 tamper-evidence;
+# a signed/notarized store is deferred with the attestation substrate.
+# Best-effort: a sink write failure logs but never blocks the reclaim.
 emit_evidence() {
-  local node="$1" origin="$2" scrub="$3" ts
+  local node="$1" origin="$2" scrub="$3" ts prev rec hash
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   mkdir -p "$(dirname "$EVIDENCE_FILE")" 2>/dev/null || true
-  printf '{"ts":"%s","node":"%s","borrow_window":"%s","scrub":"%s","attestation":"not-enforced"}\n' \
-    "$ts" "$node" "$origin" "$scrub" >>"$EVIDENCE_FILE" \
+  prev=""
+  [ -s "$EVIDENCE_FILE" ] && prev="$(tail -1 "$EVIDENCE_FILE" | jq -r '.hash // ""' 2>/dev/null || echo "")"
+  rec="$(jq -cn --arg ts "$ts" --arg n "$node" --arg o "$origin" --arg s "$scrub" --arg p "$prev" \
+    '{ts:$ts,node:$n,borrow_window:$o,scrub:$s,attestation:"not-enforced",prev_hash:$p}')"
+  hash="$(printf '%s' "$prev$rec" | sha256h)"
+  jq -cn --argjson r "$rec" --arg h "$hash" '$r + {hash:$h}' >>"$EVIDENCE_FILE" \
     || log warn action=evidence_record node="$node" msg="evidence sink write failed (non-fatal)"
   log info action=evidence_record node="$node" "$origin" scrub="$scrub" attestation=not-enforced
 }
@@ -324,6 +338,23 @@ budget_available() {
   fi
   inflight="$(drains_in_flight "$nodes_json")"
   [ "$inflight" -lt "$cap" ]
+}
+
+# quarantine_saturated — the stop-the-world gate (U16/R16). Returns 0 (SATURATED)
+# when the quarantine pool has reached quarantine.maxNodes. When saturated, the
+# tick halts reclaim actuation: adding more failed/drained nodes to a full
+# quarantine only deepens a capacity incident. maxNodes 0 = DISABLED — the pool
+# sizing is pilot-gated (needs observed attestation-failure rate), so the gate
+# ships dormant with the number surfaced explicitly (like AE7); the MECHANISM is
+# here, only the threshold waits on data.
+quarantine_saturated() {
+  local cap count nodes_json="${1:-}"
+  cap="$(yq -r '.quarantine.maxNodes // 0' "$SCHEDULE_FILE")"
+  [ "$cap" -eq 0 ] 2>/dev/null && return 1
+  [ -n "$nodes_json" ] || nodes_json="$(kc get nodes -o json)"
+  count="$(echo "$nodes_json" | jq '[.items[]
+    | select(.spec.taints // [] | any(.key == "lending.synorg.io/quarantine"))] | length')"
+  [ "$count" -ge "$cap" ]
 }
 
 # reclaim_node NODE GRACE ORIGIN KARPENTER NODECLAIMS_JSON — the single
@@ -733,6 +764,15 @@ tick() {
   queue="$(yq -r '.targets.trainingQueue' "$SCHEDULE_FILE")"
   if window_open "$tz"; then open=1; fi
   log info action=tick window_open="$open" pool="$pool" queue="$queue"
+  # Stop-the-world (R16): a saturated quarantine pool halts reclaim actuation for
+  # this tick — resume, waves, and the close-path drains all skip. The borrow
+  # curve (a number, not a drain) still tracks so lending state stays coherent.
+  # An upgrade consumer independently halts via upgrade-drain's stop condition.
+  if quarantine_saturated; then
+    log error action=stop_the_world reason=quarantine_saturated msg="quarantine pool at/over maxNodes — halting reclaim actuation this tick (R16)"
+    reconcile_borrow_limit "$tz" "$pool" "$queue" || log warn action=tick msg="borrow-limit reconcile failed, continuing"
+    return 0
+  fi
   # Order matters: waves fire BEFORE taint reconcile so a window closing at a
   # wave's startsAt (wave-3 06:30 == closesAt 06:30, and window_open reads
   # that instant as closed) still sees the lent taints its selection keys on;
@@ -776,6 +816,31 @@ main() {
 if [ "${1:-}" = "--print-borrow-path" ]; then
   command -v jq >/dev/null 2>&1 || { log error msg="jq not installed"; exit 1; }
   borrow_limit_path
+  exit 0
+fi
+
+# --verify-evidence [FILE]: walk the evidence hash chain (R14) and confirm it is
+# intact — every record's stored hash equals sha256(prev_hash + record) and its
+# prev_hash equals the prior record's hash. Any altered, dropped, or reordered
+# record breaks the chain from that point on. Exit 0 = intact, 1 = tampered.
+if [ "${1:-}" = "--verify-evidence" ]; then
+  command -v jq >/dev/null 2>&1 || { log error msg="jq not installed"; exit 1; }
+  f="${2:-$EVIDENCE_FILE}"
+  [ -s "$f" ] || { log info action=verify_evidence msg="no evidence records to verify"; exit 0; }
+  prev=""; n=0
+  while IFS= read -r line; do
+    n=$((n + 1))
+    rec="$(printf '%s' "$line" | jq -c 'del(.hash)')"
+    stored="$(printf '%s' "$line" | jq -r '.hash // ""')"
+    claimed_prev="$(printf '%s' "$line" | jq -r '.prev_hash // ""')"
+    calc="$(printf '%s' "$prev$rec" | sha256h)"
+    if [ "$claimed_prev" != "$prev" ] || [ "$calc" != "$stored" ]; then
+      log error action=verify_evidence record="$n" msg="hash chain BROKEN — a record was altered, dropped, or reordered"
+      exit 1
+    fi
+    prev="$stored"
+  done < "$f"
+  log info action=verify_evidence records="$n" msg="evidence chain intact"
   exit 0
 fi
 
