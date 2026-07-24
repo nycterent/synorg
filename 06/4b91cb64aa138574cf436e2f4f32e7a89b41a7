@@ -1,0 +1,21 @@
+clusters/pilot/lending/upgrade-drain-rbac.yaml
+  s_cdca33b167653a::t_17103fd0de71de 1-53
+tests/integration/upgrade/upgrade_test.sh
+  s_cdca33b167653a::t_8422a460046a3d 87-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "064b91cb64aa138574cf436e2f4f32e7a89b41a7",
+  "prompts": {},
+  "sessions": {
+    "s_cdca33b167653a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
