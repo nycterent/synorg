@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "43bf03bf9b17",
+  "strategy": "manual-commit",
+  "branch": "nycterent/capacity-time-tenancy",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "controllers/lending/test.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/43/bf03bf9b17/0/metadata.json",
+      "transcript": "/43/bf03bf9b17/0/full.jsonl",
+      "compact_transcript": "/43/bf03bf9b17/0/transcript.jsonl",
+      "content_hash": "/43/bf03bf9b17/0/content_hash.txt",
+      "prompt": "/43/bf03bf9b17/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 62,
+    "cache_creation_tokens": 536968,
+    "cache_read_tokens": 16624041,
+    "output_tokens": 25920,
+    "api_call_count": 32
+  }
+}
