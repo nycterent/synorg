@@ -1,0 +1,23 @@
+clusters/pilot/observability/recording-rules.yaml
+  s_cdca33b167653a::t_722b6523cb05db 130-173
+tests/integration/conservation/conservation_test.sh
+  s_cdca33b167653a::t_37a47d6bc6bb22 69
+  s_cdca33b167653a::t_01eb7d525e2e06 129
+  s_cdca33b167653a::t_54482c0ab88c0c 1-68,70-128,130-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "8d2234b7c4d6ec0e38e60a99318de664c7d35972",
+  "prompts": {},
+  "sessions": {
+    "s_cdca33b167653a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
