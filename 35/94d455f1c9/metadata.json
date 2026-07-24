@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "3594d455f1c9",
+  "strategy": "manual-commit",
+  "branch": "nycterent/pass2-free-mechanisms",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "clusters/pilot/lending/schedule.yaml",
+    "controllers/governor/rts-governor.sh",
+    "tests/integration/governor/governor_test.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/35/94d455f1c9/0/metadata.json",
+      "transcript": "/35/94d455f1c9/0/full.jsonl",
+      "compact_transcript": "/35/94d455f1c9/0/transcript.jsonl",
+      "content_hash": "/35/94d455f1c9/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 12987,
+    "cache_read_tokens": 6883489,
+    "output_tokens": 11786,
+    "api_call_count": 9
+  }
+}
