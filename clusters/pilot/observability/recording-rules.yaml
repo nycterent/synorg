@@ -127,6 +127,41 @@ spec:
             (rts_reimage_seconds:p95 or vector(0))
             + (rts_orchestration_seconds:p95 or vector(0))
 
+    # -- Borrower demand + held-capacity utilization (U6, R28, R2) ----------
+    # The signals R2's curve-vs-leases graduation trigger needs, and the
+    # keep-or-shrink decision on the held book. Dimensioned by `cluster_queue`
+    # (the Kueue borrower class), so a second borrower — batch-inference-borrow
+    # (ADR 0009) — registers as another series with NO rule rewrite. Source:
+    # Kueue queue metrics (already scraped), same family as reclaimed_hours_served
+    # below. Magnitudes are validated when the pilot runs; pass 1 stands up the
+    # series (instrument before tuning).
+    - name: borrower-demand
+      interval: 1m
+      rules:
+        # Borrowed GPUs per borrower class (integrate over the window → GPU-hours).
+        - record: borrower:gpu_borrowed:sum
+          expr: sum by (cluster_queue) (kueue_cluster_queue_resource_usage{resource="nvidia_com_gpu"})
+        # Admission wait p95 per borrower class — the contention signal. Rising
+        # wait under a filled curve is what argues for lease objects (R2).
+        - record: borrower:admission_wait_seconds:p95
+          expr: histogram_quantile(0.95, sum by (cluster_queue, le) (rate(kueue_quota_reserved_wait_time_seconds_bucket[1h])))
+        # Held GPU capacity: allocatable on the never-descaled book (lendable +
+        # warm-floor). `and on(node)` filters allocatable to held-pool nodes.
+        - record: held:gpu_capacity:sum
+          expr: |
+            sum(
+              kube_node_status_allocatable{resource="nvidia_com_gpu"}
+              and on (node)
+              kube_node_labels{label_karpenter_sh_nodepool=~"gpu-lendable|gpu-warm-floor"}
+            )
+        # Lendable-window utilization of HELD capacity — borrowed / held, NOT
+        # borrowed / lendable. The denominator is the whole standing book so the
+        # ratio answers "how much of what we pay to hold is being second-tenanted".
+        - record: held:lendable_utilization:ratio
+          expr: |
+            sum(kueue_cluster_queue_resource_usage{resource="nvidia_com_gpu"})
+            / (held:gpu_capacity:sum > 0)
+
     # -- Success Criterion 3: $/GPU-hour and reclaimed-hours-served ---------
     # Source: billing-derived hourly cost gauge joined to region; Kueue borrow
     # usage on the training-borrow queue (GPUs served on reclaimed night capacity;
