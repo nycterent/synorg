@@ -1,0 +1,25 @@
+.github/workflows/validate.yaml
+  s_cdca33b167653a::t_24b8ce709be4ee 33
+  s_cdca33b167653a::t_62512d539b2b1e 25
+  s_cdca33b167653a::t_3f340702927d4e 11
+.github/workflows/nightly-full-validate.yaml
+  s_cdca33b167653a::t_61342b57f526d6 11
+  s_cdca33b167653a::t_a93ce6d21e24ce 31
+  s_cdca33b167653a::t_3a2b6ef69b1a4d 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "8f70dd1c8f8aef0ce566eaabeb2d30498b753d7e",
+  "prompts": {},
+  "sessions": {
+    "s_cdca33b167653a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
