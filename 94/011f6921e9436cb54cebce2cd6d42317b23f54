@@ -1,0 +1,38 @@
+runbooks/training-intake-break-glass.md
+  s_cdca33b167653a::t_379185c96a491b 30-57
+controllers/lending/test.sh
+  s_cdca33b167653a::t_66fa2f3f711a37 358-361
+  s_cdca33b167653a::t_b3a6fcddb24a1a 350-352
+  s_cdca33b167653a::t_a061416735da69 273-277,284-318
+  s_cdca33b167653a::t_c63ba1c2492c58 319
+  s_cdca33b167653a::t_c4373d2c0c371d 362
+policies/vap/deny-lent-taint-removal.yaml
+  s_cdca33b167653a::t_ce819459c23094 1-90
+tests/integration/admission/admission_test.sh
+  s_cdca33b167653a::t_ef5ba191e6f700 184-254
+  s_cdca33b167653a::t_403b8bba38a201 306-350
+  s_cdca33b167653a::t_9995ebca5ada5e 43-51
+  s_cdca33b167653a::t_8588a235408b4b 258-260
+  s_cdca33b167653a::t_270ce1068316af 287-290
+  s_cdca33b167653a::t_2836cd693a3d03 63-64,71-80
+  s_cdca33b167653a::t_bcbaee62e012dd 429-498
+  s_cdca33b167653a::t_0c1dadc8273b78 19-23
+  s_cdca33b167653a::t_4ce2707eab2d36 351
+  s_cdca33b167653a::t_49ad3700e880f6 499
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "94011f6921e9436cb54cebce2cd6d42317b23f54",
+  "prompts": {},
+  "sessions": {
+    "s_cdca33b167653a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
