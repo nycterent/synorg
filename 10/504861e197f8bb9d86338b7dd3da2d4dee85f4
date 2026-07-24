@@ -1,0 +1,25 @@
+clusters/pilot/observability/README.md
+  s_cdca33b167653a::t_ae906b5c5c5ad0 1-58
+scripts/validate.sh
+  s_cdca33b167653a::t_45b2f3e17c76cb 46-47
+  s_cdca33b167653a::t_d8e8f3d3b2549a 173-203
+  s_cdca33b167653a::t_e48fe398cba16d 23
+  s_cdca33b167653a::t_25489f54b41ac8 24
+  s_cdca33b167653a::t_d3984727ace677 204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "10504861e197f8bb9d86338b7dd3da2d4dee85f4",
+  "prompts": {},
+  "sessions": {
+    "s_cdca33b167653a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
