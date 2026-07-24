@@ -353,7 +353,12 @@ echo "live tier: reconcile.sh runs as $LENDING_SA (impersonating kubeconfig)"
 
 POOL_LABEL="karpenter.sh/nodepool=gpu-lendable"
 TAINT_KEY="lending.synorg.io/lent"
-NODE="${TEST_NODE:-$(k get nodes -o name | head -1 | cut -d/ -f2)}"
+# `sed -n 1p`, not `head -1`: head closes the pipe after one line, which SIGPIPEs
+# kubectl, and under `set -o pipefail` the assignment then exits non-zero and
+# `set -e` kills the run with no message (observed: a merge-commit run died here
+# right after the impersonation echo). sed reads to EOF, so kubectl always
+# finishes writing — same reason reconcile.sh uses non-`-q` greps.
+NODE="${TEST_NODE:-$(k get nodes -o name | sed -n 1p | cut -d/ -f2)}"
 [ -n "$NODE" ] || fail "live tier: no node found"
 
 # Remember the node's prior nodepool label so cleanup restores it instead of
@@ -468,7 +473,7 @@ write_fixture "$TMPDIR_T/reclaim.yaml" "00:00" "23:59" "$ALL_DAYS" 100 \
   "[{name: test-wave, startsAt: \"$NOW_HM\", reclaimFraction: 1.0, drainGraceSeconds: 120, preferPreScrubbed: true}]"
 # ensure the node is lent so the wave has something to reclaim
 SCHEDULE_FILE="$TMPDIR_T/open.yaml" MAX_TICKS=1 TICK_SECONDS=0 bash "$RECONCILE" >/dev/null
-if k api-versions | grep -q '^karpenter.sh/'; then
+if k api-versions | grep '^karpenter.sh/' >/dev/null; then
   skip "kind reclaim scenario (Karpenter present — this is not the kind path)"
 else
   set +e
@@ -485,7 +490,7 @@ fi
 #    untaint. window_open is strict (now < closesAt), so closesAt == now reads
 #    closed; the still-lent node must produce reclaim_intent (kind degradation
 #    path) with reason=window_close and only then end up untainted.
-if k api-versions | grep -q '^karpenter.sh/'; then
+if k api-versions | grep '^karpenter.sh/' >/dev/null; then
   skip "close-boundary scenario (Karpenter present — asserts the kind degradation path)"
 else
   # lend the node first, then tick once against the closing schedule
@@ -518,7 +523,7 @@ else
 fi
 
 # 8. wave once-semantics -> a due wave fires exactly once across 3 ticks
-if k api-versions | grep -q '^karpenter.sh/'; then
+if k api-versions | grep '^karpenter.sh/' >/dev/null; then
   skip "wave-once scenario (Karpenter present — kind log-only path required)"
 else
   SCHEDULE_FILE="$TMPDIR_T/open.yaml" MAX_TICKS=1 TICK_SECONDS=0 bash "$RECONCILE" >/dev/null
@@ -541,7 +546,7 @@ fi
 # in-flight reclaim. On a Karpenter cluster the re-drive is a REAL cordon+drain+
 # nodeclaim-delete that would terminate the live test node, so — like scenarios
 # 6-8 — this runs kind-only, where reclaim is log-only.
-if k api-versions | grep -q '^karpenter.sh/'; then
+if k api-versions | grep '^karpenter.sh/' >/dev/null; then
   skip "resume-incomplete scenario (Karpenter present — re-drive would really terminate the node)"
 else
   write_fixture "$TMPDIR_T/resume.yaml" "00:00" "23:59" "$ALL_DAYS" 100 "[]"
