@@ -289,7 +289,7 @@ fi
 # runs out-of-pod, and under the operator's own kubeconfig its window-close
 # untaint would be DENIED — a real admission verdict, not a harness artifact.
 # So give the loop the identity it runs with in production: a kubeconfig that
-# impersonates the ServiceAccount (act-as). This also pins reconcile.sh to
+# impersonates the ServiceAccount (user.as). This also pins reconcile.sh to
 # $KCTX, which it previously inherited from whatever context happened to be
 # current.
 LENDING_SA="system:serviceaccount:$(yq -r 'select(.kind == "ServiceAccount") | .metadata.namespace' "$RBAC_FILE"):$(yq -r 'select(.kind == "ServiceAccount") | .metadata.name' "$RBAC_FILE")"
@@ -311,7 +311,12 @@ fi
 CTRL_KUBECONFIG="$TMPDIR_T/kubeconfig-lending-controller"
 k config view --raw --minify --flatten >"$CTRL_KUBECONFIG" \
   || fail "live tier: could not export a kubeconfig for context $KCTX"
-yq eval -i ".users[0].user.\"act-as\" = \"$LENDING_SA\"" "$CTRL_KUBECONFIG"
+# The kubeconfig impersonation field is `user.as` (the external v1 kubeconfig
+# serialization). NOT `act-as` — that is the internal clientcmd/api yaml tag and
+# kubectl ignores it in a kubeconfig file, so the impersonation silently no-ops
+# and the window-close untaint is DENIED. Verified against a live apiserver
+# (kubectl v1.36): `user.as` impersonates, `user.act-as` does not.
+yq eval -i ".users[0].user.as = \"$LENDING_SA\"" "$CTRL_KUBECONFIG"
 export KUBECONFIG="$CTRL_KUBECONFIG"
 # k_ctrl — one-off controller-identity kubectl for the harness itself (cleanup).
 k_ctrl() { KUBECONFIG="$ORIG_KUBECONFIG" kubectl --context "$KCTX" --as "$LENDING_SA" "$@"; }
