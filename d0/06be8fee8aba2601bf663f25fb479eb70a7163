@@ -1,0 +1,30 @@
+controllers/lending/test.sh
+  s_cdca33b167653a::t_8b6ff23d8fff1a 266
+  s_cdca33b167653a::t_e47b00f67e48d1 277-289
+clusters/pilot/lending/schedule.yaml
+  s_cdca33b167653a::t_f27c269edb3891 132-140
+controllers/upgrade/upgrade-drain.sh
+  s_cdca33b167653a::t_bf33695e5c5434 80-84,86-87,90-94,96-98
+  s_cdca33b167653a::t_0b8431d553323f 85,88-89
+  s_cdca33b167653a::t_162254d9eb4b83 120-124
+controllers/lending/reconcile.sh
+  s_cdca33b167653a::t_b0049725727134 753-761
+  s_cdca33b167653a::t_98ad1bf7cd8591 337,340-341
+  s_cdca33b167653a::t_38e52a8f8b1a18 329-336,338-339,342-345
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d006be8fee8aba2601bf663f25fb479eb70a7163",
+  "prompts": {},
+  "sessions": {
+    "s_cdca33b167653a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
