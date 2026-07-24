@@ -1,0 +1,25 @@
+controllers/lending/test.sh
+  s_cdca33b167653a::t_0a88c0a54b2897 473-476,479
+controllers/lending/reconcile.sh
+  s_cdca33b167653a::t_f47dab8a626970 318-322
+  s_cdca33b167653a::t_bb318d1e6121f0 285-291
+  s_cdca33b167653a::t_8c0fbf1b26a4d9 308-309
+clusters/pilot/observability/recording-rules.yaml
+  s_cdca33b167653a::t_3828b38a87ff4c 95-129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "2cc7a6bee8dd6624cf35b79ec161e914dff304d9",
+  "prompts": {},
+  "sessions": {
+    "s_cdca33b167653a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
