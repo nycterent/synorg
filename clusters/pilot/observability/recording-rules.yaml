@@ -127,6 +127,50 @@ spec:
             (rts_reimage_seconds:p95 or vector(0))
             + (rts_orchestration_seconds:p95 or vector(0))
 
+    # -- Conservation: the held book decomposed into six buckets (U5, R18) --
+    # The "never descale" invariant is proven, not assumed: held must equal the
+    # sum of the five states a held node can occupy. A node in NONE of them
+    # (e.g. an operator-parked cordon that is not lent) makes the sum fall short
+    # of held — a capacity incident (R19). These rules are the Prometheus mirror;
+    # the authoritative partition + sum assertion lives in
+    # tests/integration/conservation/conservation_test.sh (node-state jq, no
+    # Prometheus in kind) and the lending ledger's held-vs-ODCR tie-out
+    # (tests/e2e/assertions.sh, credential-gated). Keep the three in sync.
+    # Buckets are disjoint by construction: in-transit (cordoned+lent) is carved
+    # out of lent; quarantine is its own taint; the floor is warm-floor-only.
+    - name: conservation
+      interval: 30s
+      rules:
+        - record: conservation:held:nodes
+          expr: count(kube_node_labels{label_karpenter_sh_nodepool=~"gpu-lendable|gpu-warm-floor"}) or vector(0)
+        # in-transit: lent AND cordoned = a reclaim in flight.
+        - record: conservation:in_transit:nodes
+          expr: count(kube_node_spec_taint{key="lending.synorg.io/lent"} and on (node) (kube_node_spec_unschedulable == 1)) or vector(0)
+        # lent-and-serving-training: lent AND schedulable (not yet reclaimed).
+        - record: conservation:lent:nodes
+          expr: count(kube_node_spec_taint{key="lending.synorg.io/lent"} unless on (node) (kube_node_spec_unschedulable == 1)) or vector(0)
+        - record: conservation:quarantine:nodes
+          expr: count(kube_node_spec_taint{key="lending.synorg.io/quarantine"}) or vector(0)
+        # owner-idle-floor: warm-floor nodes, never lent by design — the surge
+        # insurance the keep-or-shrink decision must not confuse with oversizing.
+        - record: conservation:owner_idle_floor:nodes
+          expr: count(kube_node_labels{label_karpenter_sh_nodepool="gpu-warm-floor"} unless on (node) kube_node_spec_taint{key="lending.synorg.io/lent"}) or vector(0)
+        # owner-serving: lendable nodes serving prod — held, not lent, not cordoned.
+        - record: conservation:owner_serving:nodes
+          expr: |
+            count(
+              kube_node_labels{label_karpenter_sh_nodepool="gpu-lendable"}
+              unless on (node) kube_node_spec_taint{key="lending.synorg.io/lent"}
+              unless on (node) (kube_node_spec_unschedulable == 1)
+            ) or vector(0)
+        # Reconciliation residual: held − Σ(five buckets). Non-zero = incident.
+        - record: conservation:residual:nodes
+          expr: |
+            conservation:held:nodes
+            - (conservation:owner_serving:nodes + conservation:owner_idle_floor:nodes
+               + conservation:lent:nodes + conservation:in_transit:nodes
+               + conservation:quarantine:nodes)
+
     # -- Borrower demand + held-capacity utilization (U6, R28, R2) ----------
     # The signals R2's curve-vs-leases graduation trigger needs, and the
     # keep-or-shrink decision on the held book. Dimensioned by `cluster_queue`
