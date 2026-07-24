@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "63029111f868",
+  "strategy": "manual-commit",
+  "branch": "nycterent/capacity-time-pass1-rest",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "clusters/pilot/lending/schedule.yaml",
+    "tests/integration/scheduling/scheduling_test.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/63/029111f868/0/metadata.json",
+      "transcript": "/63/029111f868/0/full.jsonl",
+      "compact_transcript": "/63/029111f868/0/transcript.jsonl",
+      "content_hash": "/63/029111f868/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 12069,
+    "cache_read_tokens": 6779665,
+    "output_tokens": 9217,
+    "api_call_count": 10
+  }
+}
