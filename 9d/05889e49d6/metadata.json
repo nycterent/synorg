@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "9d05889e49d6",
+  "strategy": "manual-commit",
+  "branch": "nycterent/capacity-time-pass1-rest",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "clusters/pilot/observability/recording-rules.yaml",
+    "docs/slo-catalog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9d/05889e49d6/0/metadata.json",
+      "transcript": "/9d/05889e49d6/0/full.jsonl",
+      "compact_transcript": "/9d/05889e49d6/0/transcript.jsonl",
+      "content_hash": "/9d/05889e49d6/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 7418,
+    "cache_read_tokens": 3112924,
+    "output_tokens": 5718,
+    "api_call_count": 5
+  }
+}
