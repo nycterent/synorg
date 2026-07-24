@@ -160,20 +160,34 @@ count: 1
 EOF
 }
 
+# sha256h — portable sha256 of stdin (hex, no filename). sha256sum in the
+# container, shasum -a 256 on a dev mac.
+sha256h() { if command -v sha256sum >/dev/null 2>&1; then sha256sum | cut -d' ' -f1; else shasum -a 256 | cut -d' ' -f1; fi; }
+
 # emit_evidence NODE ORIGIN SCRUB — append one per-return evidence record (U4,
 # R14) to the append-only JSONL sink. Fields: ts, node, borrow window (the
-# origin token: wave=<name> or reason=window_close), scrub outcome, and an
-# explicit attestation=not-enforced value — NEVER empty, so a later audit cannot
-# misread pass-1 records as attested (KTD4 / AE9). No image_digest field: the
-# controller never observes the replacement instance (the Node object disappears
-# with the terminated instance), so the digest lands with R13. Best-effort: a
-# sink write failure logs but never blocks the reclaim.
+# origin token), scrub outcome, and an explicit attestation=not-enforced value —
+# NEVER empty, so a later audit cannot misread pass-1 records as attested
+# (KTD4 / AE9). No image_digest: the controller never observes the replacement
+# instance, so the digest lands with R13.
+#
+# TAMPER-EVIDENCE (R14): each record hash-chains to the previous one. hash =
+# sha256(prev_hash + record-without-hash); prev_hash = the prior line's hash (""
+# for the genesis record). Altering or dropping any record breaks every hash
+# after it, so the append-only JSONL is verifiably intact after the fact —
+# `verify-evidence` (below) walks the chain. This is the pass-1 tamper-evidence;
+# a signed/notarized store is deferred with the attestation substrate.
+# Best-effort: a sink write failure logs but never blocks the reclaim.
 emit_evidence() {
-  local node="$1" origin="$2" scrub="$3" ts
+  local node="$1" origin="$2" scrub="$3" ts prev rec hash
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   mkdir -p "$(dirname "$EVIDENCE_FILE")" 2>/dev/null || true
-  printf '{"ts":"%s","node":"%s","borrow_window":"%s","scrub":"%s","attestation":"not-enforced"}\n' \
-    "$ts" "$node" "$origin" "$scrub" >>"$EVIDENCE_FILE" \
+  prev=""
+  [ -s "$EVIDENCE_FILE" ] && prev="$(tail -1 "$EVIDENCE_FILE" | jq -r '.hash // ""' 2>/dev/null || echo "")"
+  rec="$(jq -cn --arg ts "$ts" --arg n "$node" --arg o "$origin" --arg s "$scrub" --arg p "$prev" \
+    '{ts:$ts,node:$n,borrow_window:$o,scrub:$s,attestation:"not-enforced",prev_hash:$p}')"
+  hash="$(printf '%s' "$prev$rec" | sha256h)"
+  jq -cn --argjson r "$rec" --arg h "$hash" '$r + {hash:$h}' >>"$EVIDENCE_FILE" \
     || log warn action=evidence_record node="$node" msg="evidence sink write failed (non-fatal)"
   log info action=evidence_record node="$node" "$origin" scrub="$scrub" attestation=not-enforced
 }
@@ -802,6 +816,31 @@ main() {
 if [ "${1:-}" = "--print-borrow-path" ]; then
   command -v jq >/dev/null 2>&1 || { log error msg="jq not installed"; exit 1; }
   borrow_limit_path
+  exit 0
+fi
+
+# --verify-evidence [FILE]: walk the evidence hash chain (R14) and confirm it is
+# intact — every record's stored hash equals sha256(prev_hash + record) and its
+# prev_hash equals the prior record's hash. Any altered, dropped, or reordered
+# record breaks the chain from that point on. Exit 0 = intact, 1 = tampered.
+if [ "${1:-}" = "--verify-evidence" ]; then
+  command -v jq >/dev/null 2>&1 || { log error msg="jq not installed"; exit 1; }
+  f="${2:-$EVIDENCE_FILE}"
+  [ -s "$f" ] || { log info action=verify_evidence msg="no evidence records to verify"; exit 0; }
+  prev=""; n=0
+  while IFS= read -r line; do
+    n=$((n + 1))
+    rec="$(printf '%s' "$line" | jq -c 'del(.hash)')"
+    stored="$(printf '%s' "$line" | jq -r '.hash // ""')"
+    claimed_prev="$(printf '%s' "$line" | jq -r '.prev_hash // ""')"
+    calc="$(printf '%s' "$prev$rec" | sha256h)"
+    if [ "$claimed_prev" != "$prev" ] || [ "$calc" != "$stored" ]; then
+      log error action=verify_evidence record="$n" msg="hash chain BROKEN — a record was altered, dropped, or reordered"
+      exit 1
+    fi
+    prev="$stored"
+  done < "$f"
+  log info action=verify_evidence records="$n" msg="evidence chain intact"
   exit 0
 fi
 

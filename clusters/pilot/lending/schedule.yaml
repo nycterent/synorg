@@ -152,3 +152,13 @@ data:
       ceilingStepPct: 10
       wavePct: 100
       waveStepPct: 10
+
+    # attestation (R13): the attest step (controllers/attest/attest-node.sh).
+    # enabled=false is pass-1 — returns record attestation=not-enforced and no
+    # node is attested. Flipping to true is the pass-2 step that closes the
+    # no-attestation window (must land before pass2Gate.calendarDeadline). The
+    # real attestor is TPM-backed image-hash proof on the pilot; the control flow
+    # ships now behind the flag with a stub attestor.
+    attestation:
+      enabled: false             # false = pass-1 (not-enforced); true = enforce the attest step
+      expectedImageDigest: ""    # golden image digest a returning node must match (set with the golden-image pipeline)
