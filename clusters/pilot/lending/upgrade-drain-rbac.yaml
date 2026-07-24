@@ -1,0 +1,53 @@
+# RBAC for the upgrade-drain orchestrator (R11, controllers/upgrade/upgrade-drain.sh)
+# — the drain budget's second consumer. It cordons and drains nodes for an
+# upgrade, and reads node state (owner-floor check + the budget consult it shells
+# to reconcile.sh --budget-acquire). It does NOT scrub (no nodeclaims delete),
+# does NOT touch the borrow curve, and never removes the lending.synorg.io/lent
+# taint — the VAP (policies/vap/deny-lent-taint-removal.yaml) denies it that, so
+# an upgrade can never un-lend a node. Strictly a subset of lending-controller.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: upgrade-drain
+  namespace: lending
+  labels:
+    app.kubernetes.io/name: upgrade-drain
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: upgrade-drain
+  labels:
+    app.kubernetes.io/name: upgrade-drain
+rules:
+  # Cordon nodes (patch spec.unschedulable) and read node state for the
+  # owner-floor gate and the drain-budget count.
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "patch"]
+  # Drain: evict/read pods, honoring the grace.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/eviction"]
+    verbs: ["create"]
+  # kubectl drain --ignore-daemonsets resolves each DaemonSet-owned pod's owner.
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: upgrade-drain
+  labels:
+    app.kubernetes.io/name: upgrade-drain
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: upgrade-drain
+subjects:
+  - kind: ServiceAccount
+    name: upgrade-drain
+    namespace: lending

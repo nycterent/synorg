@@ -84,10 +84,11 @@ echo "$OUT" | grep -q 'action=upgrade_plan' \
   && fail "AE2: upgrade drained while the budget was full — must wait: $OUT"
 pass "AE2: reclaim holds the drain budget, upgrade defers (waits)"
 
-# AE2 part 2 — free the reclaim, the upgrade PROCEEDS.
+# AE2 part 2 — free the reclaim, the upgrade PROCEEDS. The drain budget counts
+# nodes that are cordoned AND carry the reclaiming marker, so clearing the marker
+# alone frees the budget. Do NOT remove the lent taint — that is exactly what the
+# U2 VAP denies to anyone but the lending controller (and it is unnecessary here).
 k annotate node up-inflight lending.synorg.io/reclaiming- >/dev/null
-k uncordon up-inflight >/dev/null
-k taint node up-inflight "$LENT:NoSchedule-" >/dev/null
 OUT="$(run_drain)"
 echo "$OUT" | grep -q 'action=upgrade_plan node=up-target' \
   || fail "AE2: upgrade did not proceed after the reclaim freed the budget: $OUT"
