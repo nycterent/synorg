@@ -1,0 +1,37 @@
+policies/tests/generate-web-tier-quota/generated-quota.yaml
+  s_cdca33b167653a::t_8bcaec4cef15e4 1-37
+policies/tests/generate-web-tier-quota/kyverno-test.yaml
+  s_cdca33b167653a::t_7cce6927c8b29c 22
+  s_cdca33b167653a::t_1b8b6f9ae6c2d4 1-21,23-27,29-33,35-37
+  s_cdca33b167653a::t_597be9567bc57e 28,34
+charts/golden-service/templates/rbac.yaml
+  s_cdca33b167653a::t_0def9de9fa11e1 1-48
+charts/golden-service/ci/web.yaml
+  s_cdca33b167653a::t_7ead6cc1f00df8 21-22
+charts/golden-service/values.yaml
+  s_cdca33b167653a::t_8fd84d891c6f0b 54-56
+charts/golden-service/values.schema.json
+  s_cdca33b167653a::t_c0255babd63824 170-176
+policies/tests/generate-web-tier-quota/resources.yaml
+  s_cdca33b167653a::t_6b0d53a92909fb 1-15
+policies/kyverno/generate-web-tier-quota.yaml
+  s_cdca33b167653a::t_745eb924966980 29-37
+  s_cdca33b167653a::t_d0d1bae54e5aea 1-28,38-70,76-103
+  s_cdca33b167653a::t_f19eebb46b83a3 71-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a2d6c1c798a155a65b85b50e6dee4c2e2cf4a7e4",
+  "prompts": {},
+  "sessions": {
+    "s_cdca33b167653a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
