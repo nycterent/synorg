@@ -294,6 +294,38 @@ window_open() {
   return 1
 }
 
+# drains_in_flight NODES_JSON — count reclaims currently in flight on the pool:
+# a node cordoned (unschedulable) AND carrying the reclaiming marker. This is
+# the shared denominator the drain budget accounts against; it is derived from
+# cluster state (stateless, crash-safe) so "release" is automatic — a node drops
+# out of the count the moment its NodeClaim is deleted (it terminates and leaves
+# the node list) or the degraded path clears its reclaiming marker.
+drains_in_flight() {
+  echo "$1" | jq '[.items[]
+    | select(.spec.unschedulable == true)
+    | select((.metadata.annotations["lending.synorg.io/reclaiming"] // "") != "")] | length'
+}
+
+# budget_available POOL THISNODE NODES_JSON — the shared drain-budget gate (U7,
+# R9/R10). Returns 0 (available) when maxConcurrentDrains is 0 (unlimited), when
+# THISNODE is already in flight (re-driving consumes no NEW budget), or when
+# in-flight < cap. Reclaim is the only live consumer today; upgrades consult the
+# same gate via `--budget-acquire` (KTD6 — cluster upgrades are not driven by
+# this controller yet, so the second consumer is a stub). Reclaim draws first:
+# an upgrade only gets budget the reclaim waves leave unused.
+budget_available() {
+  local pool="$1" thisnode="$2" nodes_json="$3" cap inflight
+  cap="$(yq -r '.targets.maxConcurrentDrains // 0' "$SCHEDULE_FILE")"
+  [ "$cap" -eq 0 ] 2>/dev/null && return 0
+  if [ -n "$thisnode" ] && echo "$nodes_json" | jq -e --arg n "$thisnode" \
+      '.items[] | select(.metadata.name == $n) | select(.spec.unschedulable == true)
+       | select((.metadata.annotations["lending.synorg.io/reclaiming"] // "") != "")' >/dev/null 2>&1; then
+    return 0
+  fi
+  inflight="$(drains_in_flight "$nodes_json")"
+  [ "$inflight" -lt "$cap" ]
+}
+
 # reclaim_node NODE GRACE ORIGIN KARPENTER NODECLAIMS_JSON — the single
 # reclaim path, shared by the waves and the window-close transition. ORIGIN is
 # a preformatted log token ("wave=<name>" or "reason=window_close").
@@ -455,6 +487,13 @@ reconcile_taints() {
         '.items[] | select(.metadata.name == $n) | .spec.unschedulable // false')"
       # Already cordoned = a wave's reclaim is in flight — do not double-act.
       [ "$cordoned" != "true" ] || continue
+      # Drain budget (U7, R9/R10): if the budget is full, defer — leave the node
+      # LENT (not untainted) so it is retried next tick. This is a deferral, not
+      # the degraded path: the node has not been drained.
+      if ! budget_available "$pool" "$node" "$nodes_json"; then
+        log info action=budget_deferred node="$node" pool="$pool" reason=window_close msg="drain budget full — deferring, node stays lent"
+        continue
+      fi
       # Grace matches the schedule's drainGraceSeconds default (waves carry
       # their own value; the close transition uses the same default).
       if reclaim_node "$node" 120 "reason=window_close" "$karpenter" "$nodeclaims_json"; then
@@ -652,6 +691,21 @@ reconcile_waves() {
     count="$(awk -v n="$(echo "$lent" | wc -l | tr -d ' ')" -v f="$fraction" \
       'BEGIN { c = n * f; printf "%d", (c == int(c)) ? c : int(c) + 1 }')"
     local wave_name; wave_name="$(yq -r ".reclaimWaves[$i].name" "$SCHEDULE_FILE")"
+    # Drain budget (U7, R9/R10): cap this wave's NEW drains by remaining budget.
+    # Reclaim draws first — an upgrade consumer (via --budget-acquire) gets only
+    # what the waves leave unused (KTD6). in-flight is derived from cluster state,
+    # so budget "releases" automatically as nodes terminate or degrade.
+    local maxdrains; maxdrains="$(yq -r '.targets.maxConcurrentDrains // 0' "$SCHEDULE_FILE")"
+    if [ "$maxdrains" -gt 0 ] 2>/dev/null; then
+      local inflight remaining
+      inflight="$(drains_in_flight "$(kc get nodes -l "karpenter.sh/nodepool=$pool" -o json)")"
+      remaining=$(( maxdrains - inflight )); [ "$remaining" -lt 0 ] && remaining=0
+      if [ "$count" -gt "$remaining" ]; then
+        log info action=budget_deferred wave="$wave_name" pool="$pool" cap="$maxdrains" inflight="$inflight" msg="drain budget caps this wave to $remaining new drains (wanted $count); the rest stay lent for the next tick"
+        count="$remaining"
+      fi
+      [ "$count" -eq 0 ] && continue
+    fi
     log info action=reclaim_wave wave="$wave_name" lent_nodes="$(echo "$lent" | wc -l | tr -d ' ')" reclaiming="$count"
     # One cluster-wide NodeClaim fetch per wave (not per node): each node maps
     # to a distinct claim, so looking a node's claim up from this cache stays
@@ -723,6 +777,26 @@ if [ "${1:-}" = "--print-borrow-path" ]; then
   command -v jq >/dev/null 2>&1 || { log error msg="jq not installed"; exit 1; }
   borrow_limit_path
   exit 0
+fi
+
+# --budget-acquire CONSUMER: the shared drain-budget consumer interface (U7,
+# R9/R10). A non-reclaim consumer (a future cluster-upgrade driver — not built,
+# KTD6) consults the SAME budget the reclaim waves draw from before initiating
+# its own drains. Reclaim draws first, so this only grants budget the waves
+# leave unused. Exit 0 (granted) / 1 (refused). Stateless: in-flight is derived
+# from live cluster state, so nothing to release.
+if [ "${1:-}" = "--budget-acquire" ]; then
+  command -v jq >/dev/null 2>&1 || { log error msg="jq not installed"; exit 1; }
+  consumer="${2:-unknown}"
+  pool="$(yq -r '.targets.lendablePool // "gpu-lendable"' "$SCHEDULE_FILE")"
+  nodes_json="$(kc get nodes -l "karpenter.sh/nodepool=$pool" -o json)"
+  # Empty THISNODE = a fresh acquire (the consumer holds no in-flight node).
+  if budget_available "$pool" "" "$nodes_json"; then
+    log info action=budget_granted consumer="$consumer" pool="$pool"
+    exit 0
+  fi
+  log info action=budget_refused consumer="$consumer" pool="$pool" reason=drain_budget_full
+  exit 1
 fi
 
 main "$@"

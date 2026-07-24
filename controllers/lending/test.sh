@@ -260,6 +260,22 @@ reclaimWaves: []
 EOF
 assert_invalid_no_actuation "lendablePool is warm floor (gpu-warm-floor)" "$TMPDIR_T/warm-floor-pool.yaml"
 
+# U7 drain-budget arithmetic (R9/R10) — offline, no cluster. Source the budget
+# functions and drive them with synthetic node JSON + a temp schedule.
+{
+  eval "$(sed -n '/^drains_in_flight()/,/^}/p;/^budget_available()/,/^}/p' "$RECONCILE")"
+  BSF="$TMPDIR_T/sched-budget.yaml"
+  IF1='{"items":[{"metadata":{"name":"a","annotations":{"lending.synorg.io/reclaiming":"t"}},"spec":{"unschedulable":true}}]}'
+  IF2='{"items":[{"metadata":{"name":"a","annotations":{"lending.synorg.io/reclaiming":"t"}},"spec":{"unschedulable":true}},{"metadata":{"name":"b","annotations":{"lending.synorg.io/reclaiming":"t"}},"spec":{"unschedulable":true}}]}'
+  printf 'targets:\n  maxConcurrentDrains: 2\n' >"$BSF"
+  SCHEDULE_FILE="$BSF" budget_available gpu-lendable "" "$IF1" || fail "budget: 1 in-flight under cap 2 should be available"
+  SCHEDULE_FILE="$BSF" budget_available gpu-lendable "" "$IF2" && fail "budget: 2 in-flight at cap 2 must be refused, not queued silently"
+  SCHEDULE_FILE="$BSF" budget_available gpu-lendable "a" "$IF2" || fail "budget: a node already in flight must not consume NEW budget (re-drive)"
+  printf 'targets:\n  maxConcurrentDrains: 0\n' >"$BSF"
+  SCHEDULE_FILE="$BSF" budget_available gpu-lendable "" "$IF2" || fail "budget: cap 0 must mean unlimited"
+  pass "drain budget: cap gates new drains, refuses at cap, exempts re-drives, 0 = unlimited"
+}
+
 # --- live tier -------------------------------------------------------------
 
 if [ "$OFFLINE_ONLY" = "1" ]; then

@@ -43,6 +43,7 @@ data:
       lendablePool: gpu-lendable                       # Karpenter NodePool name (never edited, only its Nodes tainted)
       lentTaint: "lending.synorg.io/lent=true:NoSchedule"  # added to Node objects while lent; removed on return-to-prod
       trainingQueue: training-borrow                   # Kueue ClusterQueue whose borrowingLimit this curve drives (U6 owns the file)
+      maxConcurrentDrains: 3                            # drain-budget cap (U7, R9/R10): max nodes draining at once, shared by reclaim waves and any upgrade consumer. 0 = unlimited. Reclaim draws first; upgrades consult via `reconcile.sh --budget-acquire`.
 
     # windows: when the lendable pool may carry training. Opening the window
     # flips the lent taint ON (training tolerates it, inference does not);
