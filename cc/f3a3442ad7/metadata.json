@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "ccf3a3442ad7",
+  "strategy": "manual-commit",
+  "branch": "nycterent/capacity-time-tenancy",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "charts/golden-service/ci/web.yaml",
+    "charts/golden-service/templates/rbac.yaml",
+    "charts/golden-service/values.schema.json",
+    "charts/golden-service/values.yaml",
+    "policies/kyverno/generate-web-tier-quota.yaml",
+    "policies/tests/generate-web-tier-quota/generated-quota.yaml",
+    "policies/tests/generate-web-tier-quota/kyverno-test.yaml",
+    "policies/tests/generate-web-tier-quota/resources.yaml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/cc/f3a3442ad7/0/metadata.json",
+      "transcript": "/cc/f3a3442ad7/0/full.jsonl",
+      "compact_transcript": "/cc/f3a3442ad7/0/transcript.jsonl",
+      "content_hash": "/cc/f3a3442ad7/0/content_hash.txt",
+      "prompt": "/cc/f3a3442ad7/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 244,
+    "cache_creation_tokens": 970054,
+    "cache_read_tokens": 40621503,
+    "output_tokens": 169607,
+    "api_call_count": 129
+  }
+}
