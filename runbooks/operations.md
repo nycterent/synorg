@@ -43,6 +43,14 @@ to all regions (the cohort borrowing-order bug, kueue#7016, is version
 sensitive). For Karpenter, confirm the reserved-capacity feature stays enabled
 or NodePools silently fall back to on-demand.
 
+**Drain budget (U7).** Node-draining upgrades and the lending reclaim waves share
+one budget: `targets.maxConcurrentDrains` in the lending schedule ConfigMap (0 =
+unlimited). Reclaim draws first — an upgrade that drains nodes must consult the
+budget with `reconcile.sh --budget-acquire upgrade` (exit 0 granted / 1 refused)
+before cordoning, so a component upgrade never fights a morning reclaim for the
+same drain headroom. In-flight count is derived from live node state, so there is
+nothing to release; a refused upgrade simply retries once the waves free capacity.
+
 ## On-call
 
 New to operating synorg? Start with the
