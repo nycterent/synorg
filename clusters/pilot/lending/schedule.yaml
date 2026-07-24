@@ -121,3 +121,11 @@ data:
       minSamplesPerStage: null   # UNSET — min RTS observations per stage before its p95 is published
       stabilityBandPct: null     # UNSET — max p95 drift across consecutive cycles that still counts as "stable by stage"
       calendarDeadline: null     # UNSET — hard date by which the two above are set (bounds the no-attestation window)
+
+    # upgrade (R11): stop conditions for the upgrade-drain orchestrator
+    # (controllers/upgrade/upgrade-drain.sh) — the drain budget's second consumer.
+    # Reclaim draws the budget first; an upgrade drains only leftover headroom and
+    # halts before eroding the owner floor or compounding a stressed return path.
+    upgrade:
+      ownerFloorMinNodes: 1        # never drain the warm floor below this many Ready nodes for an upgrade
+      rtsP95BudgetSeconds: 600     # halt upgrades when RTS p95 exceeds this (mirrors nodeReturnToServiceBudgetSeconds)
