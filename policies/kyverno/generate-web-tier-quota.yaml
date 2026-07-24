@@ -1,0 +1,103 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: generate-web-tier-quota
+  annotations:
+    policies.kyverno.io/title: Web-tier namespace quota and container limits
+    policies.kyverno.io/category: multi-tenancy
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Web-tier teams share a general-purpose pool, so an unbounded namespace is
+      a noisy-neighbour risk to every other team on it (R21, R22). Every
+      namespace labeled workload.synorg.io/class=web that carries an owning team
+      gets a generated ResourceQuota and LimitRange. This is a generate rule and
+      not a validate rule on purpose: a ResourceQuota lives *inside* the
+      namespace being admitted, so denying a Namespace for lacking one is
+      unsatisfiable. Generating makes absence impossible instead of rejected.
+spec:
+  # Generate rules only create the target; no admission verdict on the trigger.
+  rules:
+    - name: generate-web-tier-resourcequota
+      match:
+        any:
+          - resources:
+              kinds:
+                - Namespace
+              selector:
+                matchLabels:
+                  workload.synorg.io/class: web
+      # Keyed on ownership, not on a specific team: any namespace that names an
+      # owner is in scope, one that names none is not. Written as a precondition
+      # rather than a label selector so the skip is an assertable verdict — a
+      # selector miss produces no rule response for the fixture to check.
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.labels.\"team.synorg.io/name\" || '' }}"
+            operator: NotEquals
+            value: ""
+      generate:
+        apiVersion: v1
+        kind: ResourceQuota
+        name: web-tier-quota
+        namespace: "{{ request.object.metadata.name }}"
+        synchronize: true
+        generateExisting: true
+        data:
+          metadata:
+            labels:
+              app.kubernetes.io/managed-by: kyverno
+              policy.synorg.io/name: generate-web-tier-quota
+          spec:
+            hard:
+              requests.cpu: "8"
+              requests.memory: 16Gi
+              limits.cpu: "16"
+              limits.memory: 32Gi
+              pods: "50"
+              # Web never gets a GPU (the chart schema rejects it too); a zero
+              # hard quota makes that true at the namespace even if a team
+              # bypasses the golden chart.
+              requests.nvidia.com/gpu: "0"
+
+    - name: generate-web-tier-limitrange
+      match:
+        any:
+          - resources:
+              kinds:
+                - Namespace
+              selector:
+                matchLabels:
+                  workload.synorg.io/class: web
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.labels.\"team.synorg.io/name\" || '' }}"
+            operator: NotEquals
+            value: ""
+      generate:
+        apiVersion: v1
+        kind: LimitRange
+        name: web-tier-limits
+        namespace: "{{ request.object.metadata.name }}"
+        synchronize: true
+        generateExisting: true
+        data:
+          metadata:
+            labels:
+              app.kubernetes.io/managed-by: kyverno
+              policy.synorg.io/name: generate-web-tier-quota
+          spec:
+            limits:
+              # Defaults match the golden chart's own resource block, so a pod
+              # that omits resources lands on the same numbers a chart render
+              # would have given it — and a hand-written pod cannot burn the
+              # whole namespace quota by requesting nothing.
+              - type: Container
+                default:
+                  cpu: "1"
+                  memory: 512Mi
+                defaultRequest:
+                  cpu: 100m
+                  memory: 128Mi
+                max:
+                  cpu: "4"
+                  memory: 8Gi

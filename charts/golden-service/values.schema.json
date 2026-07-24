@@ -167,6 +167,13 @@
         "create": { "type": "boolean", "description": "Create a ServiceAccount for the workload." },
         "name": { "type": "string", "description": "ServiceAccount name; defaults to the release fullname when created, else \"default\"." }
       }
+    },
+    "rbac": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": { "type": "boolean", "description": "Render a namespace-scoped Role and RoleBinding granting the owning team read access to its own namespace. Bound to the identity-provider group team:<team>. A Role cannot reach another namespace, so no cross-namespace read is possible." }
+      }
     }
   }
 }
