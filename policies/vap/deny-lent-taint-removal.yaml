@@ -1,0 +1,90 @@
+# Break-glass cannot hand a lent node back (R25). While a node is lent, the
+# lending.synorg.io/lent taint is the only thing keeping owner (inference)
+# workload off it — those pods carry no toleration for it. An operator with
+# node write access can therefore return a lent node to owner-served state with
+# one `kubectl taint node <n> lending.synorg.io/lent-`, skipping the reclaim
+# path entirely: no drain, no NodeClaim delete, no scrub. The GPU keeps the
+# borrower's VRAM and the borrower's processes, and the next inference pod
+# lands on it. R25 excluded that from break-glass procedurally; this makes it
+# enforceable.
+#
+# Mechanism (KTD2): a stateless field rule over old-vs-new on Node UPDATE, so
+# it runs as a built-in ValidatingAdmissionPolicy (CEL) with no webhook
+# latency, exactly like deny-cross-namespace-refs. Every lent taint present in
+# oldObject must still be present in object with the same effect. Only the
+# lending controller's ServiceAccount is exempt — it is the reclaim path.
+#
+# What break-glass CAN still do, by construction: this rule matches "nodes"
+# only, never "nodes/status", and it only ever compares the lent taint. Cordon
+# (spec.unschedulable), adding taints, labels, annotations, pod eviction, and
+# deleting the Node object are all untouched. An operator can still take a node
+# out of service in an emergency; they cannot silently put a lent one back in.
+#
+# Effect, not value, is the comparison: owner pods tolerate nothing here, so a
+# lent taint with any value still repels them — but flipping NoSchedule to
+# PreferNoSchedule would let them land, which is the same escape as removal.
+#
+# Scope caveat (v0): the exemption is the controller's identity, not its
+# intent. A principal able to impersonate system:serviceaccount:lending:
+# lending-controller, or to exec into the controller pod, is outside what an
+# admission rule can distinguish.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: deny-lent-taint-removal
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      # UPDATE only, and the node object itself — kubelet status heartbeats go
+      # to the nodes/status subresource and never reach this policy.
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["UPDATE"]
+        resources: ["nodes"]
+  variables:
+    # The taint key the lending controller flips; it must stay in sync with
+    # targets.lentTaint in clusters/pilot/lending/schedule.yaml
+    # ("lending.synorg.io/lent=true:NoSchedule"). CEL cannot read the schedule,
+    # so the key is stated here and the integration test asserts both sides.
+    - name: lentKey
+      expression: '"lending.synorg.io/lent"'
+    - name: oldLent
+      expression: >-
+        has(oldObject.spec.taints)
+          ? oldObject.spec.taints.filter(t, t.key == variables.lentKey)
+          : []
+    - name: newLent
+      expression: >-
+        has(object.spec.taints)
+          ? object.spec.taints.filter(t, t.key == variables.lentKey)
+          : []
+    # The reclaim path itself. This is the ONLY exempt principal: the
+    # controller untaints a node exclusively on the degraded paths it logs
+    # (reclaim_node returning 1), never as a bare return-to-prod.
+    - name: isLendingController
+      expression: >-
+        request.userInfo.username == "system:serviceaccount:lending:lending-controller"
+  validations:
+    # A no-op for every node that is not lent: oldLent is empty and .all() over
+    # an empty list is true, so nodes that never carried the taint are
+    # unaffected regardless of what the update does to their taints.
+    - expression: >-
+        variables.isLendingController ||
+        variables.oldLent.all(o, variables.newLent.exists(n, n.effect == o.effect))
+      messageExpression: >-
+        'Node ' + object.metadata.name + ' is lent; removing or weakening the ' + variables.lentKey +
+        ' taint would return it to owner-served state without the reclaim path (drain, NodeClaim delete, scrub). ' +
+        'Only the lending controller may clear it — break-glass may cordon, drain, or delete this node, not un-lend it (R25).'
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: deny-lent-taint-removal-binding
+spec:
+  policyName: deny-lent-taint-removal
+  validationActions:
+    - Deny
+  # No matchResources: Node is cluster-scoped, so there is no namespace to
+  # select on, and the policy is a no-op for any node without the lent taint.
