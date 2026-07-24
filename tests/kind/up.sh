@@ -104,9 +104,18 @@ WEB_NODE="$(k get nodes -l pool.synorg.io/name=web -o jsonpath='{.items[0].metad
 # U2's cross-namespace VAP test silently no-ops if the API is absent (k8s <1.30
 # node image), so fail loudly here instead of passing vacuously later.
 step "precheck: admissionregistration.k8s.io/v1 ValidatingAdmissionPolicy served"
-k api-resources --api-group=admissionregistration.k8s.io -o name 2>/dev/null \
-  | grep -q '^validatingadmissionpolicies\.' \
-  || fail "ValidatingAdmissionPolicy v1 is not served — the kindest/node image in cluster.yaml must be k8s >= 1.30"
+# Poll, don't check once: API-group discovery is not always populated in the
+# instant after control-plane Ready, so a single check flakes (observed: a
+# merge-commit run failed here 57s in while the same image passed minutes before
+# and after). Retry ~30s before failing — a real "API absent" (k8s <1.30 image)
+# still fails loudly, just after the grace rather than on a discovery race.
+vap_served() { k api-resources --api-group=admissionregistration.k8s.io -o name 2>/dev/null | grep -q '^validatingadmissionpolicies\.'; }
+vap_ok=0
+for _ in $(seq 1 15); do
+  if vap_served; then vap_ok=1; break; fi
+  sleep 2
+done
+[ "$vap_ok" = 1 ] || fail "ValidatingAdmissionPolicy v1 not served after 30s — the kindest/node image in cluster.yaml must be k8s >= 1.30"
 echo "OK"
 
 # --- 3. Kyverno (pinned to the repo's CLI version) ---------------------------
