@@ -1,0 +1,20 @@
+controllers/lending/test.sh
+  s_cdca33b167653a::t_6778dfae9cf2e9 314-319
+  s_cdca33b167653a::t_e6516614f3dc14 292
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ef055be467957ca0d3a9229529a0fe2819e24112",
+  "prompts": {},
+  "sessions": {
+    "s_cdca33b167653a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
