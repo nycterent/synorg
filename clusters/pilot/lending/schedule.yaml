@@ -138,3 +138,17 @@ data:
     # human sets it before pass 1's no-attestation window closes (see pass2Gate).
     quarantine:
       maxNodes: 0                  # 0 = disabled until sized; >0 = halt reclaim + upgrades at this many quarantined nodes
+
+    # governor (R6/R26/R27): the RTS-governor knobs (controllers/governor/rts-governor.sh).
+    # ceilingPct/wavePct are the governor-managed lending aggressiveness (100 = full).
+    # The governor steps them one notch per cycle toward the RTS budget and proposes
+    # the result for the NEXT window, landed by PR (R25). Inside ±holdBand of the
+    # budget nothing changes (R27 damping). Magnitudes tuned on the pilot; the loop
+    # math is complete and pilot-independent.
+    governor:
+      rtsP95BudgetSeconds: 600
+      holdBandSeconds: 60
+      ceilingPct: 100
+      ceilingStepPct: 10
+      wavePct: 100
+      waveStepPct: 10
