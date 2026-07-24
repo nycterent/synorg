@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "6412d7ef9d9a",
+  "strategy": "manual-commit",
+  "branch": "nycterent/upgrade-orchestration",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "clusters/pilot/lending/upgrade-drain-rbac.yaml",
+    "tests/integration/upgrade/upgrade_test.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/64/12d7ef9d9a/0/metadata.json",
+      "transcript": "/64/12d7ef9d9a/0/full.jsonl",
+      "compact_transcript": "/64/12d7ef9d9a/0/transcript.jsonl",
+      "content_hash": "/64/12d7ef9d9a/0/content_hash.txt",
+      "prompt": "/64/12d7ef9d9a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 15377,
+    "cache_read_tokens": 8033217,
+    "output_tokens": 13285,
+    "api_call_count": 11
+  }
+}
