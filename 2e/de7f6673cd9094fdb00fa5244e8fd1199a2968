@@ -1,0 +1,21 @@
+clusters/pilot/observability/recording-rules.yaml
+  s_cdca33b167653a::t_1c4141e31d4409 130-164
+docs/slo-catalog.md
+  s_cdca33b167653a::t_003b1e2b447a6e 40-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "2ede7f6673cd9094fdb00fa5244e8fd1199a2968",
+  "prompts": {},
+  "sessions": {
+    "s_cdca33b167653a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
