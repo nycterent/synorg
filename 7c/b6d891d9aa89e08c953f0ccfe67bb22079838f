@@ -1,0 +1,21 @@
+clusters/pilot/lending/schedule.yaml
+  s_cdca33b167653a::t_d69b88ce701985 111-123
+tests/integration/scheduling/scheduling_test.sh
+  s_cdca33b167653a::t_61ad18f2e2da73 464-493,495
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "7cb6d891d9aa89e08c953f0ccfe67bb22079838f",
+  "prompts": {},
+  "sessions": {
+    "s_cdca33b167653a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
