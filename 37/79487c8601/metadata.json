@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "3779487c8601",
+  "strategy": "manual-commit",
+  "branch": "nycterent/fix-head-sigpipe-flake",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "controllers/lending/test.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/37/79487c8601/0/metadata.json",
+      "transcript": "/37/79487c8601/0/full.jsonl",
+      "compact_transcript": "/37/79487c8601/0/transcript.jsonl",
+      "content_hash": "/37/79487c8601/0/content_hash.txt",
+      "prompt": "/37/79487c8601/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 33,
+    "cache_creation_tokens": 22715,
+    "cache_read_tokens": 15600489,
+    "output_tokens": 13021,
+    "api_call_count": 19
+  }
+}
