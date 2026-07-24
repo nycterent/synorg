@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "f460a1fbe800",
+  "strategy": "manual-commit",
+  "branch": "nycterent/capacity-time-tenancy",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "clusters/pilot/observability/README.md",
+    "scripts/validate.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f4/60a1fbe800/0/metadata.json",
+      "transcript": "/f4/60a1fbe800/0/full.jsonl",
+      "compact_transcript": "/f4/60a1fbe800/0/transcript.jsonl",
+      "content_hash": "/f4/60a1fbe800/0/content_hash.txt",
+      "prompt": "/f4/60a1fbe800/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 244,
+    "cache_creation_tokens": 970054,
+    "cache_read_tokens": 40621503,
+    "output_tokens": 169607,
+    "api_call_count": 129
+  }
+}
