@@ -1,0 +1,25 @@
+clusters/pilot/lending/schedule.yaml
+  s_cdca33b167653a::t_601b6affafcb67 124-131
+controllers/upgrade/upgrade-drain.sh
+  s_cdca33b167653a::t_db264a91136dd1 1-35,38-75,79-146
+  s_cdca33b167653a::t_24a054252c57ab 76-78
+  s_cdca33b167653a::t_342e579df7fe5d 36-37
+tests/integration/upgrade/upgrade_test.sh
+  s_cdca33b167653a::t_48ba8795878f3f 1-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ba5137446900a4467286f09c746f0aac206e025b",
+  "prompts": {},
+  "sessions": {
+    "s_cdca33b167653a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
