@@ -1,0 +1,19 @@
+tests/kind/up.sh
+  s_cdca33b167653a::t_d18848d66e3e05 107-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "1cc6e5124ce9ad1d1bc7a82ac90a73560cc486cb",
+  "prompts": {},
+  "sessions": {
+    "s_cdca33b167653a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1d74260-951e-458d-85cc-c6dad8e250aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Marty <saint@ghost.lt>"
+    }
+  }
+}
